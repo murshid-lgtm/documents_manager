@@ -1,0 +1,73 @@
+'use client';
+import { useEffect,useState } from 'react';
+import { supabase } from '../lib/supabase';
+
+export default function Login({resetMode=false,onResetComplete}) {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [mode,setMode]=useState(resetMode?'reset':'signin');
+  const [notice,setNotice]=useState('');
+  const [brand,setBrand]=useState(null);
+  useEffect(()=>{let live=true;(async()=>{const host=window.location.host;const slug=process.env.NEXT_PUBLIC_ORGANIZATION_SLUG||null;const {data}=await supabase.rpc('public_branding',{request_host:host,requested_slug:slug});if(live&&data){setBrand(data);document.title=data.product_name||'Document Tracker';if(data.favicon_url){let link=document.querySelector("link[rel='icon']");if(!link){link=document.createElement('link');link.rel='icon';document.head.appendChild(link)}link.href=data.favicon_url}}})().catch(()=>{});return()=>{live=false}},[]);
+  const company=brand?.company_name||'Your Organization',product=brand?.product_name||'Document Operations',mark=(brand?.short_name||company||'D').slice(0,1).toUpperCase();
+
+  async function submit(e) {
+    e.preventDefault(); setLoading(true); setError('');
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) setError(error.message);
+    setLoading(false);
+  }
+  async function requestReset(e){
+    e.preventDefault();setLoading(true);setError('');setNotice('');
+    const redirectTo=typeof window!=='undefined'?window.location.origin:undefined;
+    const {error}=await supabase.auth.resetPasswordForEmail(email,{redirectTo});
+    if(error)setError(error.message);else setNotice('Password reset link sent. Check your email inbox.');
+    setLoading(false);
+  }
+  async function savePassword(e){
+    e.preventDefault();setLoading(true);setError('');
+    if(password.length<8){setError('Use at least 8 characters for your new password.');setLoading(false);return}
+    const {error}=await supabase.auth.updateUser({password});
+    if(error)setError(error.message);else{setNotice('Password updated successfully.');setTimeout(()=>onResetComplete?.(),700)}
+    setLoading(false);
+  }
+
+  return <main className="auth-shell auth-shell-v329">
+    <section className="auth-saas-panel">
+      <div className="auth-saas-brand"><div className="brand-mark">{brand?.logo_url?<img src={brand.logo_url} alt=""/>:mark}</div><div><strong>{product}</strong><span>{company}</span></div></div>
+      <div className="auth-saas-copy"><span className="auth-saas-kicker"><i></i> LIVE OPERATIONS WORKSPACE</span><h1>{brand?.login_title||<>Every document.<br/>Every stage.<br/><em>One clear view.</em></>}</h1><p>{brand?.login_subtitle||'Run cases, payments, custody transfers and customer deliveries from one secure operations command center.'}</p></div>
+      <div className="auth-product-preview">
+        <div className="auth-preview-top"><span><i></i><i></i><i></i></span><b>Today’s operations</b><small>Live</small></div>
+        <div className="auth-preview-kpis"><div><span>ACTIVE CASES</span><strong>1,636</strong><small>Across all branches</small></div><div><span>READY</span><strong>650</strong><small>For customer delivery</small></div><div><span>IN TRANSIT</span><strong>12</strong><small>Branch handovers</small></div></div>
+        <div className="auth-preview-flow"><span className="done">Received</span><b></b><span className="done">Processing</span><b></b><span>Ready</span></div>
+      </div>
+      <div className="auth-feature-row"><span>✓ Branch-aware workflows</span><span>✓ Live custody tracking</span><span>✓ Secure role access</span></div>
+    </section>
+    <section className="auth-login-zone"><div className="auth-card auth-card-v329">
+      <div className="auth-mobile-brand"><div className="brand-mark">{brand?.logo_url?<img src={brand.logo_url} alt=""/>:mark}</div><div><strong>{product}</strong><span>{company}</span></div></div>
+      <div className="auth-security-chip"><span></span> Secure operations workspace</div>
+      <div className="auth-copy"><h2>{mode==='reset'?'Create new password':mode==='forgot'?'Reset password':'Welcome back'}</h2><p className="muted">{mode==='reset'?'Enter a secure new password for your account.':mode==='forgot'?'We will send a secure reset link to your work email.':'Sign in to continue to your operations dashboard.'}</p></div>
+      {mode==='signin'&&<form onSubmit={submit} className="stack">
+        <label>Email address<input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="name@company.com" autoComplete="username" required autoFocus /></label>
+        <label><span className="auth-label-row">Password<button type="button" onClick={()=>{setMode('forgot');setError('');setNotice('')}}>Forgot password?</button></span><input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="Enter your password" autoComplete="current-password" required /></label>
+        {error && <div className="error-box">{error}</div>}
+        <button className="primary large" disabled={loading}>{loading?'Signing in…':'Sign in to workspace'}<span aria-hidden="true">→</span></button>
+      </form>}
+      {mode==='forgot'&&<form onSubmit={requestReset} className="stack">
+        <label>Email address<input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="name@company.com" autoComplete="email" required autoFocus /></label>
+        {error&&<div className="error-box">{error}</div>}{notice&&<div className="auth-success">{notice}</div>}
+        <button className="primary large" disabled={loading}>{loading?'Sending…':'Send reset link'}<span aria-hidden="true">→</span></button>
+        <button type="button" className="auth-back-link" onClick={()=>{setMode('signin');setError('');setNotice('')}}>← Back to sign in</button>
+      </form>}
+      {mode==='reset'&&<form onSubmit={savePassword} className="stack">
+        <label>New password<input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="Minimum 8 characters" autoComplete="new-password" required autoFocus /></label>
+        {error&&<div className="error-box">{error}</div>}{notice&&<div className="auth-success">{notice}</div>}
+        <button className="primary large" disabled={loading}>{loading?'Updating…':'Update password'}<span aria-hidden="true">→</span></button>
+      </form>}
+      <div className="auth-trust"><span>Encrypted session</span><i></i><span>Authorized staff only</span></div>
+      <p className="auth-foot">{brand?.footer_text||`${company} · Operations Command Center`}</p>
+    </div></section>
+  </main>;
+}

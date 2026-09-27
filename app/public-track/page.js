@@ -1,0 +1,45 @@
+'use client';
+import {useEffect,useState} from 'react';
+
+const fmtDate=v=>v?new Date(v).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}):'—';
+function I({name,size=18}){const p={width:size,height:size,viewBox:'0 0 24 24',fill:'none',stroke:'currentColor',strokeWidth:1.9,strokeLinecap:'round',strokeLinejoin:'round'};if(name==='search')return <svg {...p}><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>;if(name==='file')return <svg {...p}><path d="M6 2h8l4 4v16H6z"/><path d="M14 2v5h5M9 12h6M9 16h6"/></svg>;return <svg {...p}><path d="m7 9.5 5 5 5-5"/></svg>}
+
+export default function PublicTrackPage(){
+  const [q,setQ]=useState(''),[found,setFound]=useState(null),[matches,setMatches]=useState([]),[loading,setLoading]=useState(false),[searched,setSearched]=useState(false),[error,setError]=useState(''),[open,setOpen]=useState(new Set()),[brand,setBrand]=useState({company_name:'Your Organization',product_name:'Document Tracking',short_name:'D'});
+  const active=d=>(d.document_stages||[]).filter(s=>!['Not Required','Cancelled'].includes(s.status));
+  const dp=d=>{const s=active(d);return s.length?Math.round(s.filter(x=>x.status==='Completed').length/s.length*100):0};
+  const op=c=>{const s=(c.documents||[]).flatMap(active);return s.length?Math.round(s.filter(x=>x.status==='Completed').length/s.length*100):(['Completed','Ready for Delivery','Delivered'].includes(c.overall_status)?100:0)};
+  const journey=['Received','Under Process','Completed','Ready for Delivery','Delivered'];
+  const ji=s=>s==='Waiting'?1:Math.max(0,journey.indexOf(s));
+
+  async function track(e,ref=q){
+    e?.preventDefault(); const value=String(ref||'').trim(); if(!value)return;
+    setLoading(true);setSearched(false);setError('');setFound(null);setMatches([]);setOpen(new Set());
+    try{const org=new URLSearchParams(window.location.search).get('org')||'';const r=await fetch(`/api/public/track?reference=${encodeURIComponent(value)}&org=${encodeURIComponent(org)}`,{cache:'no-store'});const j=await r.json();if(!r.ok)throw new Error(j.error||'Unable to track.');if(j.branding)setBrand(j.branding);const list=j.cases||[];setMatches(list);setFound(list.length===1?list[0]:null)}catch(err){setError(err.message||'Unable to track.')}finally{setLoading(false);setSearched(true)}
+  }
+  useEffect(()=>{const ref=new URLSearchParams(window.location.search).get('ref');if(ref){setQ(ref);track(null,ref)}},[]);
+  function toggle(id){setOpen(p=>{const n=new Set(p);n.has(id)?n.delete(id):n.add(id);return n})}
+  function copy(){found&&navigator.clipboard?.writeText(String(found.tracking_reference||''))}
+  function print(){if(!found)return;const result=document.querySelector('.customer-track-result');if(!result)return;document.getElementById('kenza-tracking-print-root')?.remove();const host=document.createElement('div');host.id='kenza-tracking-print-root';const clone=result.cloneNode(true);clone.querySelectorAll('.premium-help-actions,.premium-result-identity button').forEach(x=>x.remove());host.appendChild(clone);document.body.appendChild(host);document.body.classList.add('kenza-print-tracking');let done=false;const clean=()=>{if(done)return;done=true;document.body.classList.remove('kenza-print-tracking');document.getElementById('kenza-tracking-print-root')?.remove();window.removeEventListener('afterprint',clean)};window.addEventListener('afterprint',clean);requestAnimationFrame(()=>requestAnimationFrame(()=>{window.print();setTimeout(clean,5000)}))}
+
+  const docs=found?.documents||[],progress=found?op(found):0,status=found?.overall_status||'Received',current=ji(status),completed=docs.filter(d=>dp(d)===100).length;
+  const company=brand.company_name||'Your Organization',mark=(brand.short_name||company||'D').slice(0,1).toUpperCase();
+  return <main className="public-track-shell" style={{'--brand-primary':brand.primary_color||'#3265DF','--brand-secondary':brand.secondary_color||'#17879A'}}><section className="customer-tracking-module premium-tracking public-premium-tracking">
+    <div className="customer-track-hero">
+      <div className="customer-track-brand"><div className="brand-mark">{brand.logo_url?<img src={brand.logo_url} alt=""/>:mark}</div><div><strong>{company}</strong><span>{brand.product_name||'Document Tracking'}</span></div></div>
+      <div className="customer-track-copy"><span className="customer-track-kicker">DOCUMENT TRACKING</span><h2>Where are my documents?</h2><p>Enter your tracking reference to see the latest attestation progress.</p></div>
+      <div className="customer-track-searchbox"><form onSubmit={track}><div className="customer-search-input"><I name="search" size={17}/><input value={q} onChange={e=>setQ(e.target.value)} placeholder="Enter your tracking reference" autoComplete="off"/></div><button className="primary" disabled={!q.trim()||loading}>{loading?'Checking…':'Track'}</button></form><small>Enter the Tracking No. provided by {company}.</small></div>
+    </div>
+    {loading&&<div className="tracking-skeleton"><div className="skel-head"><i/><div><b/><span/></div><em/></div><div className="skel-progress"><b/><span/></div><div className="skel-cards"><i/><i/><i/></div><div className="skel-doc"><b/><span/><span/></div></div>}
+    {searched&&!loading&&!found&&<div className="customer-track-empty tracking-enter"><div className="customer-empty-icon">?</div><h3>{error||'No tracking record found'}</h3><p>Check the tracking reference and try again.</p></div>}
+    {found&&<div className="customer-track-result tracking-enter">
+      <div className="premium-result-hero"><div className="premium-result-identity"><span>TRACKING REFERENCE</span><div><h3>#{found.tracking_reference}</h3><button onClick={copy}>Copy</button></div><p>{found.customer_name||'Customer'}</p></div><div className="premium-result-progress"><div className="premium-progress-ring" style={{'--progress':`${progress*3.6}deg`}}><div><strong>{progress}%</strong><span>Progress</span></div></div></div></div>
+      <div className="premium-journey"><div className="premium-journey-line"><i style={{width:`${current/(journey.length-1)*100}%`}}/></div>{journey.map((s,i)=><div className={`premium-journey-step ${i<current?'done':i===current?'current':''}`} key={s}><b>{i<current?'✓':i+1}</b><span>{s}</span></div>)}</div>
+      <div className="premium-summary"><div><small>SUBMITTED</small><strong>{fmtDate(found.submission_date)}</strong></div><div><small>DOCUMENTS</small><strong>{docs.length}</strong></div><div><small>DOCUMENTS COMPLETED</small><strong>{completed} / {docs.length}</strong></div></div>
+      {['Ready for Delivery','Delivered'].includes(status)&&<div className={`premium-ready ${status==='Delivered'?'delivered':''}`}><div className="premium-ready-icon">{status==='Delivered'?'✓':'!'}</div><div><strong>{status==='Delivered'?'Documents delivered':'Your documents are ready'}</strong><span>{status==='Delivered'?'This tracking has been completed and handed over.':`Please contact ${company} to arrange collection or delivery.`}</span></div></div>}
+      <div className="premium-doc-head"><div><span>DOCUMENT JOURNEY</span><h3>Your documents</h3><p>Select a document to see its attestation stages.</p></div><strong>{docs.length}</strong></div>
+      <div className="premium-document-list">{docs.map((d,di)=>{const stages=active(d),pct=dp(d),isOpen=open.has(d.id),done=stages.filter(s=>s.status==='Completed').length;return <article className={`premium-document ${isOpen?'open':''}`} key={d.id}><button className="premium-document-main" onClick={()=>toggle(d.id)}><div className="premium-doc-icon"><I name="file"/></div><div className="premium-doc-name"><strong>{d.document_name||`Document ${di+1}`}</strong><span>{stages.length?`${done} of ${stages.length} stages completed`:'Processing details will appear here'}</span></div><div className="premium-doc-meter"><span><i style={{width:`${pct}%`}}/></span><b>{pct}%</b></div><div className={`premium-doc-state ${pct===100?'complete':pct>0?'active':''}`}>{pct===100?'Complete':pct>0?'In progress':'Received'}</div><I/></button>{isOpen&&<div className="premium-stage-list">{stages.length?stages.map((s,i)=><div className={`premium-stage ${s.status==='Completed'?'done':s.status==='Processing'?'active':''}`} key={s.id}><div className="premium-stage-node">{s.status==='Completed'?'✓':i+1}</div><div><strong>{s.stage_name}</strong><span>{s.status==='Completed'?'Completed':s.status==='Processing'?'Currently processing':'Pending'}</span></div></div>):<div className="premium-no-stage">Stage details are being prepared.</div>}</div>}</article>})}</div>
+      <div className="premium-help"><div><strong>Need assistance?</strong><span>Keep tracking #{found.tracking_reference} ready when contacting {company}.</span></div><div className="premium-help-actions"><button className="secondary" onClick={copy}>Copy Tracking No.</button><button className="primary" onClick={print}>Print / Save PDF</button></div></div>
+    </div>}
+  </section></main>
+}
