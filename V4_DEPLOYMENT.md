@@ -20,7 +20,15 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
 ```
 
+Add these in **Vercel → Project Settings → Environment Variables** and enable them for Production. The two `NEXT_PUBLIC_` variables are compiled into the browser bundle, so redeploy after adding or changing them.
+
+- `NEXT_PUBLIC_SUPABASE_URL`: Supabase **Project URL**.
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`: Supabase **Publishable key**. If the project only displays an anon key, use `NEXT_PUBLIC_SUPABASE_ANON_KEY` instead.
+- `SUPABASE_SERVICE_ROLE_KEY`: Supabase **service_role** key; server-only and secret.
+
 `SUPABASE_SERVICE_ROLE_KEY` is server-only and is used by `/api/platform/users` to create staff accounts. Never expose it as a `NEXT_PUBLIC_` value.
+
+If a deployment displays **Connect your database**, the deployment itself succeeded but the two public Supabase variables are missing from that Vercel environment. Add them and redeploy the latest commit.
 
 For the first dedicated installation, set:
 
