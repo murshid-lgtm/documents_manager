@@ -1,0 +1,21 @@
+{
+  "name": "document-operations-platform",
+  "version": "4.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.57.4",
+    "next": "^15.5.2",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "xlsx": "^0.18.5",
+    "qrcode": "^1.5.4",
+    "jsqr": "^1.4.0",
+    "pdfjs-dist": "^4.10.38"
+  },
+  "devDependencies": {}
+}
