@@ -360,6 +360,24 @@ ${company}`;
         supabase.from('organization_settings').select('*').eq('organization_id',p.organization_id).maybeSingle()
       ]);
       setCurrentOrganization(o||null);setBrandSettings(s||null);
+    }else if(p?.is_platform_super_admin){
+      // A global platform owner is intentionally not assigned to a tenant.
+      // Restore the last company selected in Platform Management so visual
+      // branding remains stable after refresh without changing data tenancy.
+      let previewOrganizationId='';
+      try{previewOrganizationId=localStorage.getItem('platform_selected_organization')||''}catch{}
+      if(!previewOrganizationId){
+        const deploymentSlug=String(process.env.NEXT_PUBLIC_ORGANIZATION_SLUG||'').trim();
+        if(deploymentSlug){const {data:o}=await supabase.from('organizations').select('id').eq('slug',deploymentSlug).maybeSingle();previewOrganizationId=o?.id||''}
+      }
+      if(!previewOrganizationId){const {data:o}=await supabase.from('organizations').select('id').eq('status','Active').order('created_at').limit(1).maybeSingle();previewOrganizationId=o?.id||''}
+      if(previewOrganizationId){
+        const [{data:o},{data:s}]=await Promise.all([
+          supabase.from('organizations').select('*').eq('id',previewOrganizationId).maybeSingle(),
+          supabase.from('organization_settings').select('*').eq('organization_id',previewOrganizationId).maybeSingle()
+        ]);
+        setCurrentOrganization(o||null);setBrandSettings(s||null);
+      }
     }
     if(p && isBranchProfile(p) && p.branch_id) setBranchFilter(p.branch_id);
     else setBranchFilter('All');

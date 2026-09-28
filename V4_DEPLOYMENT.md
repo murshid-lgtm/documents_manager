@@ -59,7 +59,9 @@ Import the new GitHub repository into Vercel as a new project. Framework preset:
 
 - Open **Platform Management** from the administration section.
 - Create a company as either **Shared SaaS tenant** or **Dedicated installation**.
-- Configure company/product identity, logo URLs, colors, login copy, tracking URL, support details and primary domain.
+- Configure company/product identity, upload logos, favicon, mobile icon and login background, then adjust colors and login copy in the live desktop/mobile preview.
+- Branding uploads are stored in the public `branding-assets` Supabase Storage bucket because signed-out login pages must be able to display them. Only authorized administrators can upload or change these files.
+- Select **Save Branding Permanently** after editing text, colors, domains or links. Image uploads are saved immediately.
 - Create branches and staff accounts, then assign company and branch roles.
 - Enable or hide optional modules. The same `organization_settings` record can be consumed by the mobile application.
 - Automatic WhatsApp remains forced off. Manual WhatsApp sharing remains available.

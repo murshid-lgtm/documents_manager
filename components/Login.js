@@ -34,10 +34,12 @@ export default function Login({resetMode=false,onResetComplete}) {
     setLoading(false);
   }
 
-  return <main className="auth-shell auth-shell-v329">
-    <section className="auth-saas-panel">
+  const brandStyle={'--login-primary':brand?.primary_color||'#3265DF','--login-secondary':brand?.secondary_color||'#17879A','--login-accent':brand?.accent_color||'#15A37D','--login-surface':brand?.surface_color||'#F4F7FC'};
+  const visualStyle=brand?.login_background_url?{backgroundImage:`linear-gradient(145deg,rgba(7,23,45,.94),rgba(14,48,91,.84)),url("${brand.login_background_url}")`}:undefined;
+  return <main className="auth-shell auth-shell-v329" style={brandStyle}>
+    <section className="auth-saas-panel" style={visualStyle}>
       <div className="auth-saas-brand"><div className="brand-mark">{brand?.logo_url?<img src={brand.logo_url} alt=""/>:mark}</div><div><strong>{product}</strong><span>{company}</span></div></div>
-      <div className="auth-saas-copy"><span className="auth-saas-kicker"><i></i> LIVE OPERATIONS WORKSPACE</span><h1>{brand?.login_title||<>Every document.<br/>Every stage.<br/><em>One clear view.</em></>}</h1><p>{brand?.login_subtitle||'Run cases, payments, custody transfers and customer deliveries from one secure operations command center.'}</p></div>
+      <div className="auth-saas-copy"><span className="auth-saas-kicker"><i></i> {brand?.login_kicker||'LIVE OPERATIONS WORKSPACE'}</span><h1>{brand?.login_title||<>Every document.<br/>Every stage.<br/><em>One clear view.</em></>}</h1><p>{brand?.login_subtitle||'Run cases, payments, custody transfers and customer deliveries from one secure operations command center.'}</p></div>
       <div className="auth-product-preview">
         <div className="auth-preview-top"><span><i></i><i></i><i></i></span><b>Today’s operations</b><small>Live</small></div>
         <div className="auth-preview-kpis"><div><span>ACTIVE CASES</span><strong>1,636</strong><small>Across all branches</small></div><div><span>READY</span><strong>650</strong><small>For customer delivery</small></div><div><span>IN TRANSIT</span><strong>12</strong><small>Branch handovers</small></div></div>
@@ -48,12 +50,12 @@ export default function Login({resetMode=false,onResetComplete}) {
     <section className="auth-login-zone"><div className="auth-card auth-card-v329">
       <div className="auth-mobile-brand"><div className="brand-mark">{brand?.logo_url?<img src={brand.logo_url} alt=""/>:mark}</div><div><strong>{product}</strong><span>{company}</span></div></div>
       <div className="auth-security-chip"><span></span> Secure operations workspace</div>
-      <div className="auth-copy"><h2>{mode==='reset'?'Create new password':mode==='forgot'?'Reset password':'Welcome back'}</h2><p className="muted">{mode==='reset'?'Enter a secure new password for your account.':mode==='forgot'?'We will send a secure reset link to your work email.':'Sign in to continue to your operations dashboard.'}</p></div>
+      <div className="auth-copy"><h2>{mode==='reset'?'Create new password':mode==='forgot'?'Reset password':brand?.login_welcome_title||'Welcome back'}</h2><p className="muted">{mode==='reset'?'Enter a secure new password for your account.':mode==='forgot'?'We will send a secure reset link to your work email.':brand?.login_welcome_subtitle||'Sign in to continue to your operations dashboard.'}</p></div>
       {mode==='signin'&&<form onSubmit={submit} className="stack">
         <label>Email address<input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="name@company.com" autoComplete="username" required autoFocus /></label>
         <label><span className="auth-label-row">Password<button type="button" onClick={()=>{setMode('forgot');setError('');setNotice('')}}>Forgot password?</button></span><input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="Enter your password" autoComplete="current-password" required /></label>
         {error && <div className="error-box">{error}</div>}
-        <button className="primary large" disabled={loading}>{loading?'Signing in…':'Sign in to workspace'}<span aria-hidden="true">→</span></button>
+        <button className="primary large" disabled={loading}>{loading?'Signing in…':brand?.login_button_text||'Sign in to workspace'}<span aria-hidden="true">→</span></button>
       </form>}
       {mode==='forgot'&&<form onSubmit={requestReset} className="stack">
         <label>Email address<input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="name@company.com" autoComplete="email" required autoFocus /></label>

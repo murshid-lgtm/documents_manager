@@ -19,6 +19,11 @@ create table public.organization_settings (
   accent_color text not null default '#15A37D', surface_color text not null default '#F4F7FC',
   login_title text default 'Document operations, organized.',
   login_subtitle text default 'Secure case, payment, delivery and custody management.',
+  login_background_url text,
+  login_kicker text default 'LIVE OPERATIONS WORKSPACE',
+  login_welcome_title text default 'Welcome back',
+  login_welcome_subtitle text default 'Sign in to continue to your operations dashboard.',
+  login_button_text text default 'Sign in to workspace',
   tracking_base_url text, support_email text, support_phone text, website_url text, address text, footer_text text,
   label_width_mm numeric(8,2) not null default 75, label_height_mm numeric(8,2) not null default 35,
   enabled_modules jsonb not null default '["dashboard","cases","documents","operations","deliveries","custody","appointments","batches","courier","payments","reports","import"]'::jsonb,
@@ -278,6 +283,14 @@ create policy settings_manage on public.organization_settings for all to authent
 create policy profiles_read on public.profiles for select to authenticated using(public.is_platform_super_admin() or organization_id=public.current_organization_id() or id=auth.uid());
 create policy profiles_manage on public.profiles for all to authenticated using(public.is_platform_super_admin() or public.is_organization_admin(organization_id)) with check(public.is_platform_super_admin() or public.is_organization_admin(organization_id));
 
+-- A global platform owner has no organization_id. The restrictive branch
+-- boundary already validates platform ownership, but this additional
+-- permissive policy is required for branch creation and maintenance.
+create policy platform_super_admin_manage_branches on public.branches
+for all to authenticated
+using(public.is_platform_super_admin())
+with check(public.is_platform_super_admin());
+
 -- Tighten custody actions in addition to tenant isolation.
 drop policy active_operational_access on public.custody_transfers;
 drop policy active_operational_access on public.custody_transfer_items;
@@ -322,7 +335,7 @@ grant execute on function public.confirm_custody_receipt(uuid,jsonb,text) to aut
 
 create or replace function public.public_branding(request_host text default null,requested_slug text default null)
 returns jsonb language sql stable security definer set search_path=public as $$
- select to_jsonb(x) from (select s.product_name,s.company_name,s.short_name,s.logo_url,s.favicon_url,s.primary_color,s.secondary_color,s.accent_color,s.surface_color,s.login_title,s.login_subtitle,s.support_email,s.website_url,s.footer_text from public.organization_settings s join public.organizations o on o.id=s.organization_id where o.status='Active' and ((nullif(trim(requested_slug),'') is not null and o.slug=lower(trim(requested_slug))) or (nullif(trim(request_host),'') is not null and lower(s.primary_domain)=lower(split_part(trim(request_host),':',1)))) limit 1) x;
+ select to_jsonb(x) from (select s.product_name,s.company_name,s.short_name,s.logo_url,s.favicon_url,s.app_icon_url,s.primary_color,s.secondary_color,s.accent_color,s.surface_color,s.login_title,s.login_subtitle,s.login_background_url,s.login_kicker,s.login_welcome_title,s.login_welcome_subtitle,s.login_button_text,s.support_email,s.website_url,s.footer_text from public.organization_settings s join public.organizations o on o.id=s.organization_id where o.status='Active' and ((nullif(trim(requested_slug),'') is not null and o.slug=lower(trim(requested_slug))) or (nullif(trim(request_host),'') is not null and lower(s.primary_domain)=lower(split_part(trim(request_host),':',1)))) limit 1) x;
 $$;
 revoke all on function public.public_branding(text,text) from public;
 grant execute on function public.public_branding(text,text) to anon,authenticated;
