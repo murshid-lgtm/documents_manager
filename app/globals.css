@@ -5105,6 +5105,75 @@ body{background:radial-gradient(circle at 78% 4%,rgba(61,103,216,.055),transpare
 @media(max-width:1350px) and (min-width:701px){.modal.quick-modal-v323 .quick-actions{top:15px!important;right:16px!important;width:44px!important;height:44px!important}.modal.quick-modal-v323 .quick-actions .quick-close{width:44px!important;height:44px!important;min-width:44px!important}.modal.quick-modal-v323 .quick-hero>div:first-child{padding-right:52px!important}}
 @media(max-width:700px){.modal.quick-modal-v323 .quick-actions{top:12px!important;right:11px!important;width:42px!important;height:42px!important}.modal.quick-modal-v323 .quick-actions .quick-close{width:42px!important;height:42px!important;min-width:42px!important;border-color:rgba(255,255,255,.25)!important;background:rgba(8,31,70,.22)!important;color:#fff!important}.modal.quick-modal-v323 .quick-hero>div:first-child{padding-right:48px!important}.modal.quick-modal-v323 .quick-body>.quick-side{display:block!important;overflow:visible!important}.modal.quick-modal-v323 .quick-side-section+.quick-side-section{margin-top:10px!important}.modal.quick-modal-v323 .quick-activity-section{min-height:260px!important;max-height:380px!important}.modal.quick-modal-v323 .activity-scroll{min-height:190px!important;max-height:300px!important}}
 
+/* V4.0.10 — compact controls, bookmark shelves, navigation and brand lockups. */
+.search-by-select{
+  width:44px!important;min-width:44px!important;max-width:44px!important;height:40px!important;
+  padding:0!important;border-radius:10px!important;color:transparent!important;font-size:0!important;
+  appearance:none!important;cursor:pointer!important;background-color:#fff!important;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%2353647d' stroke-width='1.8' stroke-linecap='round'%3E%3Ccircle cx='10' cy='10' r='5.5'/%3E%3Cpath d='m14 14 4 4M20 7v5M18 10l2 2 2-2'/%3E%3C/svg%3E")!important;
+  background-repeat:no-repeat!important;background-position:center!important;background-size:21px!important;
+}
+.search-by-select option{color:#172033!important;font-size:13px!important}
+.toolbar-icon-btn{position:relative!important;display:inline-grid!important;place-items:center!important;width:40px!important;min-width:40px!important;height:40px!important;min-height:40px!important;padding:0!important}
+.toolbar-count-dot{position:absolute;top:-5px;right:-5px;display:grid;place-items:center;min-width:17px;height:17px;padding:0 4px;border:2px solid #fff;border-radius:999px;background:#315fc8;color:#fff;font-size:8px;line-height:1}
+.case-pin.active svg,.favorites-filter.active svg,.quick-contact-actions button.active svg{fill:currentColor}
+
+.case-access-shelves header{gap:12px}.case-shelf-meta{display:flex!important;align-items:center;justify-content:flex-end;gap:8px;overflow:visible!important;padding:0!important}
+.case-access-shelves .case-shelf-clear{display:inline-flex!important;align-items:center!important;justify-content:center!important;min-width:0!important;width:auto!important;height:27px!important;padding:0 9px!important;border:1px solid #dfe6f0!important;border-radius:8px!important;background:#fff!important;color:#52627a!important;font-size:9px!important;font-weight:750!important;box-shadow:none!important}
+.case-access-shelves .case-shelf-clear:hover{border-color:#b9c8e7!important;background:#f3f6fc!important;color:#2f5fc8!important}
+.case-access-shelves .case-shelf-items{display:flex!important;gap:7px!important;overflow:auto!important;padding-bottom:2px!important}
+.case-access-shelves .case-shelf-items>button{min-width:190px!important}
+
+.unified-app-topbar .access-chip{display:inline-flex!important;align-items:center!important;justify-content:center!important;height:40px!important;min-height:40px!important;padding:0 14px!important;border-radius:10px!important;box-sizing:border-box!important;font-size:10px!important;line-height:1!important}
+
+.sidebar .brand{min-height:74px;box-sizing:border-box}.sidebar-brand-logo{display:block;width:auto;max-width:190px;height:auto;max-height:58px;object-fit:contain;object-position:left center}.brand-logo-mode{align-items:center!important;padding-right:19px!important}
+.sidebar-toggle{top:50%!important;right:-18px!important;width:34px!important;height:34px!important;transform:translateY(-50%)!important;border-color:#d4deec!important;box-shadow:0 8px 19px rgba(15,35,68,.18)!important}
+.sidebar-toggle:hover{border-color:#9db1d4!important;color:#285bc0!important;transform:translateY(-50%) scale(1.04)!important}
+@media(min-width:701px){
+  .sidebar-collapsed .brand-logo-mode{justify-content:center!important;padding-left:0!important;padding-right:0!important}
+  .sidebar-collapsed .sidebar-brand-logo{width:46px!important;height:46px!important;max-width:46px!important;max-height:46px!important;object-position:center!important}
+  .sidebar-collapsed .sidebar-toggle{right:-29px!important}
+  .sidebar-collapsed .nav-scroll{overflow:visible!important}
+  .sidebar-collapsed .nav{position:relative!important;overflow:visible!important}
+  .sidebar-collapsed .nav:hover:after{content:attr(data-label);position:absolute;z-index:90;left:58px;top:50%;transform:translateY(-50%);width:max-content;max-width:210px;padding:8px 10px;border:1px solid #263b5f;border-radius:8px;background:#10233f;color:#fff;box-shadow:0 10px 25px rgba(8,24,48,.25);font-size:11px;font-weight:700;line-height:1;pointer-events:none}
+  .sidebar-collapsed .sidebar-foot{display:grid!important;grid-template-columns:38px!important;grid-auto-rows:38px!important;align-items:center!important;justify-items:center!important;justify-content:center!important;gap:8px!important;padding-left:0!important;padding-right:0!important}
+  .sidebar-collapsed .sidebar-foot .avatar,.sidebar-collapsed .sidebar-foot .sidebar-settings,.sidebar-collapsed .sidebar-foot .signout{width:38px!important;height:38px!important;margin:0!important}
+}
+
+.auth-saas-brand.auth-logo-mode,.auth-mobile-brand.auth-logo-mode{display:block}.auth-company-logo{display:block;width:auto;max-width:230px;height:auto;max-height:74px;object-fit:contain;object-position:left center}.auth-mobile-brand .auth-company-logo{max-width:190px;max-height:60px}
+
+.modal.quick-modal-v323 .quick-actions{top:16px!important;right:18px!important;width:34px!important;height:34px!important}
+.modal.quick-modal-v323 .quick-actions .quick-close{width:34px!important;height:34px!important;min-width:34px!important;min-height:34px!important;border-radius:999px!important;background:rgba(255,255,255,.14)!important;box-shadow:0 6px 16px rgba(5,18,47,.13)!important}
+.modal.quick-modal-v323 .quick-actions .quick-close svg{width:15px!important;height:15px!important}
+.modal.quick-modal-v323 .quick-hero>div:first-child{padding-right:43px!important}
+
+@media(min-width:761px){
+  .legacy-cases-toolbar{grid-template-columns:44px minmax(260px,1fr) auto auto 40px 40px!important}
+  .delivery-filterbar{grid-template-columns:44px minmax(320px,1fr) 180px 82px!important}
+  .operations-fast .advanced-ops-toolbar{grid-template-columns:44px minmax(300px,1fr) 40px auto auto auto!important}
+  .payments-toolbar{grid-template-columns:44px minmax(280px,1fr) 150px 150px 82px!important}
+  .custody-toolbar{grid-template-columns:44px minmax(280px,1fr) 170px 180px 82px!important}
+  .appt-filterbar{grid-template-columns:44px minmax(260px,1fr) 145px 145px 150px auto auto auto!important}
+  .docs-fast-toolbar{grid-template-columns:44px minmax(280px,1fr) 155px 150px 140px auto!important}
+  .parity-batch .batch-filterbar{grid-template-columns:44px minmax(320px,1fr) 190px!important}
+}
+@media(min-width:761px) and (max-width:1250px){
+  .operations-fast .advanced-ops-toolbar{grid-template-columns:44px minmax(250px,1fr) repeat(2,auto)!important}
+  .payments-toolbar{grid-template-columns:44px minmax(240px,1fr) 140px 140px!important}
+  .custody-toolbar{grid-template-columns:44px minmax(240px,1fr) 160px 160px!important}
+  .appt-filterbar{grid-template-columns:44px minmax(240px,1fr) repeat(3,145px)!important}
+}
+@media(max-width:760px){
+  .search-by-select{width:44px!important;min-width:44px!important;max-width:44px!important;justify-self:start!important}
+  .legacy-cases-toolbar{grid-template-columns:44px minmax(0,1fr) 40px 40px!important}
+  .legacy-cases-toolbar .legacy-search{grid-column:2/-1!important}.legacy-cases-toolbar>button:not(.toolbar-icon-btn){grid-column:span 2}
+  .case-access-shelves header{align-items:flex-start}.case-shelf-meta small{display:none}
+  .unified-app-topbar .access-chip{height:38px!important;min-height:38px!important;padding:0 11px!important}
+  .auth-company-logo{max-width:185px;max-height:58px}
+  .modal.quick-modal-v323 .quick-actions{top:11px!important;right:10px!important;width:32px!important;height:32px!important}
+  .modal.quick-modal-v323 .quick-actions .quick-close{width:32px!important;height:32px!important;min-width:32px!important;min-height:32px!important}
+}
+
 /* V4.0.8 — customer name and mobile share the case-card identity row. */
 .legacy-name-band{
   display:flex!important;

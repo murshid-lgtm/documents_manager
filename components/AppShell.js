@@ -47,7 +47,7 @@ function caseExactSearchMode(cases,q){
 }
 
 const SEARCH_BY_OPTIONS=[['tracking','Tracking No.'],['name','Customer Name'],['mobile','Mobile'],['bill','Bill No.'],['all','All Fields']];
-function SearchBySelect({value,onChange,className=''}){return <select className={`search-by-select ${className}`} value={value} onChange={e=>onChange(e.target.value)} aria-label="Search by">{SEARCH_BY_OPTIONS.map(([v,l])=><option key={v} value={v}>Search by: {l}</option>)}</select>}
+function SearchBySelect({value,onChange,className=''}){const label=SEARCH_BY_OPTIONS.find(([v])=>v===value)?.[1]||'field';return <select className={`search-by-select ${className}`} value={value} onChange={e=>onChange(e.target.value)} aria-label={`Search by ${label}`} title={`Search by: ${label}`}>{SEARCH_BY_OPTIONS.map(([v,l])=><option key={v} value={v}>Search by: {l}</option>)}</select>}
 function caseSearchValues(c,field='tracking',hay=''){
   const docs=c?.documents||[];
   if(field==='tracking')return [c?.tracking_reference,c?.tracking_family,...docs.map(d=>d.source_tracking_reference)];
@@ -312,6 +312,17 @@ ${company}`;
     return()=>{live=false};
   },[favoriteStorageKey,recentStorageKey]);
   function toggleFavoriteCase(caseId){setFavoriteCaseIds(prev=>{const next=new Set(prev),removing=next.has(caseId);removing?next.delete(caseId):next.add(caseId);try{localStorage.setItem(favoriteStorageKey,JSON.stringify([...next]))}catch{};(removing?supabase.from('user_favorite_cases').delete().eq('user_id',session.user.id).eq('case_id',caseId):supabase.from('user_favorite_cases').upsert({user_id:session.user.id,case_id:caseId},{onConflict:'user_id,case_id'})).then(({error})=>{if(error&&!/does not exist|schema cache|Could not find/i.test(String(error.message||'')))setMessage(`Favorite sync: ${error.message}`)});return next})}
+  function clearRecentCases(){setRecentCaseIds([]);try{localStorage.setItem(recentStorageKey,'[]')}catch{}setMessage('Recently viewed cases cleared.')}
+  async function clearFavoriteCases(){
+    if(!favoriteCaseIds.size)return;
+    if(!confirm('Clear all favorite cases? The cases will not be deleted.'))return;
+    const previous=new Set(favoriteCaseIds);
+    setFavoriteCaseIds(new Set());
+    try{localStorage.setItem(favoriteStorageKey,'[]')}catch{}
+    const {error}=await supabase.from('user_favorite_cases').delete().eq('user_id',session.user.id);
+    if(error&&!/does not exist|schema cache|Could not find/i.test(String(error.message||''))){setFavoriteCaseIds(previous);try{localStorage.setItem(favoriteStorageKey,JSON.stringify([...previous]))}catch{}setMessage(error);return}
+    setMessage('Favorite cases cleared. No cases were deleted.');
+  }
   function openCase(c){if(!c)return;setQuickCase(c);setRecentCaseIds(prev=>{const next=[c.id,...prev.filter(id=>id!==c.id)].slice(0,12);try{localStorage.setItem(recentStorageKey,JSON.stringify(next))}catch{}return next})}
   useEffect(()=>{try{setSidebarCollapsed(localStorage.getItem('kenza_sidebar_collapsed')==='1')}catch{}},[]);
   function toggleSidebar(){setSidebarCollapsed(v=>{const next=!v;try{localStorage.setItem('kenza_sidebar_collapsed',next?'1':'0')}catch{}return next})}
@@ -764,7 +775,7 @@ ${company}`;
 
   return <div className={`app-shell ${sidebarCollapsed?'sidebar-collapsed':''}`}>
     <aside className="sidebar">
-      <div className="brand"><div className="brand-mark small">{brandSettings?.logo_url?<img src={brandSettings.logo_url} alt=""/>:(brandSettings?.short_name||brandSettings?.company_name||'D').slice(0,1).toUpperCase()}</div><div><strong>{brandSettings?.product_name||'Document Operations'}</strong><span>{brandSettings?.company_name||'Operations command center'}</span></div><button className="sidebar-toggle" onClick={toggleSidebar} title={sidebarCollapsed?'Expand sidebar':'Collapse sidebar'} aria-label={sidebarCollapsed?'Expand sidebar':'Collapse sidebar'}><Icon name={sidebarCollapsed?'chevron-right':'chevron-left'} size={16}/></button></div>
+      <div className={`brand ${brandSettings?.logo_url?'brand-logo-mode':''}`}>{brandSettings?.logo_url?<img className="sidebar-brand-logo" src={brandSettings.logo_url} alt={brandSettings?.company_name||'Company logo'}/>:<><div className="brand-mark small">{(brandSettings?.short_name||brandSettings?.company_name||'D').slice(0,1).toUpperCase()}</div><div><strong>{brandSettings?.product_name||'Document Operations'}</strong><span>{brandSettings?.company_name||'Operations command center'}</span></div></>}<button className="sidebar-toggle" onClick={toggleSidebar} title={sidebarCollapsed?'Expand sidebar':'Collapse sidebar'} aria-label={sidebarCollapsed?'Expand sidebar':'Collapse sidebar'}><Icon name={sidebarCollapsed?'chevron-right':'chevron-left'} size={16}/></button></div>
       <div className="sidebar-live"><i></i><span>Workspace online</span><b>LIVE</b></div>
       <div className="nav-scroll">
       <div className="nav-section"><span>OVERVIEW</span>
@@ -785,7 +796,6 @@ ${company}`;
         {moduleEnabled('reports')&&<Nav active={view==='reports'} onClick={()=>setView('reports')} icon="chart">Reports</Nav>}
         {isAdmin&&moduleEnabled('import')&&<Nav active={view==='import'} onClick={()=>setView('import')} icon="upload">Import Data</Nav>}
       </div>
-      {isAdmin&&<div className="nav-section"><span>ADMINISTRATION</span><Nav active={view==='settings'} onClick={()=>setView('settings')} icon="settings">{profile?.is_platform_super_admin?'Platform Management':'Company Settings'}</Nav></div>}
       </div>
       <div className="sidebar-foot"><div className="avatar">{(profile?.full_name||session.user.email||'U')[0].toUpperCase()}</div><div className="user-mini"><strong>{profile?.full_name||session.user.email}</strong><span>{role==='branch'?`${ownBranchName} · Branch`:role==='admin'?'Administrator':'Staff'}</span></div><button className="sidebar-settings" onClick={()=>isAdmin?setView('settings'):setTrackingSettingsOpen(true)} title={isAdmin?'Company management':'Tracking settings'} aria-label={isAdmin?'Company management':'Tracking settings'}><Icon name="settings" size={17}/></button><button className="signout" onClick={signOut} title="Sign out" aria-label="Sign out"><Icon name="logout" size={17}/></button></div>
     </aside>
@@ -795,7 +805,7 @@ ${company}`;
       {message&&<AppToast message={message} onClose={()=>setMessage('')}/>} 
 
       {view==='dashboard'&&<Dashboard companyName={brandSettings?.company_name||currentOrganization?.name||'Your Organization'} stats={stats} cases={homeCases} onOpen={openCase} onCases={()=>setView('cases')} onScan={()=>setGlobalScan(true)} onDeliveries={()=>setView('deliveries')} onPayments={()=>setView('payments')} onCustody={()=>setView('custody')} branchName={isBranch?ownBranchName:null}/>}      
-      {view==='cases'&&<CasesView cases={filtered} allCases={cases} recentCaseIds={recentCaseIds} favoriteCaseIds={favoriteCaseIds} toggleFavorite={toggleFavoriteCase} shareDetailed={shareDetailedTracking} loading={loading} query={query} setQuery={setQuery} searchBy={searchBy} setSearchBy={setSearchBy} statusFilter={statusFilter} setStatusFilter={setStatusFilter} branchFilter={branchFilter} setBranchFilter={setBranchFilter} documentFilter={documentFilter} setDocumentFilter={setDocumentFilter} quantityFilter={quantityFilter} setQuantityFilter={setQuantityFilter} mobileFilter={mobileFilter} setMobileFilter={setMobileFilter} balanceFilter={balanceFilter} setBalanceFilter={setBalanceFilter} accountFilter={accountFilter} setAccountFilter={setAccountFilter} intakeFilter={intakeFilter} setIntakeFilter={setIntakeFilter} ddFilter={ddFilter} setDdFilter={setDdFilter} branches={branches} expanded={expanded} toggleExpanded={toggleExpanded} selected={selected} toggleSelected={toggleSelected} updateCaseStatus={updateCaseStatus} updateStage={updateStage} updateStageDate={updateStageDate} reorderStages={reorderStages} quick={openCase} addDoc={setShowDoc} deleteDocument={deleteDocument} addStage={addStageToDocument} renameStage={renameStage} deleteStage={deleteStage} bulkStatus={bulkStatus} appointment={c=>{setAppointmentCase(c);setView('appointments')}} bulkAppointment={()=>{setAppointmentSeedIds([...selected]);setView('appointments')}} batchSelected={()=>{setBatchSeed([...selected]);setView('batches')}}/>}      
+      {view==='cases'&&<CasesView cases={filtered} allCases={cases} recentCaseIds={recentCaseIds} favoriteCaseIds={favoriteCaseIds} toggleFavorite={toggleFavoriteCase} clearRecent={clearRecentCases} clearFavorites={clearFavoriteCases} shareDetailed={shareDetailedTracking} loading={loading} query={query} setQuery={setQuery} searchBy={searchBy} setSearchBy={setSearchBy} statusFilter={statusFilter} setStatusFilter={setStatusFilter} branchFilter={branchFilter} setBranchFilter={setBranchFilter} documentFilter={documentFilter} setDocumentFilter={setDocumentFilter} quantityFilter={quantityFilter} setQuantityFilter={setQuantityFilter} mobileFilter={mobileFilter} setMobileFilter={setMobileFilter} balanceFilter={balanceFilter} setBalanceFilter={setBalanceFilter} accountFilter={accountFilter} setAccountFilter={setAccountFilter} intakeFilter={intakeFilter} setIntakeFilter={setIntakeFilter} ddFilter={ddFilter} setDdFilter={setDdFilter} branches={branches} expanded={expanded} toggleExpanded={toggleExpanded} selected={selected} toggleSelected={toggleSelected} updateCaseStatus={updateCaseStatus} updateStage={updateStage} updateStageDate={updateStageDate} reorderStages={reorderStages} quick={openCase} addDoc={setShowDoc} deleteDocument={deleteDocument} addStage={addStageToDocument} renameStage={renameStage} deleteStage={deleteStage} bulkStatus={bulkStatus} appointment={c=>{setAppointmentCase(c);setView('appointments')}} bulkAppointment={()=>{setAppointmentSeedIds([...selected]);setView('appointments')}} batchSelected={()=>{setBatchSeed([...selected]);setView('batches')}}/>}      
       {view==='documents'&&<DocumentsView cases={cases} query={query} setQuery={setQuery} updateStage={updateStage} updateStageDate={updateStageDate} quick={setQuickCase} setModuleExport={publishModuleExport}/>}    
       {view==='import'&&<SimpleLegacyImport session={session} cases={cases} branches={branches} reload={loadCases} notify={setMessage}/>}
       {view==='settings'&&isAdmin&&<ProductSettings session={session} profile={profile} currentOrganization={currentOrganization} onBrandChange={setBrandSettings} notify={setMessage}/>} 
@@ -952,7 +962,7 @@ function NotificationCenter({rows,cases,loading,lastRead,isAdmin,onClose,onRefre
   const exportRows=filtered.map(r=>{const c=caseMap.get(r.case_id);return{'Date & Time':r.created_at||'','Tracking No.':c?.tracking_reference||'','Customer':c?.customer_name||'','User':r.profiles?.full_name||'System','Category':auditCategory(r),'Action':r.action||'','Field':r.field_name||'','Old Value':r.old_value||'','New Value':r.new_value||''}});
   return <div className="notification-backdrop" onMouseDown={onClose}><aside className="notification-center" onMouseDown={e=>e.stopPropagation()}><header className="notification-head"><div><span>WORKSPACE ACTIVITY</span><h2>Notifications & Audit</h2><p>{unread?`${unread} unread update${unread===1?'':'s'}`:'You are all caught up'}</p></div><button onClick={onClose} aria-label="Close"><Icon name="close" size={18}/></button></header><div className="notification-tabs"><button className={tab==='notifications'?'active':''} onClick={()=>setTab('notifications')}><Icon name="bell" size={15}/> Notifications {unread>0&&<b>{unread}</b>}</button><button className={tab==='activity'?'active':''} onClick={()=>setTab('activity')}><Icon name="clock" size={15}/> Activity Log</button></div><div className="notification-actions"><button onClick={onMarkAllRead} disabled={!unread}><Icon name="check" size={14}/> Mark all read</button><button onClick={onRefresh} disabled={loading}>↻ Refresh</button>{tab==='activity'&&<ExportMenu title="Activity Audit" rows={exportRows}/>}</div>{tab==='activity'&&<div className="audit-filters"><div><Icon name="search" size={14}/><input placeholder="Search action, case, customer or value…" value={query} onChange={e=>setQuery(e.target.value)}/></div><select value={category} onChange={e=>setCategory(e.target.value)}><option value="all">All modules</option><option value="cases">Cases</option><option value="payments">Payments</option><option value="deliveries">Deliveries</option><option value="custody">Custody</option><option value="appointments">Appointments</option><option value="courier">Courier</option><option value="warning">Deleted / cancelled</option></select>{isAdmin&&<select value={actor} onChange={e=>setActor(e.target.value)}><option value="all">All users</option>{actors.map(x=><option key={x}>{x}</option>)}</select>}<input type="date" value={date} onChange={e=>setDate(e.target.value)}/>{(query||category!=='all'||actor!=='all'||date)&&<button onClick={()=>{setQuery('');setCategory('all');setActor('all');setDate('')}}>Clear</button>}</div>}<div className="notification-list">{loading&&!rows.length?<div className="notification-empty"><span className="notification-spinner"/><strong>Loading activity…</strong></div>:shown.length?shown.map(r=>{const c=caseMap.get(r.case_id),cat=auditCategory(r),isUnread=!lastRead||new Date(r.created_at)>new Date(lastRead);return <button className={`notification-item ${cat} ${isUnread?'unread':''}`} key={r.id} onClick={()=>c&&onOpenCase(c)} disabled={!c}><i className="notification-type"><Icon name={cat==='payments'?'wallet':cat==='deliveries'?'package':cat==='custody'?'handover':cat==='appointments'?'calendar':cat==='courier'?'truck':cat==='warning'?'alert':'file'} size={16}/></i><div className="notification-copy"><div><strong>{r.action||'Case updated'}{tab==='notifications'&&r.groupCount>1&&<b className="notification-group-count">×{r.groupCount}</b>}</strong><time>{auditTime(r.created_at)}</time></div><span>{c?`#${c.tracking_reference} · ${c.customer_name||'Customer'}`:'System activity'}{r.profiles?.full_name?` · ${r.profiles.full_name}`:''}</span>{(r.old_value||r.new_value)&&<small>{r.old_value&&<del>{r.old_value}</del>}{r.old_value&&r.new_value&&<b>→</b>}{r.new_value&&<ins>{r.new_value}</ins>}</small>}</div>{isUnread&&<em/>}</button>}):<div className="notification-empty"><Icon name="check" size={24}/><strong>No activity found</strong><span>Try changing the filters or refresh the activity feed.</span></div>}</div>{tab==='activity'&&<footer className="audit-footer"><span>Showing {shown.length.toLocaleString()} of {rows.length.toLocaleString()} loaded records</span><small>{isAdmin?'Administrator audit view':'Your permitted activity view'}</small></footer>}</aside></div>
 }
-function Nav({active,disabled,icon,children,onClick}){return <button className={`nav ${active?'active':''} ${disabled?'disabled':''}`} disabled={disabled} onClick={onClick}><i className="nav-icon"><Icon name={icon} size={17}/></i><span>{children}</span>{active&&<em className="nav-active-dot"/>}</button>}
+function Nav({active,disabled,icon,children,onClick}){const label=String(Array.isArray(children)?children[0]:children||'').trim();return <button className={`nav ${active?'active':''} ${disabled?'disabled':''}`} disabled={disabled} onClick={onClick} title={label} aria-label={label} data-label={label}><i className="nav-icon"><Icon name={icon} size={17}/></i><span>{children}</span>{active&&<em className="nav-active-dot"/>}</button>}
 function Field({label,wide,children}){return <label className={wide?'wide':''}><span>{label}</span>{children}</label>}
 function Modal({title,subtitle,onClose,children,className=''}){return <div className="modal-backdrop" onMouseDown={onClose}><div className={`modal ${className}`} onMouseDown={e=>e.stopPropagation()}><div className="modal-head"><div><h2>{title}</h2><p className="muted">{subtitle}</p></div><button className="icon-btn" onClick={onClose} aria-label="Close"><Icon name="close" size={18}/></button></div>{children}</div></div>}
 function StatusPill({status}){return <span className={`status-pill ${slug(status)}`}><i></i>{status}</span>}
@@ -975,7 +985,7 @@ function Stat({label,value,icon}){return <div className="stat"><div className="s
 function PanelHead({title,subtitle,action}){return <div className="panel-head"><div><h3>{title}</h3><p>{subtitle}</p></div>{action}</div>}
 function Empty({text}){return <div className="empty"><div>⌁</div><strong>{text}</strong></div>}
 
-function CasesView({cases,allCases=[],recentCaseIds=[],favoriteCaseIds=new Set(),toggleFavorite,shareDetailed,loading,query,setQuery,searchBy,setSearchBy,statusFilter,setStatusFilter,branchFilter,setBranchFilter,documentFilter,setDocumentFilter,quantityFilter,setQuantityFilter,mobileFilter,setMobileFilter,balanceFilter,setBalanceFilter,accountFilter,setAccountFilter,intakeFilter,setIntakeFilter,ddFilter,setDdFilter,branches,expanded,toggleExpanded,selected,toggleSelected,updateCaseStatus,updateStage,updateStageDate,reorderStages,quick,addDoc,deleteDocument,addStage,renameStage,deleteStage,bulkStatus,appointment,bulkAppointment,batchSelected}){
+function CasesView({cases,allCases=[],recentCaseIds=[],favoriteCaseIds=new Set(),toggleFavorite,clearRecent,clearFavorites,shareDetailed,loading,query,setQuery,searchBy,setSearchBy,statusFilter,setStatusFilter,branchFilter,setBranchFilter,documentFilter,setDocumentFilter,quantityFilter,setQuantityFilter,mobileFilter,setMobileFilter,balanceFilter,setBalanceFilter,accountFilter,setAccountFilter,intakeFilter,setIntakeFilter,ddFilter,setDdFilter,branches,expanded,toggleExpanded,selected,toggleSelected,updateCaseStatus,updateStage,updateStageDate,reorderStages,quick,addDoc,deleteDocument,addStage,renameStage,deleteStage,bulkStatus,appointment,bulkAppointment,batchSelected}){
   const [visible,setVisible]=useState(200);
   const [filtersOpen,setFiltersOpen]=useState(false);
   const [bulkNext,setBulkNext]=useState('');
@@ -993,8 +1003,8 @@ function CasesView({cases,allCases=[],recentCaseIds=[],favoriteCaseIds=new Set()
       <SearchBySelect value={searchBy} onChange={setSearchBy}/><div className="legacy-search"><input placeholder={searchBy==='tracking'?'Enter full or partial tracking number…':searchBy==='mobile'?'Enter full or partial mobile number…':searchBy==='bill'?'Enter full or partial bill number…':searchBy==='name'?'Enter customer name…':'Search all fields…'} value={query} onChange={e=>setQuery(e.target.value)}/></div>
       <button className="legacy-toolbar-btn" onClick={selectVisible}>Select visible</button>
       <button className="legacy-toolbar-btn" onClick={clearSelected} disabled={!selected.size}>Clear</button>
-      <button className={`legacy-toolbar-btn favorites-filter ${favoritesOnly?'active':''}`} onClick={()=>setFavoritesOnly(v=>!v)}><Icon name="star" size={15}/>{favoritesOnly?' Show all':' Favorites only'}</button>
-      <button className={`legacy-toolbar-btn ${filtersOpen?'active':''}`} onClick={()=>setFiltersOpen(v=>!v)}>Advanced filters</button>
+      <button className={`legacy-toolbar-btn toolbar-icon-btn ${filtersOpen?'active':''}`} onClick={()=>setFiltersOpen(v=>!v)} title="Advanced filters" aria-label="Advanced filters"><Icon name="filter" size={17}/></button>
+      <button className={`legacy-toolbar-btn toolbar-icon-btn favorites-filter ${favoritesOnly?'active':''}`} onClick={()=>setFavoritesOnly(v=>!v)} title={favoritesOnly?'Show all cases':'Favorites only'} aria-label={favoritesOnly?'Show all cases':'Favorites only'}><Icon name="bookmark" size={17}/></button>
     </section>
     {filtersOpen&&<section className="legacy-filter-row advanced-grid">
       <label><span>Status</span><select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}><option>All</option>{CASE_STATUSES.map(s=><option key={s}>{s}</option>)}</select></label>
@@ -1008,7 +1018,7 @@ function CasesView({cases,allCases=[],recentCaseIds=[],favoriteCaseIds=new Set()
       <label><span>Delhi Direct</span><select value={ddFilter} onChange={e=>setDdFilter(e.target.value)}><option>All</option><option>DD only</option><option>Non-DD</option></select></label>
       <button className="legacy-toolbar-btn filter-reset" onClick={()=>{setStatusFilter('All');setBranchFilter('All');setDocumentFilter('All');setQuantityFilter('All');setMobileFilter('All');setBalanceFilter('All');setAccountFilter('All');setIntakeFilter('All');setDdFilter('All')}}>Reset filters</button>
     </section>}
-    {!query&&!favoritesOnly&&(pinned.length>0||recent.length>0)&&<section className="case-access-shelves">{pinned.length>0&&<div><header><span><Icon name="star" size={14}/> Pinned cases</span><small>{pinned.length} saved</small></header><div>{pinned.map(c=><button key={c.id} onClick={()=>quick(c)}><strong>#{c.tracking_reference}</strong><span>{c.customer_name}</span><StatusPill status={c.overall_status}/></button>)}</div></div>}{recent.length>0&&<div><header><span><Icon name="clock" size={14}/> Recently viewed</span><small>Your latest cases</small></header><div>{recent.map(c=><button key={c.id} onClick={()=>quick(c)}><strong>#{c.tracking_reference}</strong><span>{c.customer_name}</span><StatusPill status={c.overall_status}/></button>)}</div></div>}</section>}
+    {!query&&!favoritesOnly&&(pinned.length>0||recent.length>0)&&<section className="case-access-shelves">{pinned.length>0&&<div><header><span><Icon name="bookmark" size={14}/> Favorites</span><div className="case-shelf-meta"><small>{pinned.length} saved</small><button type="button" className="case-shelf-clear" onClick={clearFavorites}>Clear</button></div></header><div className="case-shelf-items">{pinned.map(c=><button key={c.id} onClick={()=>quick(c)}><strong>#{c.tracking_reference}</strong><span>{c.customer_name}</span><StatusPill status={c.overall_status}/></button>)}</div></div>}{recent.length>0&&<div><header><span><Icon name="clock" size={14}/> Recently viewed</span><div className="case-shelf-meta"><small>Your latest cases</small><button type="button" className="case-shelf-clear" onClick={clearRecent}>Clear</button></div></header><div className="case-shelf-items">{recent.map(c=><button key={c.id} onClick={()=>quick(c)}><strong>#{c.tracking_reference}</strong><span>{c.customer_name}</span><StatusPill status={c.overall_status}/></button>)}</div></div>}</section>}
     <div className="legacy-count-row"><span><strong>{displayCases.length.toLocaleString()}</strong> {favoritesOnly?'favorite':'matching'} cases</span><span>Click a card or arrow to expand document workflow</span></div>
     {selected.size>0&&<div className="bulkbar legacy-bulk"><strong>{selected.size} selected</strong><button className="secondary" onClick={batchSelected}>＋ Create Batch</button><button className="secondary" onClick={bulkAppointment}>Assign appointment</button><span>Bulk overall status</span><select value={bulkNext} onChange={e=>setBulkNext(e.target.value)}><option value="">Choose status…</option>{CASE_STATUSES.map(s=><option key={s}>{s}</option>)}</select><button className="primary" disabled={!bulkNext} onClick={async()=>{await bulkStatus(bulkNext);setBulkNext('')}}>Update status</button></div>}
     {loading?<Empty text="Loading cases…"/>:shown.length===0?<Empty text={favoritesOnly?'No favorite cases yet':'No matching cases'}/>:<><div className="legacy-case-grid" key={resultKey}>{shown.map(c=><CaseCard key={c.id} c={c} favorite={favoriteCaseIds.has(c.id)} toggleFavorite={()=>toggleFavorite?.(c.id)} shareDetailed={shareDetailed} open={expanded.has(c.id)} toggle={()=>toggleExpanded(c.id)} checked={selected.has(c.id)} select={()=>toggleSelected(c.id)} selectionMode={selected.size>0} updateCaseStatus={updateCaseStatus} updateStage={updateStage} updateStageDate={updateStageDate} reorderStages={reorderStages} quick={quick} addDoc={addDoc} deleteDocument={deleteDocument} addStage={addStage} renameStage={renameStage} deleteStage={deleteStage} appointment={appointment}/>)}</div>{visible<displayCases.length&&<div className="show-more-wrap"><button className="secondary" onClick={()=>setVisible(v=>v+200)}>Show 200 more</button><span>{(displayCases.length-visible).toLocaleString()} remaining</span></div>}</>}
@@ -1052,6 +1062,7 @@ function Icon({name,size=16,className=''}){
   if(name==='filter')return <svg {...common}><path d="M4 5h16M7 12h10M10 19h4"/></svg>;
   if(name==='clock')return <svg {...common}><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>;
   if(name==='settings')return <svg {...common}><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.6v-.2h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1Z"/></svg>;
+  if(name==='bookmark')return <svg {...common}><path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4.5L5 21V4a1 1 0 0 1 1-1Z"/></svg>;
   if(name==='star')return <svg {...common}><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9z"/></svg>;
   if(name==='share')return <svg {...common}><circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="m8.2 10.8 7.6-4.5M8.2 13.2l7.6 4.5"/></svg>;
   return null;
@@ -1075,7 +1086,7 @@ function CaseCard({c,favorite=false,toggleFavorite,shareDetailed,open,toggle,che
         <div className="legacy-trackline"><strong>#{c.tracking_reference}</strong><span>{c.bill_no||'—'}</span></div>
       </div>
       <StatusPill status={c.overall_status}/>
-      <button className={`case-pin ${favorite?'active':''}`} onClick={e=>{e.stopPropagation();toggleFavorite?.()}} title={favorite?'Unpin case':'Pin case'} aria-label={favorite?'Unpin case':'Pin case'}><Icon name="star" size={15}/></button>
+      <button className={`case-pin ${favorite?'active':''}`} onClick={e=>{e.stopPropagation();toggleFavorite?.()}} title={favorite?'Remove from favorites':'Add to favorites'} aria-label={favorite?'Remove from favorites':'Add to favorites'}><Icon name="bookmark" size={15}/></button>
     </div>
     <div className="legacy-name-band" title={c.customer_name}>
       <strong>{c.customer_name||'Unnamed customer'}</strong>
@@ -2565,7 +2576,7 @@ function OperationsView({companyName='Your Organization',session,profile,cases,n
 
     <div className="ops-toolbar advanced-ops-toolbar">
       <SearchBySelect value={searchBy} onChange={setSearchBy}/><div className="ops-searchbox"><Icon name="search" size={15}/><input placeholder={searchBy==='tracking'?'Enter full or partial tracking number…':searchBy==='mobile'?'Enter full or partial mobile number…':searchBy==='bill'?'Enter full or partial bill number…':searchBy==='name'?'Enter customer name…':'Search all fields…'} value={q} onChange={e=>setQ(e.target.value)}/></div>
-      <button className={`secondary ${activeFilterCount?'filter-active':''}`} onClick={()=>setFiltersOpen(true)}>Advanced Filters{activeFilterCount?` (${activeFilterCount})`:''}</button>
+      <button className={`secondary toolbar-icon-btn ${activeFilterCount?'filter-active':''}`} onClick={()=>setFiltersOpen(true)} title={activeFilterCount?`Advanced filters (${activeFilterCount} active)`:'Advanced filters'} aria-label={activeFilterCount?`Advanced filters, ${activeFilterCount} active`:'Advanced filters'}><Icon name="filter" size={17}/>{activeFilterCount>0&&<b className="toolbar-count-dot">{activeFilterCount}</b>}</button>
       <button className="secondary" onClick={selectVisible}>Select page</button>
       <button className="secondary" disabled={!filteredPrepared.length} onClick={selectAllMatches}>Select all matches</button>
       <button className="secondary" disabled={!selected.size} onClick={clearSelection}>Clear</button>
@@ -4049,6 +4060,17 @@ function QuickView({c,branches=[],session,favorite=false,onToggleFavorite,onDeta
         }
       }
 
+      const transferItems=await queryDeleteDependency('custody_transfer_items','id,transfer_id,document_id,receive_status,custody_transfers(transfer_no,status,from_location,to_location)',c.id);
+      for(const row of transferItems){
+        const transfer=row.custody_transfers||{};
+        blockers.push({
+          type:'Custody Transfer',
+          title:transfer.transfer_no||'Branch custody transfer',
+          detail:[transfer.from_location&&`${transfer.from_location} → ${transfer.to_location||'destination'}`,transfer.status,row.receive_status].filter(Boolean).join(' · '),
+          action:'Open Custody → Transfer History and resolve or remove this transfer item before deleting the case.'
+        });
+      }
+
       const appointments=await queryDeleteDependency('appointments','id,appointment_date,appointment_time,authority,status',c.id);
       for(const row of appointments){
         blockers.push({type:'Appointment',title:`${row.authority||'Appointment'}${row.appointment_date?` · ${fmtDate(row.appointment_date)}`:''}`,detail:row.status||'Scheduled',action:'Open Appointments and remove/delete this appointment before deleting the case.'});
@@ -4104,12 +4126,14 @@ function QuickView({c,branches=[],session,favorite=false,onToggleFavorite,onDeta
     if(!deleteReview || deleteReview.blockers?.length)return;
     setDeletingCase(true);
     try{
-      const {data:deleted,error:deleteError}=await supabase
-        .from('cases')
-        .delete()
-        .eq('id',c.id)
-        .select('id,tracking_reference')
-        .maybeSingle();
+      const removeCase=()=>supabase.from('cases').delete().eq('id',c.id).select('id,tracking_reference').maybeSingle();
+      let {data:deleted,error:deleteError}=await removeCase();
+      const rawDelete=String(deleteError?.message||'');
+      if(deleteError&&/foreign key|violates foreign key constraint/i.test(rawDelete)&&/documents|document.*case_id/i.test(rawDelete)){
+        const {error:documentsError}=await supabase.from('documents').delete().eq('case_id',c.id);
+        if(documentsError)throw documentsError;
+        const retry=await removeCase();deleted=retry.data;deleteError=retry.error;
+      }
       if(deleteError)throw deleteError;
       if(!deleted?.id)throw new Error('The case was not deleted. Your account may not have permission to delete this case.');
 
@@ -4199,7 +4223,7 @@ function QuickView({c,branches=[],session,favorite=false,onToggleFavorite,onDeta
         <aside className="quick-side">
           <div className="quick-side-section">
             <div className="quick-side-heading"><span><Icon name="info" size={15}/></span><h3>Case details</h3></div>
-            <div className="quick-contact-actions"><button onClick={callCustomer}><Icon name="phone" size={14}/> Call</button><button onClick={whatsappCustomer}><b>W</b> WhatsApp</button><button onClick={shareCase}><Icon name="share" size={14}/> Share</button><button className={favorite?'active':''} onClick={onToggleFavorite}><Icon name="star" size={14}/> {favorite?'Pinned':'Pin'}</button></div>
+            <div className="quick-contact-actions"><button onClick={callCustomer}><Icon name="phone" size={14}/> Call</button><button onClick={whatsappCustomer}><b>W</b> WhatsApp</button><button onClick={shareCase}><Icon name="share" size={14}/> Share</button><button className={favorite?'active':''} onClick={onToggleFavorite}><Icon name="bookmark" size={14}/> {favorite?'Saved':'Favorite'}</button></div>
             <dl>
               <dt>Submission</dt><dd>{fmtDate(c.submission_date)}</dd>
               <dt>Submitted branch</dt><dd>{c.branches?.name||'—'}</dd>
