@@ -5104,3 +5104,53 @@ body{background:radial-gradient(circle at 78% 4%,rgba(61,103,216,.055),transpare
 .modal.quick-modal-v323 .quick-side dd{overflow-wrap:anywhere!important}
 @media(max-width:1350px) and (min-width:701px){.modal.quick-modal-v323 .quick-actions{top:15px!important;right:16px!important;width:44px!important;height:44px!important}.modal.quick-modal-v323 .quick-actions .quick-close{width:44px!important;height:44px!important;min-width:44px!important}.modal.quick-modal-v323 .quick-hero>div:first-child{padding-right:52px!important}}
 @media(max-width:700px){.modal.quick-modal-v323 .quick-actions{top:12px!important;right:11px!important;width:42px!important;height:42px!important}.modal.quick-modal-v323 .quick-actions .quick-close{width:42px!important;height:42px!important;min-width:42px!important;border-color:rgba(255,255,255,.25)!important;background:rgba(8,31,70,.22)!important;color:#fff!important}.modal.quick-modal-v323 .quick-hero>div:first-child{padding-right:48px!important}.modal.quick-modal-v323 .quick-body>.quick-side{display:block!important;overflow:visible!important}.modal.quick-modal-v323 .quick-side-section+.quick-side-section{margin-top:10px!important}.modal.quick-modal-v323 .quick-activity-section{min-height:260px!important;max-height:380px!important}.modal.quick-modal-v323 .activity-scroll{min-height:190px!important;max-height:300px!important}}
+
+/* V4.0.8 — customer name and mobile share the case-card identity row. */
+.legacy-name-band{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:space-between!important;
+  gap:16px!important;
+  padding-left:45px!important;
+  padding-right:17px!important;
+}
+.legacy-name-band>strong{
+  min-width:0;
+  overflow:hidden;
+  color:inherit;
+  font:inherit;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.legacy-name-mobile{
+  display:inline-flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:7px;
+  flex:0 0 auto;
+  min-width:0;
+  max-width:48%;
+  color:#526178;
+  font-size:13px;
+  font-weight:700;
+  letter-spacing:0;
+  white-space:nowrap;
+}
+.legacy-name-mobile svg{flex:0 0 auto;color:#718098}
+@media(min-width:701px){
+  .legacy-card-actions{grid-template-columns:auto auto minmax(82px,1fr) 31px!important}
+}
+@media(max-width:700px){
+  .legacy-name-band{
+    gap:10px!important;
+    padding-left:18px!important;
+    padding-right:14px!important;
+  }
+  .legacy-name-mobile{
+    max-width:46%;
+    overflow:hidden;
+    font-size:12px;
+    text-overflow:ellipsis;
+  }
+  .legacy-card-actions{grid-template-columns:1fr 1fr!important}
+}

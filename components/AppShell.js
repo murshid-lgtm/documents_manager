@@ -1070,7 +1070,10 @@ function CaseCard({c,favorite=false,toggleFavorite,shareDetailed,open,toggle,che
       <StatusPill status={c.overall_status}/>
       <button className={`case-pin ${favorite?'active':''}`} onClick={e=>{e.stopPropagation();toggleFavorite?.()}} title={favorite?'Unpin case':'Pin case'} aria-label={favorite?'Unpin case':'Pin case'}><Icon name="star" size={15}/></button>
     </div>
-    <div className="legacy-name-band" title={c.customer_name}>{c.customer_name}</div>
+    <div className="legacy-name-band" title={c.customer_name}>
+      <strong>{c.customer_name||'Unnamed customer'}</strong>
+      <span className="legacy-name-mobile" title={c.mobile||'No mobile number'}><Icon name="phone" size={15}/>{c.mobile||'—'}</span>
+    </div>
     <div className="legacy-card-summary">
       <div><strong>{docs.length} doc{docs.length===1?'':'s'}</strong></div>
       <div className={m.balance>0?'due':''}><strong>{m.balance>0?`QAR ${Number(m.balance).toLocaleString('en-US',{maximumFractionDigits:2})}`:'QAR 0'}</strong></div>
@@ -1079,7 +1082,6 @@ function CaseCard({c,favorite=false,toggleFavorite,shareDetailed,open,toggle,che
     <div className="legacy-card-actions">
       <button className="legacy-action-btn" onClick={e=>{e.stopPropagation();appointment(c)}}><Icon name="calendar" size={15}/> Appointment</button>
       <button className="legacy-action-btn" onClick={e=>{e.stopPropagation();quick(c)}}><Icon name="eye" size={15}/> Quick view</button>
-      <div className="legacy-phone"><Icon name="phone" size={14}/><strong>{c.mobile||'—'}</strong></div>
       <div className="case-contact-shortcuts"><button onClick={call} disabled={!contact} title="Call customer"><Icon name="phone" size={13}/></button><button onClick={whatsapp} disabled={!contact} title="WhatsApp customer"><b>W</b></button><button onClick={share} title="Share case"><Icon name="share" size={13}/></button></div>
       <button className="legacy-chevron" onClick={e=>{e.stopPropagation();toggle()}} aria-label={open?'Collapse document workflow':'Expand document workflow'} aria-expanded={open} title={open?'Collapse workflow':'Expand workflow'}><Icon name={open?'chevron-up':'chevron-down'} size={17}/></button>
     </div>
