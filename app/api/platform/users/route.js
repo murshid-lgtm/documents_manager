@@ -3,9 +3,9 @@ import {createClient} from '@supabase/supabase-js';
 
 export async function POST(request){
   try{
-    const url=process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const publishable=process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY||process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    const service=process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const url=process.env.NEXT_PUBLIC_SUPABASE_URL||process.env.SUPABASE_URL;
+    const publishable=process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY||process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY||process.env.SUPABASE_PUBLISHABLE_KEY||process.env.SUPABASE_ANON_KEY;
+    const service=process.env.SUPABASE_SERVICE_ROLE_KEY||process.env.SUPABASE_SECRET_KEY;
     if(!url||!publishable||!service)return NextResponse.json({error:'Server user-management credentials are not configured.'},{status:503});
     const token=String(request.headers.get('authorization')||'').replace(/^Bearer\s+/i,'');
     if(!token)return NextResponse.json({error:'Authentication required.'},{status:401});

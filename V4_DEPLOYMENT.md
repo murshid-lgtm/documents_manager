@@ -24,7 +24,7 @@ Add these in **Vercel → Project Settings → Environment Variables** and enabl
 
 - `NEXT_PUBLIC_SUPABASE_URL`: Supabase **Project URL**.
 - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`: Supabase **Publishable key**. If the project only displays an anon key, use `NEXT_PUBLIC_SUPABASE_ANON_KEY` instead.
-- `SUPABASE_SERVICE_ROLE_KEY`: Supabase **service_role** key; server-only and secret.
+- `SUPABASE_SERVICE_ROLE_KEY`: Supabase **service_role** key; server-only and secret. New Vercel/Supabase integrations may provide `SUPABASE_SECRET_KEY` automatically instead; V4.0.4 accepts either name.
 
 `SUPABASE_SERVICE_ROLE_KEY` is server-only and is used by `/api/platform/users` to create staff accounts. Never expose it as a `NEXT_PUBLIC_` value.
 

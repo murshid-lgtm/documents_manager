@@ -4,8 +4,8 @@ import { createClient } from '@supabase/supabase-js';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY;
 const supabase = url && serviceKey ? createClient(url, serviceKey, { auth: { persistSession:false, autoRefreshToken:false } }) : null;
 
 const cleanRef=v=>String(v||'').trim().replace(/[^A-Za-z0-9._/-]/g,'').slice(0,50);

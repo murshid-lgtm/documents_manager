@@ -4,8 +4,8 @@ import { createClient } from '@supabase/supabase-js';
 export const dynamic='force-dynamic';
 export const runtime='nodejs';
 
-const dbUrl=process.env.NEXT_PUBLIC_SUPABASE_URL;
-const serviceKey=process.env.SUPABASE_SERVICE_ROLE_KEY;
+const dbUrl=process.env.NEXT_PUBLIC_SUPABASE_URL||process.env.SUPABASE_URL;
+const serviceKey=process.env.SUPABASE_SERVICE_ROLE_KEY||process.env.SUPABASE_SECRET_KEY;
 const accessToken=process.env.WHATSAPP_ACCESS_TOKEN;
 const phoneNumberId=process.env.WHATSAPP_PHONE_NUMBER_ID;
 const templateName=process.env.WHATSAPP_TEMPLATE_NAME||'document_case_update';
