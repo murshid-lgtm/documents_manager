@@ -7,7 +7,7 @@ V4 is designed for a completely new Supabase project, GitHub repository and Verc
 1. Create a blank Supabase project.
 2. Run `supabase/V4_0_CLEAN_INSTALL.sql` once in the Supabase SQL editor. Do not run the V3 migrations.
 3. In Supabase Authentication, create the first owner user with email and password.
-4. At the bottom of `V4_0_CLEAN_INSTALL.sql`, copy the commented bootstrap block, replace the owner email and company placeholders, remove the comment markers and run it once. This makes that user the Platform Super Admin and creates the first company and branch.
+4. At the bottom of `V4_0_CLEAN_INSTALL.sql`, copy the commented owner statement, replace the owner email, remove the comment markers and run it once. This creates a global Platform Super Admin with no company or branch assignment. Create client companies later from Platform Management.
 5. Create a new GitHub repository and push only the V4 source. Do not commit `.env.local`, service keys, `node_modules` or `.next`.
 6. Create a new Vercel project from the new GitHub repository.
 7. Add the environment variables below in Vercel and deploy.
@@ -58,11 +58,12 @@ Import the new GitHub repository into Vercel as a new project. Framework preset:
 ## Platform owner workflow
 
 - Open **Platform Management** from the administration section.
-- Create a company as either **Shared SaaS tenant** or **Dedicated installation**.
+- A new platform contains no default company. Create each client company as either a **Shared SaaS tenant** or **Dedicated installation**.
 - Configure company/product identity, upload logos, favicon, mobile icon and login background, then adjust colors and login copy in the live desktop/mobile preview.
 - Branding uploads are stored in the public `branding-assets` Supabase Storage bucket because signed-out login pages must be able to display them. Only authorized administrators can upload or change these files.
 - Select **Save Branding Permanently** after editing text, colors, domains or links. Image uploads are saved immediately.
 - Create branches and staff accounts, then assign company and branch roles.
+- To hand access to a client, open that company's **Staff** tab and create a **Company Admin** account with their email and a temporary password. That account is automatically restricted to the selected company.
 - Enable or hide optional modules. The same `organization_settings` record can be consumed by the mobile application.
 - Automatic WhatsApp remains forced off. Manual WhatsApp sharing remains available.
 

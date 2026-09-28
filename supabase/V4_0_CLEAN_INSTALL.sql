@@ -344,17 +344,13 @@ grant usage on schema public to anon,authenticated;
 grant select,insert,update,delete on all tables in schema public to authenticated;
 
 -- Create the first Auth user in Supabase Authentication > Users, then replace
--- BOTH placeholders below and run this block separately after this file commits.
--- do $$ declare org uuid; uid uuid; begin
---   select id into uid from auth.users where lower(email)=lower('OWNER_EMAIL_HERE');
---   if uid is null then raise exception 'Create the Auth user first'; end if;
---   insert into public.organizations(name,slug,legal_name,status,deployment_mode,contact_email,created_by)
---   values('YOUR COMPANY','your-company','YOUR COMPANY','Active','Dedicated','OWNER_EMAIL_HERE',uid) returning id into org;
---   update public.profiles set organization_id=org,role='admin',is_active=true,is_platform_super_admin=true where id=uid;
---   insert into public.organization_settings(organization_id,product_name,company_name,short_name,updated_by)
---   values(org,'Document Tracker','YOUR COMPANY','Company',uid);
---   insert into public.branches(organization_id,name) values(org,'Main Branch');
--- end $$;
+-- the email and run this statement separately after this file commits.
+-- The platform owner intentionally has no organization or branch. Companies
+-- are created later from Platform Management.
+-- update public.profiles p
+-- set role='admin',is_active=true,is_platform_super_admin=true,organization_id=null,branch_id=null
+-- from auth.users u
+-- where p.id=u.id and lower(u.email)=lower('OWNER_EMAIL_HERE');
 
 commit;
 notify pgrst,'reload schema';
