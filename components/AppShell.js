@@ -4144,7 +4144,6 @@ function QuickView({c,branches=[],session,favorite=false,onToggleFavorite,onDeta
           </div>
         </div>
         <div className="quick-actions">
-          <button className={`icon-btn quick-pin ${favorite?'active':''}`} onClick={onToggleFavorite} aria-label={favorite?'Unpin case':'Pin case'} title={favorite?'Unpin case':'Pin case'}><Icon name="star" size={18}/></button>
           <button className="icon-btn quick-close" onClick={onClose} aria-label="Close"><Icon name="close" size={18}/></button>
         </div>
       </div>
