@@ -6,6 +6,7 @@ import QRCode from 'qrcode';
 import jsQR from 'jsqr';
 import ProductSettings from './ProductSettings';
 import SimpleLegacyImport from './SimpleLegacyImport';
+import {userError} from '../lib/userError';
 
 const CASE_STATUSES=['Received','Under Process','Waiting','Completed','Ready for Delivery','Delivered','Returned','Cancelled'];
 const STAGE_STATUSES=['Pending','Processing','Completed','Not Required','Cancelled'];
@@ -124,7 +125,13 @@ export default function AppShell({session}){
   const [branches,setBranches]=useState([]);
   const [cases,setCases]=useState([]);
   const [loading,setLoading]=useState(true);
-  const [message,setMessage]=useState('');
+  const [message,setRawMessage]=useState('');
+  const setMessage=useCallback(value=>{
+    setRawMessage(previous=>{
+      const next=typeof value==='function'?value(previous):value;
+      return next?userError(next):'';
+    });
+  },[]);
   const [moduleExport,setModuleExport]=useState(null);
   const publishModuleExport=useCallback(next=>setModuleExport(prev=>{const signature=JSON.stringify(next);return prev?._signature===signature?prev:{...next,_signature:signature}}),[]);
   const [query,setQuery]=useState('');
@@ -3995,7 +4002,7 @@ function QuickView({c,branches=[],session,favorite=false,onToggleFavorite,onDeta
       notify?.('Case changes saved successfully.');
       setEdit(false);
     }catch(err){
-      const message=err?.message||'Unable to save case changes.';
+      const message=userError(err,{type:'tracking',trackingReference:String(form.tracking_reference||'').trim()});
       setEditError(message);
       notify?.(message);
     }finally{

@@ -1,6 +1,7 @@
 'use client';
 import { useEffect,useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { userError } from '../lib/userError';
 
 export default function Login({resetMode=false,onResetComplete}) {
   const [email, setEmail] = useState('');
@@ -16,21 +17,21 @@ export default function Login({resetMode=false,onResetComplete}) {
   async function submit(e) {
     e.preventDefault(); setLoading(true); setError('');
     const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) setError(error.message);
+    if (error) setError(userError(error));
     setLoading(false);
   }
   async function requestReset(e){
     e.preventDefault();setLoading(true);setError('');setNotice('');
     const redirectTo=typeof window!=='undefined'?window.location.origin:undefined;
     const {error}=await supabase.auth.resetPasswordForEmail(email,{redirectTo});
-    if(error)setError(error.message);else setNotice('Password reset link sent. Check your email inbox.');
+    if(error)setError(userError(error));else setNotice('Password reset link sent. Check your email inbox.');
     setLoading(false);
   }
   async function savePassword(e){
     e.preventDefault();setLoading(true);setError('');
     if(password.length<8){setError('Use at least 8 characters for your new password.');setLoading(false);return}
     const {error}=await supabase.auth.updateUser({password});
-    if(error)setError(error.message);else{setNotice('Password updated successfully.');setTimeout(()=>onResetComplete?.(),700)}
+    if(error)setError(userError(error));else{setNotice('Password updated successfully.');setTimeout(()=>onResetComplete?.(),700)}
     setLoading(false);
   }
 

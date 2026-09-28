@@ -5154,3 +5154,22 @@ body{background:radial-gradient(circle at 78% 4%,rgba(61,103,216,.055),transpare
   }
   .legacy-card-actions{grid-template-columns:1fr 1fr!important}
 }
+
+/* V4.0.9 — import family review and corrective guidance. */
+.simple-family-note{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:18px;
+  margin-top:12px;
+  padding:14px 16px;
+  border:1px solid #cfe5dc;
+  border-radius:13px;
+  background:#f1fbf7;
+  color:#186d56;
+}
+.simple-family-note strong{font-size:12px}
+.simple-family-note span{max-width:760px;font-size:10.5px;line-height:1.55;color:#527568}
+.simple-family-note.warning{border-color:#efcf91;background:#fff9ec;color:#915e0e}
+.simple-family-note.warning span{color:#876b37}
+@media(max-width:700px){.simple-family-note{align-items:flex-start;flex-direction:column;gap:6px}}

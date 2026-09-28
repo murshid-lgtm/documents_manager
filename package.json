@@ -1,6 +1,6 @@
 {
   "name": "document-operations-platform",
-  "version": "4.0.8",
+  "version": "4.0.9",
   "private": true,
   "scripts": {
     "dev": "next dev",

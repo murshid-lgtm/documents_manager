@@ -1,5 +1,6 @@
 'use client';
 import {useEffect,useState} from 'react';
+import {userError} from '../../lib/userError';
 
 const fmtDate=v=>v?new Date(v).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}):'—';
 function I({name,size=18}){const p={width:size,height:size,viewBox:'0 0 24 24',fill:'none',stroke:'currentColor',strokeWidth:1.9,strokeLinecap:'round',strokeLinejoin:'round'};if(name==='search')return <svg {...p}><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>;if(name==='file')return <svg {...p}><path d="M6 2h8l4 4v16H6z"/><path d="M14 2v5h5M9 12h6M9 16h6"/></svg>;return <svg {...p}><path d="m7 9.5 5 5 5-5"/></svg>}
@@ -15,7 +16,7 @@ export default function PublicTrackPage(){
   async function track(e,ref=q){
     e?.preventDefault(); const value=String(ref||'').trim(); if(!value)return;
     setLoading(true);setSearched(false);setError('');setFound(null);setMatches([]);setOpen(new Set());
-    try{const org=new URLSearchParams(window.location.search).get('org')||'';const r=await fetch(`/api/public/track?reference=${encodeURIComponent(value)}&org=${encodeURIComponent(org)}`,{cache:'no-store'});const j=await r.json();if(!r.ok)throw new Error(j.error||'Unable to track.');if(j.branding)setBrand(j.branding);const list=j.cases||[];setMatches(list);setFound(list.length===1?list[0]:null)}catch(err){setError(err.message||'Unable to track.')}finally{setLoading(false);setSearched(true)}
+    try{const org=new URLSearchParams(window.location.search).get('org')||'';const r=await fetch(`/api/public/track?reference=${encodeURIComponent(value)}&org=${encodeURIComponent(org)}`,{cache:'no-store'});const j=await r.json();if(!r.ok)throw new Error(j.error||'Unable to track.');if(j.branding)setBrand(j.branding);const list=j.cases||[];setMatches(list);setFound(list.length===1?list[0]:null)}catch(err){setError(userError(err))}finally{setLoading(false);setSearched(true)}
   }
   useEffect(()=>{const ref=new URLSearchParams(window.location.search).get('ref');if(ref){setQ(ref);track(null,ref)}},[]);
   function toggle(id){setOpen(p=>{const n=new Set(p);n.has(id)?n.delete(id):n.add(id);return n})}
