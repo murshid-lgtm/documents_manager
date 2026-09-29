@@ -48,11 +48,19 @@ export async function GET(request){
 
   let organizationId=null,organization=null;
   if(organizationSlug){
-    const {data,error}=await supabase.from('organizations').select('id,name,slug').eq('slug',organizationSlug).eq('is_active',true).maybeSingle();
-    if(error||!data)return response({ok:false,error:'Tracking workspace was not found.'},404);
+    const {data,error}=await supabase.from('organizations').select('id,name,slug,status').eq('slug',organizationSlug).eq('status','Active').maybeSingle();
+    if(error){
+      console.error('Public tracking organization lookup failed',error);
+      return response({ok:false,error:'Tracking workspace could not be checked. Please contact your service provider.'},500);
+    }
+    if(!data)return response({ok:false,error:'Tracking workspace was not found. Please verify the organization slug.'},404);
     organizationId=data.id;organization=data;
   }else{
-    const {data}=await supabase.from('organizations').select('id,name,slug').eq('is_active',true).limit(2);
+    const {data,error}=await supabase.from('organizations').select('id,name,slug,status').eq('status','Active').limit(2);
+    if(error){
+      console.error('Public tracking organization list failed',error);
+      return response({ok:false,error:'Tracking workspace could not be checked. Please contact your service provider.'},500);
+    }
     if(data?.length===1){organizationId=data[0].id;organization=data[0]}
     else if((data||[]).length>1)return response({ok:false,error:'This tracking link is incomplete. Please use the link supplied by your service provider.'},400);
   }
