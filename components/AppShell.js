@@ -47,7 +47,15 @@ function caseExactSearchMode(cases,q){
 }
 
 const SEARCH_BY_OPTIONS=[['tracking','Tracking No.'],['name','Customer Name'],['mobile','Mobile'],['bill','Bill No.'],['all','All Fields']];
-function SearchBySelect({value,onChange,className=''}){const label=SEARCH_BY_OPTIONS.find(([v])=>v===value)?.[1]||'field';return <select className={`search-by-select ${className}`} value={value} onChange={e=>onChange(e.target.value)} aria-label={`Search by ${label}`} title={`Search by: ${label}`}>{SEARCH_BY_OPTIONS.map(([v,l])=><option key={v} value={v}>Search by: {l}</option>)}</select>}
+function SearchBySelect({value,onChange,className=''}){
+  const [open,setOpen]=useState(false),root=useRef(null);
+  const label=SEARCH_BY_OPTIONS.find(([v])=>v===value)?.[1]||'field';
+  useEffect(()=>{if(!open)return;const outside=e=>{if(!root.current?.contains(e.target))setOpen(false)},escape=e=>{if(e.key==='Escape')setOpen(false)};document.addEventListener('mousedown',outside);document.addEventListener('keydown',escape);return()=>{document.removeEventListener('mousedown',outside);document.removeEventListener('keydown',escape)}},[open]);
+  return <div ref={root} className={`search-by-menu ${open?'open':''} ${className}`}>
+    <button type="button" className="search-by-trigger" onClick={()=>setOpen(x=>!x)} aria-haspopup="menu" aria-expanded={open} aria-label={`Search by ${label}`} title={`Search by: ${label}`}><Icon name="search" size={18}/><span className="search-by-caret"><Icon name="chevron-down" size={10}/></span></button>
+    {open&&<div className="search-by-popover" role="menu" aria-label="Choose search field"><div className="search-by-popover-head"><span>SEARCH FIELD</span><small>Currently: {label}</small></div>{SEARCH_BY_OPTIONS.map(([v,l])=><button type="button" role="menuitemradio" aria-checked={value===v} className={value===v?'active':''} key={v} onClick={()=>{onChange(v);setOpen(false)}}><span className="search-by-option-icon"><Icon name="search" size={15}/></span><span><strong>{l}</strong><small>{v==='all'?'Search every case field':`Search by ${l.toLowerCase()}`}</small></span>{value===v&&<Icon name="check" size={16}/>}</button>)}</div>}
+  </div>
+}
 function caseSearchValues(c,field='tracking',hay=''){
   const docs=c?.documents||[];
   if(field==='tracking')return [c?.tracking_reference,c?.tracking_family,...docs.map(d=>d.source_tracking_reference)];
@@ -775,7 +783,7 @@ ${company}`;
 
   return <div className={`app-shell ${sidebarCollapsed?'sidebar-collapsed':''}`}>
     <aside className="sidebar">
-      <div className={`brand ${brandSettings?.logo_url?'brand-logo-mode':''}`} style={{'--sidebar-logo-size':`${Number(brandSettings?.sidebar_logo_size||100)}%`,'--sidebar-logo-align':brandSettings?.sidebar_logo_alignment||'center'}}>{brandSettings?.logo_url?<div className="sidebar-logo-container"><img className="sidebar-brand-logo" src={brandSettings.logo_url} alt={brandSettings?.company_name||'Company logo'}/></div>:<><div className="brand-mark small">{(brandSettings?.short_name||brandSettings?.company_name||'D').slice(0,1).toUpperCase()}</div><div><strong>{brandSettings?.product_name||'Document Operations'}</strong><span>{brandSettings?.company_name||'Operations command center'}</span></div></>}<button className="sidebar-toggle" onClick={toggleSidebar} title={sidebarCollapsed?'Expand sidebar':'Collapse sidebar'} aria-label={sidebarCollapsed?'Expand sidebar':'Collapse sidebar'}><Icon name={sidebarCollapsed?'chevron-right':'chevron-left'} size={16}/></button></div>
+      <div className={`brand ${brandSettings?.logo_url&&brandSettings?.sidebar_logo_visible!==false?'brand-logo-mode':''} ${brandSettings?.logo_url&&brandSettings?.sidebar_logo_visible===false?'brand-logo-hidden':''}`} style={{'--sidebar-logo-size':`${Number(brandSettings?.sidebar_logo_size||100)}%`,'--sidebar-logo-align':brandSettings?.sidebar_logo_alignment||'center','--sidebar-logo-background':brandSettings?.sidebar_logo_background||'#FFFFFF','--sidebar-logo-radius':`${Number(brandSettings?.sidebar_logo_radius??14)}px`}}>{brandSettings?.logo_url?(brandSettings?.sidebar_logo_visible!==false?<div className="sidebar-logo-container"><img className="sidebar-brand-logo" src={brandSettings.logo_url} alt={brandSettings?.company_name||'Company logo'}/></div>:null):<><div className="brand-mark small">{(brandSettings?.short_name||brandSettings?.company_name||'D').slice(0,1).toUpperCase()}</div><div><strong>{brandSettings?.product_name||'Document Operations'}</strong><span>{brandSettings?.company_name||'Operations command center'}</span></div></>}<button className="sidebar-toggle" onClick={toggleSidebar} title={sidebarCollapsed?'Expand sidebar':'Collapse sidebar'} aria-label={sidebarCollapsed?'Expand sidebar':'Collapse sidebar'}><Icon name={sidebarCollapsed?'chevron-right':'chevron-left'} size={16}/></button></div>
       <div className="sidebar-live"><i></i><span>Workspace online</span><b>LIVE</b></div>
       <div className="nav-scroll">
       <div className="nav-section"><span>OVERVIEW</span>
