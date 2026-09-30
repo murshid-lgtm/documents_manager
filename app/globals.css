@@ -3432,7 +3432,7 @@ button,input,select,textarea{font-family:inherit!important;font-weight:500!impor
   color:var(--muted);font-size:10px;font-weight:500;cursor:pointer
 }
 .customer-search-tabs button.active{background:#eef3ff;color:#315cc9}
-.customer-track-searchbox form{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:7px}
+.customer-track-searchbox form{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto;gap:7px}
 .customer-search-input{
   display:flex;align-items:center;gap:8px;min-height:46px;padding:0 12px;
   border:1px solid var(--line);border-radius:10px;background:var(--surface2);color:#8a94a8

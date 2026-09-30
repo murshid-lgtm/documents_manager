@@ -1,3 +1,36 @@
+# Document Operations Platform V4.0.20
+
+## Required security deployment steps
+
+This release hardens authentication-adjacent endpoints, tenant authorization,
+branch isolation, public tracking, uploads, error responses and production HTTP
+headers.
+
+1. Back up the Supabase database.
+2. For a new project, run `supabase/V4_0_CLEAN_INSTALL.sql` first.
+3. For an existing V4 project, run
+   `supabase/V4_0_20_SECURITY_HARDENING.sql` in the Supabase SQL Editor.
+4. In Supabase Authentication settings, set JWT expiry to **3600 seconds**, set
+   email OTP/reset-link expiry to **3600 seconds**, require passwords of at
+   least **12 characters**, and enable leaked-password protection.
+5. Add every production URL to Supabase Authentication → URL Configuration.
+   Keep only trusted HTTPS redirect URLs.
+6. Add all variables from `.env.example` to Vercel. Keep
+   `SUPABASE_SERVICE_ROLE_KEY`, `RATE_LIMIT_PEPPER`, WhatsApp credentials and
+   notification secrets server-only; never prefix them with `NEXT_PUBLIC_`.
+7. Run `npm run security:check` before deployment.
+
+Public customer links now use `?token=<opaque UUID>`. Manual tracking requires
+both the tracking reference and the registered customer mobile number. Old
+reference-only links intentionally stop exposing case details and should be
+reshared from the case screen.
+
+Staff creation now sends an email invitation. Administrators no longer choose
+or transmit a temporary password. Only the platform owner can create or promote
+company administrators.
+
+## Historic release notes
+
 # Kenza Tracker Production V3.5.0 — Appointments + Batch Operations
 
 Before deploying, run `supabase/V3_5_APPOINTMENTS_BATCHES.sql` once in the Supabase SQL Editor.
