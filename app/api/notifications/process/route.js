@@ -19,7 +19,7 @@ export async function POST(request){
     if(String(process.env.WHATSAPP_AUTOMATION_ENABLED||'false').toLowerCase()!=='true')return apiJson({ok:false,error:'Automatic WhatsApp is on hold for this release.',code:'FEATURE_DISABLED'},409);
     if(!processSecret||!constantTimeEqual(bearerToken(request),processSecret))return apiJson({ok:false,error:'Unauthorized.',code:'UNAUTHORIZED'},401);
     if(!supabase||!accessToken||!phoneNumberId)return apiJson({ok:false,error:'WhatsApp processing is not configured.',code:'SERVICE_NOT_CONFIGURED'},503);
-    const {data:rows,error}=await supabase.from('notification_outbox').select('*,cases(public_tracking_token)').eq('status','Pending').order('created_at',{ascending:true}).limit(20);
+    const {data:rows,error}=await supabase.from('notification_outbox').select('*,cases!notification_outbox_case_id_fkey(public_tracking_token)').eq('status','Pending').order('created_at',{ascending:true}).limit(20);
     if(error)throw error;
     const results=[],baseCache=new Map();
     for(const row of rows||[]){

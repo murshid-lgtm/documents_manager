@@ -28,10 +28,12 @@ try{
     grant execute on all functions in schema auth to authenticated,service_role;`);
   await db.exec(fs.readFileSync(new URL('../supabase/V4_0_CLEAN_INSTALL.sql',import.meta.url),'utf8').replace('create extension if not exists pgcrypto;',''));
   await db.exec(fs.readFileSync(new URL('../supabase/V4_0_20_SECURITY_HARDENING.sql',import.meta.url),'utf8'));
+  await db.exec(fs.readFileSync(new URL('../supabase/V4_0_21_WORKFLOW_REPAIR.sql',import.meta.url),'utf8'));
   const grants=(await db.query("select has_function_privilege('anon','public.confirm_custody_receipt(uuid,jsonb,text)','execute') as receipt,has_function_privilege('anon','public.can_read_case(uuid)','execute') as case_read,has_function_privilege('authenticated','public.protect_profile_privileges()','execute') as trigger_access")).rows[0];
   assert.equal(grants.receipt,false);assert.equal(grants.case_read,false);assert.equal(grants.trigger_access,false);checks+=3;
   // Reapplying an upgrade must be safe.
   await db.exec(fs.readFileSync(new URL('../supabase/V4_0_20_SECURITY_HARDENING.sql',import.meta.url),'utf8'));
+  await db.exec(fs.readFileSync(new URL('../supabase/V4_0_21_WORKFLOW_REPAIR.sql',import.meta.url),'utf8'));
   await db.query("insert into organizations(id,name,slug) values($1,'Company A','a'),($2,'Company B','b')",[id(1),id(2)]);
   await db.query("insert into branches(id,organization_id,name) values($1,$4,'Al Khor'),($2,$4,'Safari'),($3,$5,'Other')",[id(11),id(12),id(13),id(1),id(2)]);
   for(const n of [21,22,23,24,25]){
@@ -44,6 +46,9 @@ try{
   await db.query("insert into cases(id,organization_id,branch_id,tracking_reference,customer_name,physical_location) values($1,$4,$6,'100','Alice','Al Khor'),($2,$4,$7,'101','Bob','Safari'),($3,$5,$8,'102','Carol','Other')",[id(31),id(32),id(33),id(1),id(2),id(11),id(12),id(13)]);
   await db.query("insert into documents(id,organization_id,case_id,document_name,physical_location) values($1,$5,$3,'Degree','Al Khor'),($2,$5,$4,'Certificate','Safari')",[id(41),id(42),id(31),id(32),id(1)]);
   await login(22);assert.equal(await count('cases'),1);checks++;
+  await denied("insert into cases(tracking_reference,customer_name,branch_id) values('wrong-branch','Cross branch',$1) returning id",[id(12)]);
+  const branchCreated=await db.query("insert into cases(tracking_reference,customer_name,branch_id) values('own-branch','Own branch',$1) returning id",[id(11)]);assert.equal(branchCreated.rows.length,1);checks++;
+  await system();await db.query('delete from cases where id=$1',[branchCreated.rows[0].id]);await login(22);
   assert.equal((await db.query('update cases set notes=$1 where id=$2 returning id',['not allowed',id(32)])).rows.length,0);checks++;
   await denied('update profiles set is_platform_super_admin=true where id=$1',[id(22)]);
   await denied('insert into documents(organization_id,case_id,document_name) values($1,$2,$3)',[id(1),id(33),'Cross tenant']);
@@ -63,8 +68,19 @@ try{
   await denied('select confirm_custody_receipt($1,$2::jsonb,null)',[id(51),JSON.stringify([{id:id(61),status:'Verified'}])]);
   await login(24);assert.equal(await count('cases'),1);assert.equal(await count('custody_transfers'),0);checks+=2;
   await login(21);assert.equal(await count('cases'),2);checks++;
+  const created=await db.query("insert into cases(tracking_reference,customer_name,branch_id) values('new-admin-case','New customer',$1) returning id",[id(11)]);assert.equal(created.rows.length,1);checks++;
+  await db.query('delete from cases where id=$1',[created.rows[0].id]);
   await denied('update profiles set is_platform_super_admin=true where id=$1',[id(21)]);
   await login(25);assert.equal(await count('cases'),3);checks++;
+  await system();await db.query('update profiles set staff_modules=$1 where id=$2',[['cases'],id(23)]);
+  await login(23);assert.equal((await db.query("select can_use_module('cases') as cases,can_use_module('custody') as custody")).rows[0].custody,false);checks++;
+  assert.equal(await count('custody_transfers'),0);checks++;
+  await denied('select confirm_custody_receipt($1,$2::jsonb,null)',[id(51),JSON.stringify([{id:id(61),status:'Verified'}])]);
+  await denied('update profiles set staff_modules=$1 where id=$2',[['custody'],id(23)]);
+  await system();await db.query('update profiles set staff_modules=$1 where id=$2',[[],id(23)]);
+  await login(23);assert.equal(await count('cases'),0);checks++;
+  await system();await db.query('update profiles set staff_modules=null where id=$1',[id(23)]);
+
   await system();await db.query('delete from auth.sessions where id=$1',[id(122)]);
   await login(22);assert.equal(await count('cases'),0);assert.equal(await count('profiles'),0);checks+=2;
   await denied('insert into cases(tracking_reference,customer_name,branch_id) values($1,$2,$3)',['bad','Revoked',id(11)]);

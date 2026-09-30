@@ -12,8 +12,8 @@ const cleanMobile=v=>String(v||'').replace(/\D/g,'').slice(-8);
 const cleanSlug=v=>String(v||'').trim().toLowerCase().replace(/[^a-z0-9-]/g,'').slice(0,80);
 const cleanToken=v=>/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(v||''))?String(v):'';
 const caseSelect=`organization_id,tracking_reference,customer_name,mobile,submission_date,overall_status,
-  documents(id,document_name,occurrence_no,quantity,document_status,
-    document_stages(id,stage_name,stage_order,status))`;
+  documents!documents_case_id_fkey(id,document_name,occurrence_no,quantity,document_status,
+    document_stages!document_stages_document_id_fkey(id,stage_name,stage_order,status))`;
 
 const allowedCase=c=>({
   tracking_reference:c.tracking_reference,
@@ -52,33 +52,35 @@ export async function GET(request){
 
     const {searchParams}=new URL(request.url);
     const token=cleanToken(searchParams.get('token'));
-    const reference=cleanRef(searchParams.get('reference'));
-    const mobile=cleanMobile(searchParams.get('mobile'));
+    const reference=cleanRef(searchParams.get('reference')||searchParams.get('ref'));
+    const suppliedMobile=String(searchParams.get('mobile')||'');
+    const mobile=cleanMobile(suppliedMobile||(/^\+?\d{8,12}$/.test(reference)?reference:''));
     const organizationSlug=cleanSlug(searchParams.get('org'));
-    if(!token&&(!reference||mobile.length!==8))return apiJson({ok:false,error:'Enter the tracking reference and the customer mobile number.',code:'VERIFICATION_REQUIRED'},400);
+    if(!token&&!reference&&mobile.length!==8)return apiJson({ok:false,error:'Enter a tracking number or a valid customer mobile number.',code:'INVALID_INPUT'},400);
+    if(suppliedMobile&&mobile.length!==8)return apiJson({ok:false,error:'Enter a valid customer mobile number.',code:'INVALID_INPUT'},400);
 
-    let record=null,organization=null;
+    let records=[],organization=null;
     if(token){
       const {data,error}=await supabase.from('cases').select(caseSelect).eq('public_tracking_token',token).maybeSingle();
       if(error)throw error;
-      record=data||null;
-      if(record){
-        const {data:org,error:orgError}=await supabase.from('organizations').select('id,name,slug').eq('id',record.organization_id).eq('status','Active').maybeSingle();
+      if(data){
+        const {data:org,error:orgError}=await supabase.from('organizations').select('id,name,slug').eq('id',data.organization_id).eq('status','Active').maybeSingle();
         if(orgError)throw orgError;
         organization=org||null;
-        if(!organization)record=null;
+        if(organization&&(!organizationSlug||organization.slug===organizationSlug))records=[data];
       }
     }else{
       organization=await activeOrganization(organizationSlug);
       if(!organization)return apiJson({ok:true,cases:[],branding:null});
-      const {data,error}=await supabase.from('cases').select(caseSelect).eq('organization_id',organization.id).eq('tracking_reference',reference).limit(5);
-      if(error)throw error;
-      record=(data||[]).find(item=>cleanMobile(item.mobile)===mobile)||null;
+      const results=await Promise.all([
+        reference?supabase.from('cases').select(caseSelect).eq('organization_id',organization.id).eq('tracking_reference',reference).limit(1):Promise.resolve({data:[]}),
+        mobile.length===8?supabase.from('cases').select(caseSelect).eq('organization_id',organization.id).eq('mobile_search_key',mobile).order('submission_date',{ascending:false}).limit(100):Promise.resolve({data:[]})
+      ]);
+      for(const result of results){if(result.error)throw result.error}
+      records=[...new Map(results.flatMap((result,i)=>(result.data||[]).filter(c=>i===0||cleanMobile(c.mobile)===mobile)).map(c=>[c.tracking_reference,c])).values()];
     }
-
-    if(!record)return apiJson({ok:true,cases:[],branding:organization?await brandingFor(organization.id,organization):null});
-    const branding=await brandingFor(record.organization_id,organization);
-    return apiJson({ok:true,cases:[allowedCase(record)],branding});
+    const branding=organization?await brandingFor(organization.id,organization):null;
+    return apiJson({ok:true,cases:records.map(allowedCase),branding});
   }catch(error){
     return apiError(error,{code:'TRACKING_LOOKUP_FAILED',message:'Unable to retrieve tracking information right now.'});
   }
