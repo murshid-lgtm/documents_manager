@@ -156,6 +156,14 @@
     </section>`;
   }
 
+  function matchesHtml(list){
+    const statusTone=status=>({delivered:'done',completed:'done','ready for delivery':'ready','under process':'processing',waiting:'waiting',cancelled:'cancelled'})[normStatus(status)]||'received';
+    return `<section class="kt26-matches" aria-label="Matching cases"><header class="kt26-matches-head"><div><span class="kt26-eyebrow">YOUR DOCUMENTS</span><h3>Choose a case</h3><p>Select a tracking reference to view document progress.</p></div><span class="kt26-count">${list.length} results</span></header><div class="kt26-match-grid">${list.map((c,index)=>{
+      const docs=c.documents||[],status=c.overall_status||'Received',progress=overallProgress(c);
+      return `<button type="button" class="kt26-match" data-kt-match="${index}" aria-label="View tracking ${esc(c.tracking_reference)}"><span class="kt26-match-top"><span class="kt26-reference">#${esc(c.tracking_reference)}</span><span class="kt26-status ${statusTone(status)}">${esc(status)}</span></span><span class="kt26-customer">${esc(c.customer_name||'Customer')}</span><span class="kt26-facts"><span>${docs.length} ${docs.length===1?'document':'documents'}</span><span>Submitted ${fmtDate(c.submission_date)}</span></span><span class="kt26-progress"><span><i style="width:${progress}%"></i></span><small>${progress}% completed</small></span><span class="kt26-open">View progress <span aria-hidden="true">↗</span></span></button>`;
+    }).join('')}</div><footer class="kt26-matches-foot">Each case has its own document journey and status.</footer></section>`;
+  }
+
   async function lookup(root, reference, token='') {
     const output = root.querySelector('[data-kt-output]');
     const submit = root.querySelector('[data-kt-submit]');
@@ -177,7 +185,7 @@
       if (!r.ok || !j.success) throw new Error(j?.data?.message || 'Unable to track.');
       const list = j?.data?.cases || [];
       root._ktMatches=list;
-      output.innerHTML = list.length>1?`<section class="kt-matches"><h3>${list.length} matching cases</h3><p>Select a case to see its progress.</p>${list.map((c,i)=>`<button type="button" class="kt-match" data-kt-match="${i}"><strong>#${esc(c.tracking_reference)}</strong><span>${esc(c.customer_name)}</span><b>${esc(c.overall_status)}</b></button>`).join('')}</section>`:list.length?resultHtml(list[0]):empty();
+      output.innerHTML = list.length>1?matchesHtml(list):list.length?resultHtml(list[0]):empty();
       if (list.length===1) {
         const u = new URL(window.location.href);
         u.searchParams.set('ref', list[0].tracking_reference);
@@ -288,7 +296,7 @@
       root.addEventListener('click', e => {
         const match=e.target.closest('[data-kt-match]');
         if(match){const c=root._ktMatches?.[Number(match.dataset.ktMatch)];if(c){root.querySelector('[data-kt-output]').innerHTML=`<button type="button" class="kt-btn" data-kt-back>← All matching cases</button>`+resultHtml(c)}return;}
-        if(e.target.closest('[data-kt-back]')){lookup(root,input.value);return;}
+        if(e.target.closest('[data-kt-back]')){root.querySelector('[data-kt-output]').innerHTML=matchesHtml(root._ktMatches||[]);return;}
         const doc = e.target.closest('[data-kt-doc]');
         if (doc) doc.closest('.kt3-doc').classList.toggle('is-open');
 

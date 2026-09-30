@@ -1,4 +1,5 @@
 import {createClient} from '@supabase/supabase-js';
+import {checkPortal} from '../../../../lib/portalAccess';
 import {randomUUID} from 'node:crypto';
 import sharp from 'sharp';
 import {apiError,apiJson,bearerToken,hasLiveSession,consumeRateLimit} from '../../../../lib/serverSecurity';
@@ -26,6 +27,8 @@ export async function POST(request){
     const admin=createClient(url,service,{auth:{persistSession:false,autoRefreshToken:false}});
     const {data:actor,error:actorError}=await admin.from('profiles').select('id,role,organization_id,is_active,is_platform_super_admin').eq('id',user.id).single();
     if(actorError||!actor?.is_active||(!actor.is_platform_super_admin&&String(actor.role).toLowerCase()!=='admin'))return apiJson({ok:false,error:'Administrator access required.',code:'FORBIDDEN'},403);
+    const denied=await checkPortal(admin,actor,request);
+    if(denied)return denied;
     const rate=await consumeRateLimit(admin,{bucket:'branding-upload',key:user.id,limit:20,windowSeconds:3600});
     if(!rate.allowed)return apiJson({ok:false,error:rate.unavailable?'Security controls are temporarily unavailable.':'Too many uploads. Please try again later.',code:rate.unavailable?'RATE_LIMIT_UNAVAILABLE':'RATE_LIMITED'},rate.unavailable?503:429,{'Retry-After':'3600'});
 
