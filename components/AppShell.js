@@ -369,7 +369,7 @@ ${company}`;
   async function bootstrap(hasCache=false){
     if(!hasCache)setLoading(true); setMessage('');
     const [{data:p,error:pe},{data:b,error:be}]=await Promise.all([
-      supabase.from('profiles').select('id,full_name,role,branch_id,is_active,organization_id,is_platform_super_admin').eq('id',session.user.id).single(),
+      supabase.from('profiles').select('id,full_name,role,branch_id,is_active,organization_id,is_platform_super_admin,staff_modules').eq('id',session.user.id).single(),
       supabase.from('branches').select('id,name').eq('is_active',true).order('name')
     ]);
     if(pe||be)setMessage(userError(pe||be,{fallback:'Unable to load account settings.'}));
@@ -431,7 +431,7 @@ ${company}`;
     while(true){
       const {data,error}=await supabase.from('cases').select(`
         id,tracking_reference,public_tracking_token,tracking_family,bill_no,internal_invoice_no,customer_name,mobile,submission_date,promise_date,overall_status,total_amount,advance_paid,second_payment,discount_return,balance_payment,notes,assigned_to,physical_location,flags,created_at,updated_at,branch_id,account_name,account_contact,account_mobile,intake_source,direct_to_delhi,direct_destination,current_milestone,current_milestone_date,branches(name),
-        documents(id,document_name,holder_name,source_tracking_reference,occurrence_no,quantity,document_status,physical_location,direct_to_delhi,direct_destination,current_milestone,current_milestone_date,created_at,document_stages(id,stage_name,stage_order,status,milestone_date,is_manual_override,updated_at))
+        documents!documents_case_id_fkey(id,document_name,holder_name,source_tracking_reference,occurrence_no,quantity,document_status,physical_location,direct_to_delhi,direct_destination,current_milestone,current_milestone_date,created_at,document_stages!document_stages_document_id_fkey(id,stage_name,stage_order,status,milestone_date,is_manual_override,updated_at))
       `).order('created_at',{ascending:false}).range(from,from+pageSize-1);
       if(error){setMessage(userError(error));return}
       const rows=(data||[]).map(normalizeCaseRow); all.push(...rows);
@@ -474,7 +474,7 @@ ${company}`;
   async function refreshCase(caseId){
     const {data,error}=await supabase.from('cases').select(`
       id,tracking_reference,public_tracking_token,tracking_family,bill_no,internal_invoice_no,customer_name,mobile,submission_date,promise_date,overall_status,total_amount,advance_paid,second_payment,discount_return,balance_payment,notes,assigned_to,physical_location,flags,created_at,updated_at,branch_id,account_name,account_contact,account_mobile,intake_source,direct_to_delhi,direct_destination,current_milestone,current_milestone_date,branches(name),
-      documents(id,document_name,holder_name,source_tracking_reference,occurrence_no,quantity,document_status,physical_location,direct_to_delhi,direct_destination,current_milestone,current_milestone_date,created_at,document_stages(id,stage_name,stage_order,status,milestone_date,is_manual_override,updated_at))
+      documents!documents_case_id_fkey(id,document_name,holder_name,source_tracking_reference,occurrence_no,quantity,document_status,physical_location,direct_to_delhi,direct_destination,current_milestone,current_milestone_date,created_at,document_stages!document_stages_document_id_fkey(id,stage_name,stage_order,status,milestone_date,is_manual_override,updated_at))
     `).eq('id',caseId).single();
     if(!error&&data)replaceCaseLocal(data);
   }
@@ -486,7 +486,7 @@ ${company}`;
     if(!ref)return null;
     const {data,error}=await supabase.from('cases').select(`
       id,tracking_reference,public_tracking_token,tracking_family,bill_no,internal_invoice_no,customer_name,mobile,submission_date,promise_date,overall_status,total_amount,advance_paid,second_payment,discount_return,balance_payment,notes,assigned_to,physical_location,flags,created_at,updated_at,branch_id,account_name,account_contact,account_mobile,intake_source,direct_to_delhi,direct_destination,current_milestone,current_milestone_date,branches(name),
-      documents(id,document_name,holder_name,source_tracking_reference,occurrence_no,quantity,document_status,physical_location,direct_to_delhi,direct_destination,current_milestone,current_milestone_date,created_at,document_stages(id,stage_name,stage_order,status,milestone_date,is_manual_override,updated_at))
+      documents!documents_case_id_fkey(id,document_name,holder_name,source_tracking_reference,occurrence_no,quantity,document_status,physical_location,direct_to_delhi,direct_destination,current_milestone,current_milestone_date,created_at,document_stages!document_stages_document_id_fkey(id,stage_name,stage_order,status,milestone_date,is_manual_override,updated_at))
     `).eq('tracking_reference',ref).maybeSingle();
     if(error)return null;
     return data?normalizeCaseRow(data):null;
@@ -545,7 +545,7 @@ ${company}`;
       // This avoids a successful transaction appearing to be missing while the paged background reload runs.
       const {data:createdCase,error:createdCaseError}=await supabase.from('cases').select(`
         id,tracking_reference,public_tracking_token,tracking_family,bill_no,internal_invoice_no,customer_name,mobile,submission_date,promise_date,overall_status,total_amount,advance_paid,second_payment,discount_return,balance_payment,notes,assigned_to,physical_location,flags,created_at,updated_at,branch_id,account_name,account_contact,account_mobile,intake_source,direct_to_delhi,direct_destination,current_milestone,current_milestone_date,branches(name),
-        documents(id,document_name,holder_name,source_tracking_reference,occurrence_no,quantity,document_status,physical_location,direct_to_delhi,direct_destination,current_milestone,current_milestone_date,created_at,document_stages(id,stage_name,stage_order,status,milestone_date,is_manual_override,updated_at))
+        documents!documents_case_id_fkey(id,document_name,holder_name,source_tracking_reference,occurrence_no,quantity,document_status,physical_location,direct_to_delhi,direct_destination,current_milestone,current_milestone_date,created_at,document_stages!document_stages_document_id_fkey(id,stage_name,stage_order,status,milestone_date,is_manual_override,updated_at))
       `).eq('id',data.id).single();
       if(!createdCaseError&&createdCase){
         const normalized=normalizeCaseRow(createdCase);
@@ -646,7 +646,7 @@ ${company}`;
   async function syncCaseOverallStatus(caseId,currentStatus){
     // Do not automatically downgrade fulfilment/terminal states.
     if(['Ready for Delivery','Delivered','Cancelled'].includes(currentStatus))return;
-    const {data,error}=await supabase.from('documents').select('document_status,document_stages(status)').eq('case_id',caseId);
+    const {data,error}=await supabase.from('documents').select('document_status,document_stages!document_stages_document_id_fkey(status)').eq('case_id',caseId);
     if(error||!data?.length)return;
     const stages=data.flatMap(d=>d.document_stages||[]).map(x=>x.status).filter(Boolean);
     if(!stages.length)return;
@@ -731,12 +731,14 @@ ${company}`;
 
   const role=accessRole(profile);
   const isAdmin=isAdminProfile(profile);
-  const moduleEnabled=key=>!Array.isArray(brandSettings?.enabled_modules)||brandSettings.enabled_modules.includes(key);
+  const moduleEnabled=key=>(!Array.isArray(brandSettings?.enabled_modules)||brandSettings.enabled_modules.includes(key))&&(isAdmin||!Array.isArray(profile?.staff_modules)||profile.staff_modules.includes(key));
+  useEffect(()=>{if(!profile||view==='settings')return;if(!moduleEnabled(view)){const next=['dashboard','cases','documents','operations','deliveries','custody','appointments','batches','courier','payments','reports'].find(moduleEnabled);setView(next||'no-access')}},[profile,brandSettings,view]);
   const isBranch=isBranchProfile(profile);
   const ownBranch=profile?.branch_id||null;
   const homeCases=useMemo(()=>isBranch&&ownBranch?cases.filter(c=>c.branch_id===ownBranch):cases,[cases,isBranch,ownBranch]);
   const ownBranchName=branches.find(b=>b.id===ownBranch)?.name||'Your branch';
   function openNewCase(){
+    if(!moduleEnabled('cases')&&!moduleEnabled('operations'))return setMessage('Your account cannot create cases. Ask your administrator for access.');
     const today=new Date().toISOString().slice(0,10);
     setForm({...emptyCase,submission_date:today,branch_id:isBranch&&ownBranch?ownBranch:'',intake_source:'Branch',overall_status:'Received',current_milestone:'Submitted'});
     setNewCaseDocs([freshNewCaseDoc()]);
@@ -808,6 +810,7 @@ ${company}`;
       <header className={`topbar unified-app-topbar ${view==='cases'?'legacy-cases-topbar':''}`}><div><h1>{pageTitle}</h1><p className="muted">{pageSubtitle}</p></div><div className="top-actions"><span className={`access-chip ${role}`}>{role==='admin'?'ADMIN':role==='branch'?ownBranchName.toUpperCase():'STAFF'}</span><button className="notification-trigger" onClick={()=>setNotificationOpen(true)} aria-label={`Notifications${unreadActivity?`, ${unreadActivity} unread`:''}`} title="Notifications and activity"><Icon name="bell" size={17}/>{unreadActivity>0&&<b>{unreadActivity>99?'99+':unreadActivity}</b>}</button><ExportMenu title={moduleExport?.view===view?moduleExport.title:`${pageTitle} Export`} rows={moduleExport?.view===view?moduleExport.rows:caseExportRows(view==='cases'?filtered:homeCases)} notify={setMessage}/>{view!=='cases'&&<button className="secondary" onClick={loadCases}>↻ Refresh</button>}<button className="primary" onClick={openNewCase}>＋ New Case</button></div></header>
       {message&&<AppToast message={message} onClose={()=>setMessage('')}/>} 
 
+      {view==='no-access'&&<section className="settings-card"><h2>No modules assigned</h2><p>Ask your company administrator to enable the modules you need.</p></section>}
       {view==='dashboard'&&<Dashboard companyName={brandSettings?.company_name||currentOrganization?.name||'Your Organization'} stats={stats} cases={homeCases} onOpen={openCase} onCases={()=>setView('cases')} onScan={()=>setGlobalScan(true)} onDeliveries={()=>setView('deliveries')} onPayments={()=>setView('payments')} onCustody={()=>setView('custody')} branchName={isBranch?ownBranchName:null}/>}      
       {view==='cases'&&<CasesView cases={filtered} allCases={cases} recentCaseIds={recentCaseIds} favoriteCaseIds={favoriteCaseIds} toggleFavorite={toggleFavoriteCase} clearRecent={clearRecentCases} clearFavorites={clearFavoriteCases} shareDetailed={shareDetailedTracking} loading={loading} query={query} setQuery={setQuery} searchBy={searchBy} setSearchBy={setSearchBy} statusFilter={statusFilter} setStatusFilter={setStatusFilter} branchFilter={branchFilter} setBranchFilter={setBranchFilter} documentFilter={documentFilter} setDocumentFilter={setDocumentFilter} quantityFilter={quantityFilter} setQuantityFilter={setQuantityFilter} mobileFilter={mobileFilter} setMobileFilter={setMobileFilter} balanceFilter={balanceFilter} setBalanceFilter={setBalanceFilter} accountFilter={accountFilter} setAccountFilter={setAccountFilter} intakeFilter={intakeFilter} setIntakeFilter={setIntakeFilter} ddFilter={ddFilter} setDdFilter={setDdFilter} branches={branches} expanded={expanded} toggleExpanded={toggleExpanded} selected={selected} toggleSelected={toggleSelected} updateCaseStatus={updateCaseStatus} updateStage={updateStage} updateStageDate={updateStageDate} reorderStages={reorderStages} quick={openCase} addDoc={setShowDoc} deleteDocument={deleteDocument} addStage={addStageToDocument} renameStage={renameStage} deleteStage={deleteStage} bulkStatus={bulkStatus} appointment={c=>{setAppointmentCase(c);setView('appointments')}} bulkAppointment={()=>{setAppointmentSeedIds([...selected]);setView('appointments')}} batchSelected={()=>{setBatchSeed([...selected]);setView('batches')}}/>}      
       {view==='documents'&&<DocumentsView cases={cases} query={query} setQuery={setQuery} updateStage={updateStage} updateStageDate={updateStageDate} quick={setQuickCase} setModuleExport={publishModuleExport}/>}    
@@ -839,11 +842,11 @@ ${company}`;
     {notificationOpen&&<NotificationCenter userId={session.user.id} rows={auditRows} cases={cases} loading={auditLoading} lastRead={auditLastRead} isAdmin={isAdmin} onClose={()=>setNotificationOpen(false)} onRefresh={loadAudit} onMarkAllRead={markActivityRead} onOpenCase={c=>{setNotificationOpen(false);openCase(c)}}/>}
 
     <nav className="mobile-command-nav" aria-label="Quick navigation">
-      <button className={view==='dashboard'?'active':''} onClick={()=>setView('dashboard')}><Icon name="home" size={18}/><span>Home</span></button>
-      <button className={view==='cases'?'active':''} onClick={()=>setView('cases')}><Icon name="file" size={18}/><span>Cases</span></button>
+      {moduleEnabled('dashboard')&&<button className={view==='dashboard'?'active':''} onClick={()=>setView('dashboard')}><Icon name="home" size={18}/><span>Home</span></button>}
+      {moduleEnabled('cases')&&<button className={view==='cases'?'active':''} onClick={()=>setView('cases')}><Icon name="file" size={18}/><span>Cases</span></button>}
       <button className="scan-command" onClick={()=>setGlobalScan(true)}><span className="scan-orb"><Icon name="scan" size={24}/></span><b>Scan</b></button>
-      <button className={view==='operations'?'active':''} onClick={()=>setView('operations')}><Icon name="activity" size={18}/><span>Operations</span></button>
-      <button className={view==='deliveries'?'active':''} onClick={()=>setView('deliveries')}><Icon name="package" size={18}/><span>Delivery</span></button>
+      {moduleEnabled('operations')&&<button className={view==='operations'?'active':''} onClick={()=>setView('operations')}><Icon name="activity" size={18}/><span>Operations</span></button>}
+      {moduleEnabled('deliveries')&&<button className={view==='deliveries'?'active':''} onClick={()=>setView('deliveries')}><Icon name="package" size={18}/><span>Delivery</span></button>}
     </nav>
 
     {loading&&cases.length===0&&<div className="app-loading-stage"><div className="loading-brand"><div>{(brandSettings?.short_name||brandSettings?.company_name||'D').slice(0,1).toUpperCase()}</div><strong>{brandSettings?.product_name||'Document Operations'}</strong><span>Preparing your operations workspace</span><i/></div></div>}

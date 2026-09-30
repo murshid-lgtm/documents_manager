@@ -1,4 +1,4 @@
-# Security baseline — V4.0.20
+# Security baseline — V4.0.21
 
 ## Authentication
 
@@ -23,7 +23,7 @@
 |---|---|
 | `POST /api/auth/login` | Public, same-origin only, server rate-limited; returns only a short-lived Supabase session. |
 | `POST /api/auth/password-reset` | Public, same-origin only, server rate-limited; always returns a non-enumerating response. |
-| `GET /api/public/track` | Public, server rate-limited; requires an opaque case token or tracking reference plus registered mobile. Only customer-safe fields are returned. |
+| `GET /api/public/track` | Public, server rate-limited; requires an opaque case token, exact tracking reference, or registered mobile. Only customer-safe fields are returned. |
 | `POST /api/platform/users` | Active platform owner or company admin. Company admins are tenant-bound and cannot create admins. Branch IDs are validated against the target company. |
 | `PATCH /api/platform/users` | Active platform owner or company admin. Company admins cannot edit admin/platform-owner accounts, cross tenants, or assign admin. |
 | `POST /api/platform/branding-upload` | Active platform owner or tenant admin. Organization ownership is checked; uploaded images are decoded, bounded, metadata-stripped and re-encoded. |
@@ -84,8 +84,8 @@ build and served locally so import continues working under CSP.
 
 1. Verify a backup and apply `supabase/V4_0_20_SECURITY_HARDENING.sql` to the
    Document Manager database. Do not apply it to the separate legacy V3 project.
-2. Confirm Vercel has a server-only Supabase service key and `APP_ORIGIN` set to
-   the platform HTTPS URL. Set a random `RATE_LIMIT_PEPPER`; never put a service
+2. Confirm Vercel has a server-only Supabase service key. `APP_ORIGIN` is an
+   optional invitation URL override; otherwise the current portal origin is used. Set a random `RATE_LIMIT_PEPPER`; never put a service
    key in a browser variable.
 3. Deploy this version, then test sign-in, branch transfer receipt, payment,
    branding and invitations using test accounts.
@@ -104,3 +104,18 @@ release does not claim a strict nonce-only CSP.
 Do not open a public issue containing credentials or customer data. Contact the
 platform owner privately, include reproduction steps, and rotate any potentially
 exposed credential immediately.
+
+## Staff module access and public lookup
+
+Company administrators assign per-person module lists through the protected user API.
+NULL inherits company modules; an empty list denies all operational modules.
+Restrictive table policies and the receipt RPC enforce module access. Admin accounts
+retain company administration privileges. Disabling a page is not a field-level
+redaction rule for shared case summaries.
+
+At the owner’s request, public tracking accepts reference-only or mobile-only searches.
+Anyone who knows either value can view customer-safe case/document progress. Sequential
+references and mobile numbers are not passwords; IP rate limits reduce automated
+lookup but do not eliminate guessing. Finance, notes, internal custody and staff data
+are never included. Opaque links remain supported. WordPress connector 2.6.0 lists
+multiple mobile matches and preserves organization scoping.

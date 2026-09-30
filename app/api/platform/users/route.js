@@ -1,3 +1,4 @@
+import {validateStaffModules} from '../../../../lib/modules';
 import {createClient} from '@supabase/supabase-js';
 import {apiError,apiJson,bearerToken,hasLiveSession,consumeRateLimit,readJson} from '../../../../lib/serverSecurity';
 
@@ -45,13 +46,14 @@ export async function POST(request){
     const fullName=String(body.full_name||'').trim().slice(0,120);
     const role=['admin','staff','branch'].includes(String(body.role||'').toLowerCase())?String(body.role).toLowerCase():'staff';
     const branchId=body.branch_id?String(body.branch_id):null;
+    const staffModules=Object.hasOwn(body,'staff_modules')?validateStaffModules(body.staff_modules):null;
     if(!organizationId||!emailPattern.test(email)||!fullName)return apiJson({ok:false,error:'Company, staff name and a valid email address are required.',code:'INVALID_INPUT'},400);
     if(!actor.is_platform_super_admin&&organizationId!==actor.organization_id)return apiJson({ok:false,error:'You cannot manage staff for this company.',code:'FORBIDDEN'},403);
     if(role==='admin'&&!actor.is_platform_super_admin)return apiJson({ok:false,error:'Only the platform owner can create company administrators.',code:'FORBIDDEN'},403);
     if(role==='branch'&&!branchId)return apiJson({ok:false,error:'Select a branch for branch staff.',code:'BRANCH_REQUIRED'},400);
     if(branchId&&!await validBranch(admin,organizationId,branchId))return apiJson({ok:false,error:'Select an active branch belonging to this company.',code:'INVALID_BRANCH'},400);
 
-    const appOrigin=process.env.APP_ORIGIN||process.env.NEXT_PUBLIC_APP_URL;
+    const appOrigin=process.env.APP_ORIGIN||process.env.NEXT_PUBLIC_APP_URL||new URL(request.url).origin;
     if(!appOrigin)return apiJson({ok:false,error:'Staff invitations are not configured yet.',code:'SERVICE_NOT_CONFIGURED'},503);
     const {data:org}=await admin.from('organizations').select('status').eq('id',organizationId).maybeSingle();
     if(org?.status!=='Active')return apiJson({ok:false,error:'Select an active company.',code:'INVALID_COMPANY'},400);
@@ -61,14 +63,14 @@ export async function POST(request){
       if(/already|registered|exists/i.test(createError.message||''))return apiJson({ok:false,error:'An account already exists for this email address.',code:'EMAIL_EXISTS'},409);
       return apiError(createError,{status:400,code:'INVITE_FAILED',message:'The staff invitation could not be sent.'});
     }
-    const {error:profileError}=await admin.from('profiles').upsert({id:created.user.id,full_name:fullName,role,branch_id:branchId,organization_id:organizationId,is_active:true,is_platform_super_admin:false},{onConflict:'id'});
+    const {error:profileError}=await admin.from('profiles').upsert({id:created.user.id,full_name:fullName,role,staff_modules:staffModules,branch_id:branchId,organization_id:organizationId,is_active:true,is_platform_super_admin:false},{onConflict:'id'});
     if(profileError){
       await admin.auth.admin.deleteUser(created.user.id);
       return apiError(profileError,{status:400,code:'PROFILE_CREATE_FAILED',message:'The staff profile could not be created.'});
     }
     return apiJson({ok:true,id:created.user.id,email:created.user.email,message:'Invitation sent.'},201);
   }catch(error){
-    return apiError(error,{status:error?.status||500,code:error?.code||'STAFF_CREATE_FAILED',message:error?.status===413?'The request is too large.':'Unable to create the staff account.'});
+    return apiError(error,{status:error?.status||500,code:error?.code||'STAFF_CREATE_FAILED',message:error?.code==='INVALID_MODULES'?'Select valid staff modules.':error?.status===413?'The request is too large.':'Unable to create the staff account.'});
   }
 }
 
@@ -89,6 +91,7 @@ export async function PATCH(request){
     if(!actor.is_platform_super_admin&&(target.organization_id!==actor.organization_id||target.role==='admin'))return apiJson({ok:false,error:'You cannot change this account.',code:'FORBIDDEN'},403);
 
     const updates={};
+    if(Object.hasOwn(body,'staff_modules'))updates.staff_modules=validateStaffModules(body.staff_modules);
     if(Object.hasOwn(body,'full_name'))updates.full_name=String(body.full_name||'').trim().slice(0,120);
     if(Object.hasOwn(body,'is_active'))updates.is_active=Boolean(body.is_active);
     if(Object.hasOwn(body,'role')){
