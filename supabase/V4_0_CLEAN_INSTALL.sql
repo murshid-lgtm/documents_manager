@@ -29,11 +29,22 @@ create table public.organization_settings (
   sidebar_logo_alignment text not null default 'center' check(sidebar_logo_alignment in ('left','center','right')),
   sidebar_logo_background text not null default '#FFFFFF',
   sidebar_logo_radius integer not null default 14 check(sidebar_logo_radius between 0 and 32),
+  sidebar_logo_container_width integer not null default 190 check(sidebar_logo_container_width between 80 and 240),
+  sidebar_logo_container_height integer not null default 64 check(sidebar_logo_container_height between 44 and 120),
   login_logo_visible boolean not null default true,
   login_logo_size integer not null default 100 check(login_logo_size between 50 and 130),
   login_logo_alignment text not null default 'left' check(login_logo_alignment in ('left','center','right')),
   login_logo_background text not null default '#FFFFFF',
   login_logo_radius integer not null default 14 check(login_logo_radius between 0 and 32),
+  login_logo_container_width integer not null default 220 check(login_logo_container_width between 80 and 360),
+  login_logo_container_height integer not null default 72 check(login_logo_container_height between 44 and 120),
+  login_card_logo_visible boolean not null default true,
+  login_card_logo_size integer not null default 100 check(login_card_logo_size between 50 and 130),
+  login_card_logo_alignment text not null default 'left' check(login_card_logo_alignment in ('left','center','right')),
+  login_card_logo_background text not null default '#FFFFFF',
+  login_card_logo_radius integer not null default 14 check(login_card_logo_radius between 0 and 32),
+  login_card_logo_container_width integer not null default 220 check(login_card_logo_container_width between 80 and 360),
+  login_card_logo_container_height integer not null default 64 check(login_card_logo_container_height between 44 and 120),
   tracking_base_url text, support_email text, support_phone text, website_url text, address text, footer_text text,
   label_width_mm numeric(8,2) not null default 75, label_height_mm numeric(8,2) not null default 35,
   enabled_modules jsonb not null default '["dashboard","cases","documents","operations","deliveries","custody","appointments","batches","courier","payments","reports","import"]'::jsonb,
@@ -331,10 +342,16 @@ begin
   if not found then raise exception 'Invalid transfer item'; end if;
   has_issue:=has_issue or (item->>'status') in ('Missing','Damaged');
  end loop;
+ insert into public.custody_movements(organization_id,case_id,document_id,from_location,to_location,notes,handed_by,moved_at)
+ select t.organization_id,i.case_id,i.document_id,coalesce(d.physical_location,t.from_location),t.to_location,
+        concat_ws(' · ',t.transfer_no,nullif(trim(receipt_note),''),nullif(trim(i.discrepancy_note),'')),auth.uid(),now()
+ from public.custody_transfer_items i
+ left join public.documents d on d.id=i.document_id
+ where i.transfer_id=target_transfer and i.receive_status in ('Verified','Damaged');
  update public.documents d set physical_location=t.to_location,updated_at=now() where exists(select 1 from public.custody_transfer_items i where i.transfer_id=target_transfer and i.receive_status in ('Verified','Damaged') and (i.document_id=d.id or (i.document_id is null and i.case_id=d.case_id)));
  select array_agg(distinct case_id) into affected from public.custody_transfer_items where transfer_id=target_transfer;
  foreach cid in array coalesce(affected,array[]::uuid[]) loop
-  update public.cases c set physical_location=case when exists(select 1 from public.documents d where d.case_id=cid) and not exists(select 1 from public.documents d where d.case_id=cid and coalesce(d.physical_location,'')<>coalesce(t.to_location,'')) then t.to_location else 'Mixed locations' end,updated_by=auth.uid() where c.id=cid;
+  update public.cases c set physical_location=case when not exists(select 1 from public.documents d where d.case_id=cid) then t.to_location when not exists(select 1 from public.documents d where d.case_id=cid and coalesce(d.physical_location,'')<>coalesce(t.to_location,'')) then t.to_location else 'Mixed locations' end,updated_by=auth.uid() where c.id=cid;
   insert into public.case_history(organization_id,case_id,user_id,action,field_name,new_value,metadata) values(t.organization_id,cid,auth.uid(),'Custody transfer received','physical_location',coalesce(t.from_location,'Unassigned')||' → '||coalesce(t.to_location,'Unassigned')||' · '||t.transfer_no,jsonb_build_object('source','custody','transfer_id',target_transfer));
  end loop;
  update public.custody_transfers set status='Received',received_by=auth.uid(),received_at=now(),receipt_notes=nullif(trim(receipt_note),''),has_discrepancy=has_issue where id=target_transfer;
@@ -345,7 +362,7 @@ grant execute on function public.confirm_custody_receipt(uuid,jsonb,text) to aut
 
 create or replace function public.public_branding(request_host text default null,requested_slug text default null)
 returns jsonb language sql stable security definer set search_path=public as $$
- select to_jsonb(x) from (select s.product_name,s.company_name,s.short_name,s.logo_url,s.favicon_url,s.app_icon_url,s.primary_color,s.secondary_color,s.accent_color,s.surface_color,s.login_title,s.login_subtitle,s.login_background_url,s.login_kicker,s.login_welcome_title,s.login_welcome_subtitle,s.login_button_text,s.sidebar_logo_visible,s.sidebar_logo_size,s.sidebar_logo_alignment,s.sidebar_logo_background,s.sidebar_logo_radius,s.login_logo_visible,s.login_logo_size,s.login_logo_alignment,s.login_logo_background,s.login_logo_radius,s.support_email,s.website_url,s.footer_text from public.organization_settings s join public.organizations o on o.id=s.organization_id where o.status='Active' and ((nullif(trim(requested_slug),'') is not null and o.slug=lower(trim(requested_slug))) or (nullif(trim(request_host),'') is not null and lower(s.primary_domain)=lower(split_part(trim(request_host),':',1)))) limit 1) x;
+ select to_jsonb(x) from (select s.product_name,s.company_name,s.short_name,s.logo_url,s.favicon_url,s.app_icon_url,s.primary_color,s.secondary_color,s.accent_color,s.surface_color,s.login_title,s.login_subtitle,s.login_background_url,s.login_kicker,s.login_welcome_title,s.login_welcome_subtitle,s.login_button_text,s.sidebar_logo_visible,s.sidebar_logo_size,s.sidebar_logo_alignment,s.sidebar_logo_background,s.sidebar_logo_radius,s.sidebar_logo_container_width,s.sidebar_logo_container_height,s.login_logo_visible,s.login_logo_size,s.login_logo_alignment,s.login_logo_background,s.login_logo_radius,s.login_logo_container_width,s.login_logo_container_height,s.login_card_logo_visible,s.login_card_logo_size,s.login_card_logo_alignment,s.login_card_logo_background,s.login_card_logo_radius,s.login_card_logo_container_width,s.login_card_logo_container_height,s.support_email,s.website_url,s.footer_text from public.organization_settings s join public.organizations o on o.id=s.organization_id where o.status='Active' and ((nullif(trim(requested_slug),'') is not null and o.slug=lower(trim(requested_slug))) or (nullif(trim(request_host),'') is not null and lower(s.primary_domain)=lower(split_part(trim(request_host),':',1)))) limit 1) x;
 $$;
 revoke all on function public.public_branding(text,text) from public;
 grant execute on function public.public_branding(text,text) to anon,authenticated;

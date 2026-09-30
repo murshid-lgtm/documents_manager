@@ -35,8 +35,8 @@ export default function Login({resetMode=false,onResetComplete}) {
     setLoading(false);
   }
 
-  const hasLogo=Boolean(brand?.logo_url),showLogo=hasLogo&&brand?.login_logo_visible!==false;
-  const brandStyle={'--login-primary':brand?.primary_color||'#3265DF','--login-secondary':brand?.secondary_color||'#17879A','--login-accent':brand?.accent_color||'#15A37D','--login-surface':brand?.surface_color||'#F4F7FC','--login-logo-size':`${Number(brand?.login_logo_size||100)}%`,'--login-logo-align':brand?.login_logo_alignment||'left','--login-logo-background':brand?.login_logo_background||'#FFFFFF','--login-logo-radius':`${Number(brand?.login_logo_radius??14)}px`};
+  const hasLogo=Boolean(brand?.logo_url),showLogo=hasLogo&&brand?.login_logo_visible!==false,showCardLogo=hasLogo&&brand?.login_card_logo_visible!==false;
+  const brandStyle={'--login-primary':brand?.primary_color||'#3265DF','--login-secondary':brand?.secondary_color||'#17879A','--login-accent':brand?.accent_color||'#15A37D','--login-surface':brand?.surface_color||'#F4F7FC','--login-logo-size':`${Number(brand?.login_logo_size||100)}%`,'--login-logo-align':brand?.login_logo_alignment||'left','--login-logo-background':brand?.login_logo_background||'#FFFFFF','--login-logo-radius':`${Number(brand?.login_logo_radius??14)}px`,'--login-logo-width':`${Number(brand?.login_logo_container_width||220)}px`,'--login-logo-height':`${Number(brand?.login_logo_container_height||72)}px`,'--login-card-logo-size':`${Number(brand?.login_card_logo_size||100)}%`,'--login-card-logo-align':brand?.login_card_logo_alignment||'left','--login-card-logo-background':brand?.login_card_logo_background||'#FFFFFF','--login-card-logo-radius':`${Number(brand?.login_card_logo_radius??14)}px`,'--login-card-logo-width':`${Number(brand?.login_card_logo_container_width||220)}px`,'--login-card-logo-height':`${Number(brand?.login_card_logo_container_height||64)}px`};
   const visualStyle=brand?.login_background_url?{backgroundImage:`linear-gradient(145deg,rgba(7,23,45,.94),rgba(14,48,91,.84)),url("${brand.login_background_url}")`}:undefined;
   return <main className="auth-shell auth-shell-v329" style={brandStyle}>
     <section className="auth-saas-panel" style={visualStyle}>
@@ -50,7 +50,7 @@ export default function Login({resetMode=false,onResetComplete}) {
       <div className="auth-feature-row"><span>✓ Branch-aware workflows</span><span>✓ Live custody tracking</span><span>✓ Secure role access</span></div>
     </section>
     <section className="auth-login-zone"><div className="auth-card auth-card-v329">
-      {(!hasLogo||showLogo)&&<div className={`auth-mobile-brand ${showLogo?'auth-logo-mode':''}`}>{showLogo?<div className="auth-logo-container"><img className="auth-company-logo" src={brand.logo_url} alt={`${company} logo`}/></div>:<><div className="brand-mark">{mark}</div><div><strong>{product}</strong><span>{company}</span></div></>}</div>}
+      {(!hasLogo||showCardLogo)&&<div className={`auth-mobile-brand auth-card-brand ${showCardLogo?'auth-logo-mode':''}`}>{showCardLogo?<div className="auth-logo-container"><img className="auth-company-logo" src={brand.logo_url} alt={`${company} logo`}/></div>:<><div className="brand-mark">{mark}</div><div><strong>{product}</strong><span>{company}</span></div></>}</div>}
       <div className="auth-security-chip"><span></span> Secure operations workspace</div>
       <div className="auth-copy"><h2>{mode==='reset'?'Create new password':mode==='forgot'?'Reset password':brand?.login_welcome_title||'Welcome back'}</h2><p className="muted">{mode==='reset'?'Enter a secure new password for your account.':mode==='forgot'?'We will send a secure reset link to your work email.':brand?.login_welcome_subtitle||'Sign in to continue to your operations dashboard.'}</p></div>
       {mode==='signin'&&<form onSubmit={submit} className="stack">
