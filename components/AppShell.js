@@ -128,6 +128,7 @@ export default function AppShell({session}){
   const [cases,setCases]=useState([]);
   const [loading,setLoading]=useState(true);
   const [message,setRawMessage]=useState('');
+  const [casesLoadError,setCasesLoadError]=useState('');
   const caseCacheKey=`${CASE_CACHE_KEY}_${session.user.id}`;
   const setMessage=useCallback(value=>{
     setRawMessage(previous=>{
@@ -338,7 +339,7 @@ ${company}`;
   const auditStorageKey=`kenza_audit_read_${session.user.id}`;
   const loadAudit=useCallback(async()=>{
     setAuditLoading(true);
-    const {data,error}=await supabase.from('case_history').select('id,case_id,user_id,action,field_name,old_value,new_value,metadata,created_at,profiles(full_name,role)').order('created_at',{ascending:false}).limit(300);
+    const {data,error}=await supabase.from('case_history').select('id,case_id,user_id,action,field_name,old_value,new_value,metadata,created_at,profiles!case_history_user_id_fkey(full_name,role)').order('created_at',{ascending:false}).limit(300);
     setAuditLoading(false);
     if(error){setMessage(userError(error));return}
     setAuditRows(data||[]);
@@ -424,16 +425,21 @@ ${company}`;
   }
 
   async function loadCases(){
+    setCasesLoadError('');
     // Stale-while-revalidate: cached data is shown immediately. The live refresh is
     // progressive so even a first-time browser sees the first page quickly instead
     // of waiting for all 10k+ nested workflows to arrive.
     const pageSize=300; let from=0; let all=[]; let first=true;
     while(true){
-      const {data,error}=await supabase.from('cases').select(`
-        id,tracking_reference,public_tracking_token,tracking_family,bill_no,internal_invoice_no,customer_name,mobile,submission_date,promise_date,overall_status,total_amount,advance_paid,second_payment,discount_return,balance_payment,notes,assigned_to,physical_location,flags,created_at,updated_at,branch_id,account_name,account_contact,account_mobile,intake_source,direct_to_delhi,direct_destination,current_milestone,current_milestone_date,branches(name),
-        documents!documents_case_id_fkey(id,document_name,holder_name,source_tracking_reference,occurrence_no,quantity,document_status,physical_location,direct_to_delhi,direct_destination,current_milestone,current_milestone_date,created_at,document_stages!document_stages_document_id_fkey(id,stage_name,stage_order,status,milestone_date,is_manual_override,updated_at))
-      `).order('created_at',{ascending:false}).range(from,from+pageSize-1);
-      if(error){setMessage(userError(error));return}
+      const {data:{session:liveSession}}=await supabase.auth.getSession();
+      let data,error;
+      try{
+        const response=await fetch(`/api/cases?offset=${from}&limit=${pageSize}`,{headers:{authorization:`Bearer ${liveSession?.access_token||''}`},cache:'no-store'});
+        const result=await response.json();
+        if(!response.ok)error={message:result.error,code:result.code,request_id:result.request_id};
+        else data=result.cases;
+      }catch{error={message:'The connection could not be completed.',code:'CONNECTION_FAILED'}}
+      if(error){setCasesLoadError(`Cases could not be loaded. Your saved records remain in the database.${error.request_id?' Support reference: '+error.request_id:''}`);setMessage('Cases could not be loaded. Please retry.');return}
       const rows=(data||[]).map(normalizeCaseRow); all.push(...rows);
       if(first && rows.length){
         setCases(prev=>prev.length?prev:rows);
@@ -473,7 +479,7 @@ ${company}`;
   }
   async function refreshCase(caseId){
     const {data,error}=await supabase.from('cases').select(`
-      id,tracking_reference,public_tracking_token,tracking_family,bill_no,internal_invoice_no,customer_name,mobile,submission_date,promise_date,overall_status,total_amount,advance_paid,second_payment,discount_return,balance_payment,notes,assigned_to,physical_location,flags,created_at,updated_at,branch_id,account_name,account_contact,account_mobile,intake_source,direct_to_delhi,direct_destination,current_milestone,current_milestone_date,branches(name),
+      id,tracking_reference,public_tracking_token,tracking_family,bill_no,internal_invoice_no,customer_name,mobile,submission_date,promise_date,overall_status,total_amount,advance_paid,second_payment,discount_return,balance_payment,notes,assigned_to,physical_location,flags,created_at,updated_at,branch_id,account_name,account_contact,account_mobile,intake_source,direct_to_delhi,direct_destination,current_milestone,current_milestone_date,branches!cases_branch_id_fkey(name),
       documents!documents_case_id_fkey(id,document_name,holder_name,source_tracking_reference,occurrence_no,quantity,document_status,physical_location,direct_to_delhi,direct_destination,current_milestone,current_milestone_date,created_at,document_stages!document_stages_document_id_fkey(id,stage_name,stage_order,status,milestone_date,is_manual_override,updated_at))
     `).eq('id',caseId).single();
     if(!error&&data)replaceCaseLocal(data);
@@ -485,7 +491,7 @@ ${company}`;
     const ref=String(tracking||'').trim();
     if(!ref)return null;
     const {data,error}=await supabase.from('cases').select(`
-      id,tracking_reference,public_tracking_token,tracking_family,bill_no,internal_invoice_no,customer_name,mobile,submission_date,promise_date,overall_status,total_amount,advance_paid,second_payment,discount_return,balance_payment,notes,assigned_to,physical_location,flags,created_at,updated_at,branch_id,account_name,account_contact,account_mobile,intake_source,direct_to_delhi,direct_destination,current_milestone,current_milestone_date,branches(name),
+      id,tracking_reference,public_tracking_token,tracking_family,bill_no,internal_invoice_no,customer_name,mobile,submission_date,promise_date,overall_status,total_amount,advance_paid,second_payment,discount_return,balance_payment,notes,assigned_to,physical_location,flags,created_at,updated_at,branch_id,account_name,account_contact,account_mobile,intake_source,direct_to_delhi,direct_destination,current_milestone,current_milestone_date,branches!cases_branch_id_fkey(name),
       documents!documents_case_id_fkey(id,document_name,holder_name,source_tracking_reference,occurrence_no,quantity,document_status,physical_location,direct_to_delhi,direct_destination,current_milestone,current_milestone_date,created_at,document_stages!document_stages_document_id_fkey(id,stage_name,stage_order,status,milestone_date,is_manual_override,updated_at))
     `).eq('tracking_reference',ref).maybeSingle();
     if(error)return null;
@@ -544,7 +550,7 @@ ${company}`;
       // Fetch the complete newly-created case and place it into the current list immediately.
       // This avoids a successful transaction appearing to be missing while the paged background reload runs.
       const {data:createdCase,error:createdCaseError}=await supabase.from('cases').select(`
-        id,tracking_reference,public_tracking_token,tracking_family,bill_no,internal_invoice_no,customer_name,mobile,submission_date,promise_date,overall_status,total_amount,advance_paid,second_payment,discount_return,balance_payment,notes,assigned_to,physical_location,flags,created_at,updated_at,branch_id,account_name,account_contact,account_mobile,intake_source,direct_to_delhi,direct_destination,current_milestone,current_milestone_date,branches(name),
+        id,tracking_reference,public_tracking_token,tracking_family,bill_no,internal_invoice_no,customer_name,mobile,submission_date,promise_date,overall_status,total_amount,advance_paid,second_payment,discount_return,balance_payment,notes,assigned_to,physical_location,flags,created_at,updated_at,branch_id,account_name,account_contact,account_mobile,intake_source,direct_to_delhi,direct_destination,current_milestone,current_milestone_date,branches!cases_branch_id_fkey(name),
         documents!documents_case_id_fkey(id,document_name,holder_name,source_tracking_reference,occurrence_no,quantity,document_status,physical_location,direct_to_delhi,direct_destination,current_milestone,current_milestone_date,created_at,document_stages!document_stages_document_id_fkey(id,stage_name,stage_order,status,milestone_date,is_manual_override,updated_at))
       `).eq('id',data.id).single();
       if(!createdCaseError&&createdCase){
@@ -811,7 +817,8 @@ ${company}`;
       {message&&<AppToast message={message} onClose={()=>setMessage('')}/>} 
 
       {view==='no-access'&&<section className="settings-card"><h2>No modules assigned</h2><p>Ask your company administrator to enable the modules you need.</p></section>}
-      {view==='dashboard'&&<Dashboard companyName={brandSettings?.company_name||currentOrganization?.name||'Your Organization'} stats={stats} cases={homeCases} onOpen={openCase} onCases={()=>setView('cases')} onScan={()=>setGlobalScan(true)} onDeliveries={()=>setView('deliveries')} onPayments={()=>setView('payments')} onCustody={()=>setView('custody')} branchName={isBranch?ownBranchName:null}/>}      
+      {casesLoadError&&<section className="settings-card" role="alert"><h2>Unable to load cases</h2><p>{casesLoadError}</p><button className="primary" onClick={loadCases}>Retry</button></section>}
+      {view==='dashboard'&&!casesLoadError&&<Dashboard companyName={brandSettings?.company_name||currentOrganization?.name||'Your Organization'} stats={stats} cases={homeCases} onOpen={openCase} onCases={()=>setView('cases')} onScan={()=>setGlobalScan(true)} onDeliveries={()=>setView('deliveries')} onPayments={()=>setView('payments')} onCustody={()=>setView('custody')} branchName={isBranch?ownBranchName:null}/>}
       {view==='cases'&&<CasesView cases={filtered} allCases={cases} recentCaseIds={recentCaseIds} favoriteCaseIds={favoriteCaseIds} toggleFavorite={toggleFavoriteCase} clearRecent={clearRecentCases} clearFavorites={clearFavoriteCases} shareDetailed={shareDetailedTracking} loading={loading} query={query} setQuery={setQuery} searchBy={searchBy} setSearchBy={setSearchBy} statusFilter={statusFilter} setStatusFilter={setStatusFilter} branchFilter={branchFilter} setBranchFilter={setBranchFilter} documentFilter={documentFilter} setDocumentFilter={setDocumentFilter} quantityFilter={quantityFilter} setQuantityFilter={setQuantityFilter} mobileFilter={mobileFilter} setMobileFilter={setMobileFilter} balanceFilter={balanceFilter} setBalanceFilter={setBalanceFilter} accountFilter={accountFilter} setAccountFilter={setAccountFilter} intakeFilter={intakeFilter} setIntakeFilter={setIntakeFilter} ddFilter={ddFilter} setDdFilter={setDdFilter} branches={branches} expanded={expanded} toggleExpanded={toggleExpanded} selected={selected} toggleSelected={toggleSelected} updateCaseStatus={updateCaseStatus} updateStage={updateStage} updateStageDate={updateStageDate} reorderStages={reorderStages} quick={openCase} addDoc={setShowDoc} deleteDocument={deleteDocument} addStage={addStageToDocument} renameStage={renameStage} deleteStage={deleteStage} bulkStatus={bulkStatus} appointment={c=>{setAppointmentCase(c);setView('appointments')}} bulkAppointment={()=>{setAppointmentSeedIds([...selected]);setView('appointments')}} batchSelected={()=>{setBatchSeed([...selected]);setView('batches')}}/>}      
       {view==='documents'&&<DocumentsView cases={cases} query={query} setQuery={setQuery} updateStage={updateStage} updateStageDate={updateStageDate} quick={setQuickCase} setModuleExport={publishModuleExport}/>}    
       {view==='import'&&<SimpleLegacyImport session={session} cases={cases} branches={branches} reload={loadCases} notify={setMessage}/>}
@@ -1695,7 +1702,7 @@ function BatchReportsView({session,cases,notify,seedIds,clearSeed,setModuleExpor
   const [rows,setRows]=useState([]),[q,setQ]=useState(''),[searchBy,setSearchBy]=useState('tracking'),[type,setType]=useState(''),[edit,setEdit]=useState(null),[view,setView]=useState(null),[draftItems,setDraftItems]=useState([]),[busy,setBusy]=useState(false);
 
   async function load(){
-    const {data,error}=await supabase.from('batch_reports').select('*,batch_report_items(*)').order('batch_date',{ascending:false});
+    const {data,error}=await supabase.from('batch_reports').select('*,batch_report_items!batch_report_items_batch_id_fkey(*)').order('batch_date',{ascending:false});
     if(error)return notify(userError(error));
     setRows(data||[]);
   }
@@ -3020,7 +3027,7 @@ function CustodyView({session,profile,branches:branchOptions=[],cases,notify,see
     const [m,p,t]=await Promise.all([
       supabase.from('custody_movements').select('*').order('moved_at',{ascending:false}).limit(3000),
       supabase.from('profiles').select('id,full_name,role').order('full_name'),
-      supabase.from('custody_transfers').select('*,custody_transfer_items(*)').order('requested_at',{ascending:false}).limit(1000)
+      supabase.from('custody_transfers').select('*,custody_transfer_items!custody_transfer_items_transfer_id_fkey(*)').order('requested_at',{ascending:false}).limit(1000)
     ]);
     if(m.error)notify(userError(m.error));else setRows(m.data||[]);
     if(!p.error)setProfiles(p.data||[]);
@@ -3583,7 +3590,7 @@ function CourierShipmentsView({session,cases,notify,reload,setModuleExport}){
   useEffect(()=>setModuleExport?.({view:'courier',title:'Courier Shipments',rows:shipments.map(sh=>({'Shipment No.':sh.shipment_no||'','Direction':sh.direction||'','Destination':sh.destination||'','Agent / Office':sh.agent_name||'','Carrier':sh.carrier||'','AWB':sh.awb_no||'','Dispatch Date':sh.dispatch_date||'','Status':sh.status||'','Documents':sh.courier_shipment_items?.length||0,'Received':(sh.courier_shipment_items||[]).filter(i=>i.receipt_status==='Received').length,'Missing':(sh.courier_shipment_items||[]).filter(i=>i.receipt_status==='Missing').length}))}),[shipments,setModuleExport]);
   const caseGroups=useMemo(()=>{const map=new Map();for(const x of pickerDocs){if(!map.has(x.c.id))map.set(x.c.id,{c:x.c,docs:[]});map.get(x.c.id).docs.push(x.d)}return [...map.values()]},[pickerDocs]);
   const selectedRows=useMemo(()=>docs.filter(x=>selected.has(x.d.id)),[docs,selected]);
-  async function load(){setLoading(true);const {data,error}=await supabase.from('courier_shipments').select('*,courier_shipment_items(id,document_id,required_attestation,received_at,receipt_status,exception_note)').order('created_at',{ascending:false}).limit(300);if(error)notify(userError(error));else setShipments(data||[]);setLoading(false)}
+  async function load(){setLoading(true);const {data,error}=await supabase.from('courier_shipments').select('*,courier_shipment_items!courier_shipment_items_shipment_id_fkey(id,document_id,required_attestation,received_at,receipt_status,exception_note)').order('created_at',{ascending:false}).limit(300);if(error)notify(userError(error));else setShipments(data||[]);setLoading(false)}
   useEffect(()=>{load()},[]);
   function resetEditor(){setOpen(false);setEditId(null);setSelected(new Set());setWorkMap({});setForm(empty);setQ('');setOpenCases(new Set())}
   function startCreate(){setEditId(null);setSelected(new Set());setWorkMap({});setForm(empty);setQ('');setOpenCases(new Set());setOpen(true)}
@@ -3929,7 +3936,7 @@ function QuickView({c,branches=[],session,favorite=false,onToggleFavorite,onDeta
   useEffect(()=>{let live=true;setActivityLoading(true);(async()=>{
     const safe=async(table)=>{const r=await supabase.from(table).select('*').eq('case_id',c.id).limit(250);return r.error?[]:(r.data||[])};
     const [history,payments,appointments,deliveries,custody]=await Promise.all([
-      supabase.from('case_history').select('id,action,field_name,old_value,new_value,metadata,created_at,profiles(full_name)').eq('case_id',c.id).order('created_at',{ascending:false}).limit(250).then(r=>r.data||[]),
+      supabase.from('case_history').select('id,action,field_name,old_value,new_value,metadata,created_at,profiles!case_history_user_id_fkey(full_name)').eq('case_id',c.id).order('created_at',{ascending:false}).limit(250).then(r=>r.data||[]),
       safe('payments'),safe('appointments'),safe('deliveries'),safe('custody_movements')
     ]);
     const events=[
@@ -4059,7 +4066,7 @@ function QuickView({c,branches=[],session,favorite=false,onToggleFavorite,onDeta
       if(documentIds.length){
         const {data:items,error:itemError}=await supabase
           .from('courier_shipment_items')
-          .select('id,document_id,required_attestation,receipt_status,courier_shipments(id,shipment_no,status,destination)')
+          .select('id,document_id,required_attestation,receipt_status,courier_shipments!courier_shipment_items_shipment_id_fkey(id,shipment_no,status,destination)')
           .in('document_id',documentIds);
         if(itemError && !/does not exist|schema cache|Could not find|relation .* does not exist/i.test(String(itemError.message||'')))throw itemError;
         for(const item of items||[]){
@@ -4074,7 +4081,7 @@ function QuickView({c,branches=[],session,favorite=false,onToggleFavorite,onDeta
         }
       }
 
-      const transferItems=await queryDeleteDependency('custody_transfer_items','id,transfer_id,document_id,receive_status,custody_transfers(transfer_no,status,from_location,to_location)',c.id);
+      const transferItems=await queryDeleteDependency('custody_transfer_items','id,transfer_id,document_id,receive_status,custody_transfers!custody_transfer_items_transfer_id_fkey(transfer_no,status,from_location,to_location)',c.id);
       for(const row of transferItems){
         const transfer=row.custody_transfers||{};
         blockers.push({

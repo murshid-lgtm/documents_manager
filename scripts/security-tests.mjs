@@ -1,10 +1,13 @@
 import {PGlite} from '@electric-sql/pglite';
 import fs from 'node:fs';
 import assert from 'node:assert/strict';
+import {validateStaffPassword,validateStaffModules} from '../lib/modules.js';
+import {CASE_SELECT} from '../lib/caseSelect.js';
 
 const db=new PGlite();
 const id=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
 let checks=0;
+assert.throws(()=>validateStaffPassword('short'),{code:'INVALID_PASSWORD'});assert.throws(()=>validateStaffPassword({}),{code:'INVALID_PASSWORD'});assert.throws(()=>validateStaffModules(['admin']),{code:'INVALID_MODULES'});assert.ok(CASE_SELECT.includes('branches!cases_branch_id_fkey('));assert.ok(CASE_SELECT.includes('documents!documents_case_id_fkey('));assert.ok(CASE_SELECT.includes('document_stages!document_stages_document_id_fkey('));checks+=6;
 async function login(user){
   await db.exec('reset role');
   const now=Math.floor(Date.now()/1000);
