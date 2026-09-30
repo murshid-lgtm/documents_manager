@@ -1,10 +1,12 @@
-# Security baseline — V4.0.21
+# Security baseline — V4.0.22
 
 ## Authentication
 
 - Passwords are owned by Supabase Auth and are never stored in application
-  tables or logs. Staff accounts are created with email invitations; the
-  application never accepts or stores an administrator-chosen staff password.
+  tables or logs. Staff accounts are created by an authorized administrator setting an initial
+  password. It is sent to Supabase Auth over HTTPS, never stored in application
+  tables or returned to the browser. Administrators may replace staff passwords
+  through the same tenant-bound protected API. Password fields are not logged.
 - Login is proxied through `/api/auth/login`, restricted to same-origin JSON
   requests and limited to 10 attempts per email/IP pair per 15 minutes.
 - Password-reset requests are generic to prevent account enumeration and are
@@ -24,8 +26,9 @@
 | `POST /api/auth/login` | Public, same-origin only, server rate-limited; returns only a short-lived Supabase session. |
 | `POST /api/auth/password-reset` | Public, same-origin only, server rate-limited; always returns a non-enumerating response. |
 | `GET /api/public/track` | Public, server rate-limited; requires an opaque case token, exact tracking reference, or registered mobile. Only customer-safe fields are returned. |
-| `POST /api/platform/users` | Active platform owner or company admin. Company admins are tenant-bound and cannot create admins. Branch IDs are validated against the target company. |
-| `PATCH /api/platform/users` | Active platform owner or company admin. Company admins cannot edit admin/platform-owner accounts, cross tenants, or assign admin. |
+| `GET /api/cases` | Active authenticated session; forwards that user token to RLS for tenant/branch/module-scoped paginated reads. No service-key bypass. |
+| `POST /api/platform/users` | Active platform owner or company admin. Company admins are tenant-bound and cannot create admins. Initial passwords are sent directly to Supabase Auth; no email invitation is sent. Branch IDs are validated against the target company. |
+| `PATCH /api/platform/users` | Active platform owner or company admin. Company admins cannot edit admin/platform-owner accounts, cross tenants, or assign admin. Password replacement follows the same target authorization checks. |
 | `POST /api/platform/branding-upload` | Active platform owner or tenant admin. Organization ownership is checked; uploaded images are decoded, bounded, metadata-stripped and re-encoded. |
 | `POST /api/notifications/process` | Server bearer secret compared in constant time. The state-changing `GET` alias is disabled. Pending jobs are conditionally claimed to prevent duplicate processing. |
 
@@ -85,7 +88,8 @@ build and served locally so import continues working under CSP.
 1. Verify a backup and apply `supabase/V4_0_20_SECURITY_HARDENING.sql` to the
    Document Manager database. Do not apply it to the separate legacy V3 project.
 2. Confirm Vercel has a server-only Supabase service key. `APP_ORIGIN` is an
-   optional invitation URL override; otherwise the current portal origin is used. Set a random `RATE_LIMIT_PEPPER`; never put a service
+   optional application URL override; staff creation does not depend on email
+   invitations or redirect URLs. Set a random `RATE_LIMIT_PEPPER`; never put a service
    key in a browser variable.
 3. Deploy this version, then test sign-in, branch transfer receipt, payment,
    branding and invitations using test accounts.
