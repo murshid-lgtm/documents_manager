@@ -22,7 +22,7 @@
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
   "devDependencies": {
-    "@electric-sql/pglite": "0.4.1"
+    "@electric-sql/pglite": "0.5.8"
   },
   "overrides": {
     "postcss": "8.5.28"
