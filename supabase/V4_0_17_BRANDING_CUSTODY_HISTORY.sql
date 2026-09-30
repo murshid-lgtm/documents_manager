@@ -67,6 +67,9 @@ grant execute on function public.public_branding(text,text) to anon,authenticate
 
 -- Restore visible history for receipts completed before this release. The transfer
 -- route is authoritative; per-document origins fall back to the recorded route.
+-- SQL Editor has no tenant auth context, so pause the normal organization trigger
+-- only for this explicit, organization-scoped maintenance insert.
+alter table public.custody_movements disable trigger user;
 insert into public.custody_movements(organization_id,case_id,document_id,from_location,to_location,notes,handed_by,moved_at)
 select t.organization_id,i.case_id,i.document_id,t.from_location,t.to_location,
        t.transfer_no||' · Historical receipt restored by V4.0.17',coalesce(t.received_by,t.requested_by),coalesce(t.received_at,t.requested_at,now())
@@ -80,6 +83,7 @@ where t.status='Received' and i.receive_status in ('Verified','Damaged')
       and m.to_location=t.to_location
       and coalesce(m.notes,'') like t.transfer_no||'%'
   );
+alter table public.custody_movements enable trigger user;
 
 create or replace function public.confirm_custody_receipt(target_transfer uuid,receipt_items jsonb,receipt_note text default null)
 returns jsonb language plpgsql security definer set search_path=public as $$

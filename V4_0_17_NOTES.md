@@ -24,3 +24,5 @@ The migration is safe to run once on the current V4 database. It adds the new in
 ## Custody note
 
 The migration also restores missing history rows for already received transfers. It uses the saved transfer route as the historical origin/destination; this is reliable for normal single-origin transfers. A legacy bulk transfer saved as “Multiple locations” will retain that label because the former per-document origin was not stored separately.
+
+The backfill temporarily disables user triggers only on `custody_movements` while inserting explicit organization-scoped historical rows, then re-enables them inside the same transaction. This avoids the SQL Editor’s missing authentication context without changing runtime tenant security.
