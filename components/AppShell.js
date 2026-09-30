@@ -118,10 +118,10 @@ async function clearCaseCache(cacheKey){
   try{const db=await openCaseCacheDB();await new Promise((resolve,reject)=>{const tx=db.transaction(CASE_CACHE_STORE,'readwrite'),store=tx.objectStore(CASE_CACHE_STORE);store.delete(cacheKey);store.delete(CASE_CACHE_KEY);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error)})}catch{}
 }
 
-export default function AppShell({session}){
+export default function AppShell({session,initialProfile}){
   const [view,setView]=useState('dashboard');
   const [sidebarCollapsed,setSidebarCollapsed]=useState(false);
-  const [profile,setProfile]=useState(null);
+  const [profile,setProfile]=useState(initialProfile||null);
   const [currentOrganization,setCurrentOrganization]=useState(null);
   const [brandSettings,setBrandSettings]=useState(null);
   const [branches,setBranches]=useState([]);
@@ -374,7 +374,7 @@ ${company}`;
       supabase.from('branches').select('id,name').eq('is_active',true).order('name')
     ]);
     if(pe||be)setMessage(userError(pe||be,{fallback:'Unable to load account settings.'}));
-    if(!p?.is_active||pe){setCases([]);await clearCaseCache(caseCacheKey);setLoading(false);return}
+    if(!p?.is_active||pe){setCasesLoadError('Your account settings could not be loaded. Sign in again or retry.');setCases([]);await clearCaseCache(caseCacheKey);setLoading(false);return}
     setProfile(p||null);
     setBranches(b||[]);
     if(p?.organization_id){
@@ -722,7 +722,7 @@ ${company}`;
     await Promise.all(ids.map(id=>history(id,'Bulk overall status changed','overall_status',null,next,{bulk:true})));
     setSelected(new Set());await loadCases();
   }
-  async function signOut(){await clearCaseCache(caseCacheKey);const {error}=await supabase.auth.signOut({scope:'global'});if(error)setMessage(userError(error))}
+  async function signOut(){await clearCaseCache(caseCacheKey);const {error}=await supabase.auth.signOut({scope:'local'});if(error)setMessage(userError(error))}
   async function saveTrackingSettings(e){
     e.preventDefault();const value=String(trackingBaseDraft||'').trim();
     if(!/^https?:\/\//i.test(value))return setMessage('Enter a complete URL beginning with https://');

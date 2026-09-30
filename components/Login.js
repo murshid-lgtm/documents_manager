@@ -3,13 +3,13 @@ import { useEffect,useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { userError } from '../lib/userError';
 
-export default function Login({resetMode=false,onResetComplete}) {
+export default function Login({resetMode=false,onResetComplete,initialNotice=''}) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [mode,setMode]=useState(resetMode?'reset':'signin');
-  const [notice,setNotice]=useState('');
+  const [notice,setNotice]=useState(initialNotice);
   const [brand,setBrand]=useState(null);
   useEffect(()=>{let live=true;(async()=>{const host=window.location.host;const slug=process.env.NEXT_PUBLIC_ORGANIZATION_SLUG||null;const {data}=await supabase.rpc('public_branding',{request_host:host,requested_slug:slug});if(live&&data){setBrand(data);document.title=data.product_name||'Document Tracker';if(data.favicon_url){let link=document.querySelector("link[rel='icon']");if(!link){link=document.createElement('link');link.rel='icon';document.head.appendChild(link)}link.href=data.favicon_url}}})().catch(()=>{});return()=>{live=false}},[]);
   const company=brand?.company_name||'Your Organization',product=brand?.product_name||'Document Operations',mark=(brand?.short_name||company||'D').slice(0,1).toUpperCase();
@@ -57,6 +57,7 @@ export default function Login({resetMode=false,onResetComplete}) {
       <div className="auth-security-chip"><span></span> Secure operations workspace</div>
       <div className="auth-copy"><h2>{mode==='reset'?'Create new password':mode==='forgot'?'Reset password':brand?.login_welcome_title||'Welcome back'}</h2><p className="muted">{mode==='reset'?'Enter a secure new password for your account.':mode==='forgot'?'We will send a secure reset link to your work email.':brand?.login_welcome_subtitle||'Sign in to continue to your operations dashboard.'}</p></div>
       {mode==='signin'&&<form onSubmit={submit} className="stack">
+        {notice&&<div className="auth-success" role="status">{notice}</div>}
         <label>Email address<input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="name@company.com" autoComplete="username" required autoFocus /></label>
         <label><span className="auth-label-row">Password<button type="button" onClick={()=>{setMode('forgot');setError('');setNotice('')}}>Forgot password?</button></span><input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="Enter your password" autoComplete="current-password" required /></label>
         {error && <div className="error-box">{error}</div>}

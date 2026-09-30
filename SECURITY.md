@@ -123,3 +123,10 @@ references and mobile numbers are not passwords; IP rate limits reduce automated
 lookup but do not eliminate guessing. Finance, notes, internal custody and staff data
 are never included. Opaque links remain supported. WordPress connector 2.6.0 lists
 multiple mobile matches and preserves organization scoping.
+
+
+### V4.0.23 portal and account lifecycle
+
+`APP_ORIGIN` must be the platform owner's HTTPS origin. Company accounts can sign in only on the exact `organization_settings.primary_domain`; missing configuration fails closed. Login, saved-session workspace verification, case API, branding uploads and account management enforce the same portal policy. Database organization and branch RLS remain authoritative independently of host. Normal sign-out revokes the current session; other devices remain signed in. Expired/revoked sessions cannot render a default staff workspace.
+
+GET `/api/auth/workspace` validates live sessions and portal assignment. GET `/api/platform/users` lists only the administrator's company (or the owner's selected company). POST/PATCH/DELETE retain object-level company/role checks. Only the owner manages company administrators. Self deletion, self deactivation, and modifying platform-owner identities are blocked. Account deletion uses Auth soft deletion after profile deactivation, preserving historical foreign keys while denying access. No real accounts were deleted during verification.

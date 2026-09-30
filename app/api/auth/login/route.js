@@ -1,4 +1,5 @@
 import {createClient} from '@supabase/supabase-js';
+import {checkPortal} from '../../../../lib/portalAccess';
 import {apiError,apiJson,consumeRateLimit,isSameOrigin,readJson,requestIp} from '../../../../lib/serverSecurity';
 
 export const dynamic='force-dynamic';
@@ -24,7 +25,9 @@ export async function POST(request){
     if(error||!data.session)return apiJson({ok:false,error:'The email address or password is incorrect.',code:'INVALID_CREDENTIALS'},401);
     const {data:profile}=await admin.from('profiles').select('is_active,is_platform_super_admin,organization_id').eq('id',data.user.id).maybeSingle();
     const {data:org}=profile?.organization_id?await admin.from('organizations').select('status').eq('id',profile.organization_id).maybeSingle():{data:null};
-    if(!profile?.is_active||(!profile.is_platform_super_admin&&org?.status!=='Active')||data.session.expires_in>86400){await authClient.auth.signOut({scope:'global'});return apiJson({ok:false,error:'This account cannot access a workspace. Contact your administrator.',code:'FORBIDDEN'},403)}
+    if(!profile?.is_active||(!profile.is_platform_super_admin&&org?.status!=='Active')||data.session.expires_in>86400){await authClient.auth.signOut({scope:'local'});return apiJson({ok:false,error:'This account cannot access a workspace. Contact your administrator.',code:'FORBIDDEN'},403)}
+    const denied=await checkPortal(admin,profile,request);
+    if(denied){await authClient.auth.signOut({scope:'local'});return denied}
     return apiJson({ok:true,session:{access_token:data.session.access_token,refresh_token:data.session.refresh_token,expires_at:data.session.expires_at,expires_in:data.session.expires_in,token_type:data.session.token_type}});
   }catch(error){
     return apiError(error,{status:error?.status||500,code:error?.code||'LOGIN_FAILED',message:error?.status===413?'The request is too large.':'Sign in could not be completed.'});

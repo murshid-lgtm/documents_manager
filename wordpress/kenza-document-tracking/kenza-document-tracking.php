@@ -2,12 +2,12 @@
 /**
  * Plugin Name: Document Tracking Connector
  * Description: White-label WordPress customer document tracking. Use shortcode [kenza_tracking].
- * Version: 2.6.0
+ * Version: 2.6.1
  * Author: Document Operations Platform
  */
 if (!defined('ABSPATH')) exit;
 
-define('KENZA_TRACK_VERSION', '2.6.0');
+define('KENZA_TRACK_VERSION', '2.6.1');
 define('KENZA_TRACK_OPTION', 'kenza_tracking_api_base');
 define('KENZA_TRACK_ORG_OPTION', 'kenza_tracking_org_slug');
 define('KENZA_TRACK_COMPANY_OPTION', 'kenza_tracking_company_name');

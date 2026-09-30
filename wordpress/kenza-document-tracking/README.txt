@@ -1,4 +1,4 @@
-Document Tracking Connector 2.6.0
+Document Tracking Connector 2.6.1
 
 Replace the existing connector in WordPress (keep the same plugin folder).
 Settings > Document Tracking:

@@ -1,6 +1,8 @@
 import {PGlite} from '@electric-sql/pglite';
 import fs from 'node:fs';
 import assert from 'node:assert/strict';
+import {verifyWorkspaceSession} from '../lib/workspaceSession.js';
+import {portalDecision,canManageAccount} from '../lib/portalPolicy.js';
 import {validateStaffPassword,validateStaffModules} from '../lib/modules.js';
 import {CASE_SELECT} from '../lib/caseSelect.js';
 
@@ -8,6 +10,41 @@ const db=new PGlite();
 const id=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
 let checks=0;
 assert.throws(()=>validateStaffPassword('short'),{code:'INVALID_PASSWORD'});assert.throws(()=>validateStaffPassword({}),{code:'INVALID_PASSWORD'});assert.throws(()=>validateStaffModules(['admin']),{code:'INVALID_MODULES'});assert.ok(CASE_SELECT.includes('branches!cases_branch_id_fkey('));assert.ok(CASE_SELECT.includes('documents!documents_case_id_fkey('));assert.ok(CASE_SELECT.includes('document_stages!document_stages_document_id_fkey('));checks+=6;
+
+const fixtureSession={user:{id:'admin-account'}};
+function workspaceClient({session=fixtureSession,valid=true,profile={id:'admin-account',role:'admin',is_active:true},profileError=null,userError=null}={}){
+ return {auth:{getSession:async()=>({data:{session}}),getUser:async()=>({data:{user:session?.user},error:userError})},rpc:async()=>({data:valid}),from:()=>({select:()=>({eq:()=>({maybeSingle:async()=>({data:profile,error:profileError})})})})};
+}
+assert.equal((await verifyWorkspaceSession(workspaceClient())).profile.role,'admin');
+assert.equal((await verifyWorkspaceSession(workspaceClient({session:null}))).status,'signed-out');
+assert.equal((await verifyWorkspaceSession(workspaceClient({valid:false}))).status,'expired');
+assert.equal((await verifyWorkspaceSession(workspaceClient({userError:{status:401}}))).status,'expired');
+await assert.rejects(()=>verifyWorkspaceSession(workspaceClient({profileError:{message:'db details'}})),/account settings could not be loaded/);
+await assert.rejects(()=>verifyWorkspaceSession(workspaceClient({userError:{status:503}})),/temporarily unavailable/);
+assert.equal((await verifyWorkspaceSession(workspaceClient({profile:null}))).status,'blocked');
+assert.equal((await verifyWorkspaceSession(workspaceClient({profile:{role:'unknown',is_active:true}}))).status,'blocked');
+checks+=8;
+
+const companyAdmin={role:'admin',is_active:true,organization_id:'kenza',is_platform_super_admin:false};
+const owner={role:'admin',is_active:true,is_platform_super_admin:true};
+const portalInput={platformOrigin:'https://tracker.mellodeals.com',companyDomain:'kenza.tracker.mellodeals.com',profile:companyAdmin};
+assert.equal(portalDecision({...portalInput,host:'tracker.mellodeals.com'}).code,'WRONG_PORTAL');
+assert.equal(portalDecision({...portalInput,host:'kenza.tracker.mellodeals.com'}).allowed,true);
+assert.equal(portalDecision({...portalInput,host:'docuway.tracker.mellodeals.com'}).allowed,false);
+assert.equal(portalDecision({...portalInput,host:'tracker.mellodeals.com',profile:owner}).allowed,true);
+assert.equal(portalDecision({...portalInput,host:'kenza.tracker.mellodeals.com',profile:owner}).allowed,false);
+assert.equal(portalDecision({...portalInput,host:'kenza.tracker.mellodeals.com.evil.test'}).allowed,false);
+assert.equal(portalDecision({...portalInput,host:'kenza.tracker.mellodeals.com',companyDomain:''}).status,503);
+assert.equal(canManageAccount(companyAdmin,{role:'staff',organization_id:'kenza'}),true);
+assert.equal(canManageAccount(companyAdmin,{role:'admin',organization_id:'kenza'}),false);
+assert.equal(canManageAccount(companyAdmin,{role:'staff',organization_id:'docuway'}),false);
+assert.equal(canManageAccount(owner,{role:'admin',organization_id:'kenza'}),true);
+assert.equal(canManageAccount(owner,{is_platform_super_admin:true}),false);
+assert.equal((await verifyWorkspaceSession(workspaceClient(),async()=>({status:'wrong-portal'}))).status,'wrong-portal');
+assert.equal(portalDecision({...portalInput,host:'tracker.mellodeals.com',companyDomain:'tracker.mellodeals.com'}).status,503);
+checks+=14;
+
+
 async function login(user){
   await db.exec('reset role');
   const now=Math.floor(Date.now()/1000);
