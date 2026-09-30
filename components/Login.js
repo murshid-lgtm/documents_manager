@@ -16,20 +16,23 @@ export default function Login({resetMode=false,onResetComplete}) {
 
   async function submit(e) {
     e.preventDefault(); setLoading(true); setError('');
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) setError(userError(error));
+    try{
+      const response=await fetch('/api/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email,password})});
+      const result=await response.json().catch(()=>({}));
+      if(!response.ok)throw String(result.error||'Sign in could not be completed.');
+      const {error}=await supabase.auth.setSession({access_token:result.session.access_token,refresh_token:result.session.refresh_token});
+      if(error)throw error;
+    }catch(error){setError(userError(error))}
     setLoading(false);
   }
   async function requestReset(e){
     e.preventDefault();setLoading(true);setError('');setNotice('');
-    const redirectTo=typeof window!=='undefined'?window.location.origin:undefined;
-    const {error}=await supabase.auth.resetPasswordForEmail(email,{redirectTo});
-    if(error)setError(userError(error));else setNotice('Password reset link sent. Check your email inbox.');
+    try{const response=await fetch('/api/auth/password-reset',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email})});const result=await response.json().catch(()=>({}));if(!response.ok)throw String(result.error||'Password reset could not be requested.');setNotice(result.message||'If an account exists for that email, a reset link has been sent.')}catch(error){setError(userError(error))}
     setLoading(false);
   }
   async function savePassword(e){
     e.preventDefault();setLoading(true);setError('');
-    if(password.length<8){setError('Use at least 8 characters for your new password.');setLoading(false);return}
+    if(password.length<12){setError('Use at least 12 characters for your new password.');setLoading(false);return}
     const {error}=await supabase.auth.updateUser({password});
     if(error)setError(userError(error));else{setNotice('Password updated successfully.');setTimeout(()=>onResetComplete?.(),700)}
     setLoading(false);
@@ -66,7 +69,7 @@ export default function Login({resetMode=false,onResetComplete}) {
         <button type="button" className="auth-back-link" onClick={()=>{setMode('signin');setError('');setNotice('')}}>← Back to sign in</button>
       </form>}
       {mode==='reset'&&<form onSubmit={savePassword} className="stack">
-        <label>New password<input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="Minimum 8 characters" autoComplete="new-password" required autoFocus /></label>
+        <label>New password<input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="Minimum 12 characters" minLength="12" autoComplete="new-password" required autoFocus /></label>
         {error&&<div className="error-box">{error}</div>}{notice&&<div className="auth-success">{notice}</div>}
         <button className="primary large" disabled={loading}>{loading?'Updating…':'Update password'}<span aria-hidden="true">→</span></button>
       </form>}

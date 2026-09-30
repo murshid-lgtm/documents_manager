@@ -10,3 +10,5 @@ coverage/
 *.log
 *.zip
 .DS_Store
+
+/public/pdf.worker.min.mjs

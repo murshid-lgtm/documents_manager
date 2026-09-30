@@ -113,23 +113,9 @@ function openCaseCacheDB(){
     }catch(e){reject(e)}
   });
 }
-async function readCaseCache(){
-  try{
-    const db=await openCaseCacheDB();
-    return await new Promise((resolve,reject)=>{const tx=db.transaction(CASE_CACHE_STORE,'readonly');const req=tx.objectStore(CASE_CACHE_STORE).get(CASE_CACHE_KEY);req.onsuccess=()=>resolve(req.result||null);req.onerror=()=>reject(req.error)});
-  }catch{
-    try{const raw=localStorage.getItem(CASE_CACHE_KEY);return raw?JSON.parse(raw):null}catch{return null}
-  }
-}
-async function writeCaseCache(cases){
-  const payload={savedAt:Date.now(),cases};
-  try{
-    const db=await openCaseCacheDB();
-    await new Promise((resolve,reject)=>{const tx=db.transaction(CASE_CACHE_STORE,'readwrite');tx.objectStore(CASE_CACHE_STORE).put(payload,CASE_CACHE_KEY);tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error)});
-  }catch{
-    // Small fallback only; full 10k+ case snapshots can exceed localStorage quota.
-    try{localStorage.setItem(CASE_CACHE_KEY,JSON.stringify({savedAt:Date.now(),cases:cases.slice(0,500)}))}catch{}
-  }
+async function clearCaseCache(cacheKey){
+  try{localStorage.removeItem(cacheKey);localStorage.removeItem(CASE_CACHE_KEY)}catch{}
+  try{const db=await openCaseCacheDB();await new Promise((resolve,reject)=>{const tx=db.transaction(CASE_CACHE_STORE,'readwrite'),store=tx.objectStore(CASE_CACHE_STORE);store.delete(cacheKey);store.delete(CASE_CACHE_KEY);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error)})}catch{}
 }
 
 export default function AppShell({session}){
@@ -142,6 +128,7 @@ export default function AppShell({session}){
   const [cases,setCases]=useState([]);
   const [loading,setLoading]=useState(true);
   const [message,setRawMessage]=useState('');
+  const caseCacheKey=`${CASE_CACHE_KEY}_${session.user.id}`;
   const setMessage=useCallback(value=>{
     setRawMessage(previous=>{
       const next=typeof value==='function'?value(previous):value;
@@ -205,10 +192,14 @@ export default function AppShell({session}){
   const [form,setForm]=useState(emptyCase);
   const freshNewCaseDoc=()=>({document_name:'',holder_name:'',holder_custom:false,quantity:1,direct_to_delhi:false,direct_destination:'',stages:['MEA India','Embassy of India','MOFA Qatar'],custom_stage:''});
   const [newCaseDocs,setNewCaseDocs]=useState([freshNewCaseDoc()]);
-  const customerTrackingUrl=ref=>{
+  const customerTrackingUrl=caseOrRef=>{
     const configured=String(trackingBaseUrl||process.env.NEXT_PUBLIC_CUSTOMER_TRACKING_URL||'').trim().replace(/\/$/,'');
     const base=configured || (typeof window!=='undefined'?`${window.location.origin}/public-track`:'/public-track');
-    const params=new URLSearchParams();params.set('ref',String(ref||'').trim());
+    const token=typeof caseOrRef==='object'?String(caseOrRef?.public_tracking_token||'').trim():'';
+    const ref=typeof caseOrRef==='object'?caseOrRef?.tracking_reference:caseOrRef;
+    const params=new URLSearchParams();
+    if(token)params.set('token',token);
+    params.set('ref',String(ref||'').trim());
     if(currentOrganization?.slug)params.set('org',currentOrganization.slug);
     return `${base}${base.includes('?')?'&':'?'}${params.toString()}`;
   };
@@ -220,7 +211,7 @@ export default function AppShell({session}){
     return n;
   };
   const whatsappTrackingMessage=c=>{
-    const link=customerTrackingUrl(c?.tracking_reference);
+    const link=customerTrackingUrl(c);
     const customer=String(c?.customer_name||'Customer').trim();
     const submitted=c?.submission_date?new Date(`${c.submission_date}T00:00:00`).toLocaleDateString('en-GB'):'—';
     const status=String(c?.overall_status||'Received').trim();
@@ -254,7 +245,7 @@ You can use the above link anytime to check the latest status. No tracking numbe
 ${company}`;
   };
   async function trackingReceiptDataUrl(c){
-    const link=customerTrackingUrl(c?.tracking_reference),qr=await QRCode.toDataURL(link,{width:320,margin:1,errorCorrectionLevel:'M'});
+    const link=customerTrackingUrl(c),qr=await QRCode.toDataURL(link,{width:320,margin:1,errorCorrectionLevel:'M'});
     const canvas=document.createElement('canvas');canvas.width=1080;canvas.height=1350;const x=canvas.getContext('2d');
     const round=(left,top,width,height,r,fill)=>{x.beginPath();x.roundRect(left,top,width,height,r);x.fillStyle=fill;x.fill()};
     const text=(value,left,top,size,color='#14213d',weight=500,align='left')=>{x.font=`${weight} ${size}px Arial`;x.fillStyle=color;x.textAlign=align;x.fillText(String(value||''),left,top)};
@@ -280,7 +271,7 @@ ${company}`;
       if(navigator.share&&(!navigator.canShare||navigator.canShare({files:[file]}))){await navigator.share({title:`${company} Tracking #${c.tracking_reference}`,text:message,files:[file]});return}
       const a=document.createElement('a');a.href=dataUrl;a.download=file.name;a.click();
       if(whatsapp){const number=whatsappNumber(c?.mobile);window.open(`https://wa.me/${number}?text=${encodeURIComponent(message)}`,'_blank','noopener,noreferrer');setMessage('Tracking receipt downloaded. Attach it in WhatsApp with the prepared message.')}
-    }catch(err){setMessage(err?.message||'Unable to create the tracking receipt.')}
+    }catch(err){setMessage(userError(err,{fallback:'Unable to create the tracking receipt.'}))}
   }
   useEffect(()=>{
     if(createdShare)setCreatedShareMessage(whatsappTrackingMessage(createdShare));
@@ -291,7 +282,7 @@ ${company}`;
     (async()=>{
       if(!createdShare?.tracking_reference){setCreatedQr('');setCreatedReceipt('');return}
       try{
-        const data=await QRCode.toDataURL(customerTrackingUrl(createdShare.tracking_reference),{width:520,margin:2,errorCorrectionLevel:'M'});
+        const data=await QRCode.toDataURL(customerTrackingUrl(createdShare),{width:520,margin:2,errorCorrectionLevel:'M'});
         const receipt=await trackingReceiptDataUrl(createdShare);
         if(active){setCreatedQr(data);setCreatedReceipt(receipt)}
       }catch{if(active){setCreatedQr('');setCreatedReceipt('')}}
@@ -328,7 +319,7 @@ ${company}`;
     try{setRecentCaseIds(JSON.parse(localStorage.getItem(recentStorageKey)||'[]').slice(0,12))}catch{setRecentCaseIds([])}
     return()=>{live=false};
   },[favoriteStorageKey,recentStorageKey]);
-  function toggleFavoriteCase(caseId){setFavoriteCaseIds(prev=>{const next=new Set(prev),removing=next.has(caseId);removing?next.delete(caseId):next.add(caseId);try{localStorage.setItem(favoriteStorageKey,JSON.stringify([...next]))}catch{};(removing?supabase.from('user_favorite_cases').delete().eq('user_id',session.user.id).eq('case_id',caseId):supabase.from('user_favorite_cases').upsert({user_id:session.user.id,case_id:caseId},{onConflict:'user_id,case_id'})).then(({error})=>{if(error&&!/does not exist|schema cache|Could not find/i.test(String(error.message||'')))setMessage(`Favorite sync: ${error.message}`)});return next})}
+  function toggleFavoriteCase(caseId){setFavoriteCaseIds(prev=>{const next=new Set(prev),removing=next.has(caseId);removing?next.delete(caseId):next.add(caseId);try{localStorage.setItem(favoriteStorageKey,JSON.stringify([...next]))}catch{};(removing?supabase.from('user_favorite_cases').delete().eq('user_id',session.user.id).eq('case_id',caseId):supabase.from('user_favorite_cases').upsert({user_id:session.user.id,case_id:caseId},{onConflict:'user_id,case_id'})).then(({error})=>{if(error&&!/does not exist|schema cache|Could not find/i.test(String(error.message||'')))setMessage(userError(error,{fallback:'Favorite sync could not be completed.'}))});return next})}
   function clearRecentCases(){setRecentCaseIds([]);try{localStorage.setItem(recentStorageKey,'[]')}catch{}setMessage('Recently viewed cases cleared.')}
   async function clearFavoriteCases(){
     if(!favoriteCaseIds.size)return;
@@ -349,7 +340,7 @@ ${company}`;
     setAuditLoading(true);
     const {data,error}=await supabase.from('case_history').select('id,case_id,user_id,action,field_name,old_value,new_value,metadata,created_at,profiles(full_name,role)').order('created_at',{ascending:false}).limit(300);
     setAuditLoading(false);
-    if(error){setMessage(error.message);return}
+    if(error){setMessage(userError(error));return}
     setAuditRows(data||[]);
   },[]);
   useEffect(()=>{
@@ -371,13 +362,8 @@ ${company}`;
 
   useEffect(()=>{
     let alive=true;
-    (async()=>{
-      const cached=await readCaseCache();
-      if(!alive)return;
-      const hasCache=Boolean(cached?.cases?.length);
-      if(hasCache){setCases(cached.cases);setLoading(false)}
-      bootstrap(hasCache);
-    })();
+    void clearCaseCache(caseCacheKey);
+    bootstrap();
     return()=>{alive=false};
   },[]);
   async function bootstrap(hasCache=false){
@@ -386,7 +372,8 @@ ${company}`;
       supabase.from('profiles').select('id,full_name,role,branch_id,is_active,organization_id,is_platform_super_admin').eq('id',session.user.id).single(),
       supabase.from('branches').select('id,name').eq('is_active',true).order('name')
     ]);
-    if(pe||be)setMessage(pe?.message||be?.message||'Unable to load account settings.');
+    if(pe||be)setMessage(userError(pe||be,{fallback:'Unable to load account settings.'}));
+    if(!p?.is_active||pe){setCases([]);await clearCaseCache(caseCacheKey);setLoading(false);return}
     setProfile(p||null);
     setBranches(b||[]);
     if(p?.organization_id){
@@ -443,10 +430,10 @@ ${company}`;
     const pageSize=300; let from=0; let all=[]; let first=true;
     while(true){
       const {data,error}=await supabase.from('cases').select(`
-        id,tracking_reference,tracking_family,bill_no,internal_invoice_no,customer_name,mobile,submission_date,promise_date,overall_status,total_amount,advance_paid,second_payment,discount_return,balance_payment,notes,assigned_to,physical_location,flags,created_at,updated_at,branch_id,account_name,account_contact,account_mobile,intake_source,direct_to_delhi,direct_destination,current_milestone,current_milestone_date,branches(name),
+        id,tracking_reference,public_tracking_token,tracking_family,bill_no,internal_invoice_no,customer_name,mobile,submission_date,promise_date,overall_status,total_amount,advance_paid,second_payment,discount_return,balance_payment,notes,assigned_to,physical_location,flags,created_at,updated_at,branch_id,account_name,account_contact,account_mobile,intake_source,direct_to_delhi,direct_destination,current_milestone,current_milestone_date,branches(name),
         documents(id,document_name,holder_name,source_tracking_reference,occurrence_no,quantity,document_status,physical_location,direct_to_delhi,direct_destination,current_milestone,current_milestone_date,created_at,document_stages(id,stage_name,stage_order,status,milestone_date,is_manual_override,updated_at))
       `).order('created_at',{ascending:false}).range(from,from+pageSize-1);
-      if(error){setMessage(error.message);return}
+      if(error){setMessage(userError(error));return}
       const rows=(data||[]).map(normalizeCaseRow); all.push(...rows);
       if(first && rows.length){
         setCases(prev=>prev.length?prev:rows);
@@ -459,7 +446,7 @@ ${company}`;
       await new Promise(r=>setTimeout(r,0));
     }
     setCases(all);
-    void writeCaseCache(all);
+    // Customer data remains in memory; authorization is rechecked on refresh.
     if(quickCase){const fresh=all.find(c=>c.id===quickCase.id);if(fresh)setQuickCase(fresh)}
   }
   function normalizeCaseRow(c){
@@ -486,7 +473,7 @@ ${company}`;
   }
   async function refreshCase(caseId){
     const {data,error}=await supabase.from('cases').select(`
-      id,tracking_reference,tracking_family,bill_no,internal_invoice_no,customer_name,mobile,submission_date,promise_date,overall_status,total_amount,advance_paid,second_payment,discount_return,balance_payment,notes,assigned_to,physical_location,flags,created_at,updated_at,branch_id,account_name,account_contact,account_mobile,intake_source,direct_to_delhi,direct_destination,current_milestone,current_milestone_date,branches(name),
+      id,tracking_reference,public_tracking_token,tracking_family,bill_no,internal_invoice_no,customer_name,mobile,submission_date,promise_date,overall_status,total_amount,advance_paid,second_payment,discount_return,balance_payment,notes,assigned_to,physical_location,flags,created_at,updated_at,branch_id,account_name,account_contact,account_mobile,intake_source,direct_to_delhi,direct_destination,current_milestone,current_milestone_date,branches(name),
       documents(id,document_name,holder_name,source_tracking_reference,occurrence_no,quantity,document_status,physical_location,direct_to_delhi,direct_destination,current_milestone,current_milestone_date,created_at,document_stages(id,stage_name,stage_order,status,milestone_date,is_manual_override,updated_at))
     `).eq('id',caseId).single();
     if(!error&&data)replaceCaseLocal(data);
@@ -498,7 +485,7 @@ ${company}`;
     const ref=String(tracking||'').trim();
     if(!ref)return null;
     const {data,error}=await supabase.from('cases').select(`
-      id,tracking_reference,tracking_family,bill_no,internal_invoice_no,customer_name,mobile,submission_date,promise_date,overall_status,total_amount,advance_paid,second_payment,discount_return,balance_payment,notes,assigned_to,physical_location,flags,created_at,updated_at,branch_id,account_name,account_contact,account_mobile,intake_source,direct_to_delhi,direct_destination,current_milestone,current_milestone_date,branches(name),
+      id,tracking_reference,public_tracking_token,tracking_family,bill_no,internal_invoice_no,customer_name,mobile,submission_date,promise_date,overall_status,total_amount,advance_paid,second_payment,discount_return,balance_payment,notes,assigned_to,physical_location,flags,created_at,updated_at,branch_id,account_name,account_contact,account_mobile,intake_source,direct_to_delhi,direct_destination,current_milestone,current_milestone_date,branches(name),
       documents(id,document_name,holder_name,source_tracking_reference,occurrence_no,quantity,document_status,physical_location,direct_to_delhi,direct_destination,current_milestone,current_milestone_date,created_at,document_stages(id,stage_name,stage_order,status,milestone_date,is_manual_override,updated_at))
     `).eq('tracking_reference',ref).maybeSingle();
     if(error)return null;
@@ -538,7 +525,7 @@ ${company}`;
         const duplicate=await fetchCaseByTracking(payload.tracking_reference);
         if(duplicate){setDuplicateReview(duplicate);setSaving(false);return}
       }
-      setMessage(error.message);setSaving(false);return
+      setMessage(userError(error));setSaving(false);return
     }
     try{
       const nameCounts={};
@@ -557,7 +544,7 @@ ${company}`;
       // Fetch the complete newly-created case and place it into the current list immediately.
       // This avoids a successful transaction appearing to be missing while the paged background reload runs.
       const {data:createdCase,error:createdCaseError}=await supabase.from('cases').select(`
-        id,tracking_reference,tracking_family,bill_no,internal_invoice_no,customer_name,mobile,submission_date,promise_date,overall_status,total_amount,advance_paid,second_payment,discount_return,balance_payment,notes,assigned_to,physical_location,flags,created_at,updated_at,branch_id,account_name,account_contact,account_mobile,intake_source,direct_to_delhi,direct_destination,current_milestone,current_milestone_date,branches(name),
+        id,tracking_reference,public_tracking_token,tracking_family,bill_no,internal_invoice_no,customer_name,mobile,submission_date,promise_date,overall_status,total_amount,advance_paid,second_payment,discount_return,balance_payment,notes,assigned_to,physical_location,flags,created_at,updated_at,branch_id,account_name,account_contact,account_mobile,intake_source,direct_to_delhi,direct_destination,current_milestone,current_milestone_date,branches(name),
         documents(id,document_name,holder_name,source_tracking_reference,occurrence_no,quantity,document_status,physical_location,direct_to_delhi,direct_destination,current_milestone,current_milestone_date,created_at,document_stages(id,stage_name,stage_order,status,milestone_date,is_manual_override,updated_at))
       `).eq('id',data.id).single();
       if(!createdCaseError&&createdCase){
@@ -582,14 +569,14 @@ ${company}`;
     }catch(err){
       // Best-effort rollback so a failed document/stage insert does not leave a half-created manual transaction.
       await supabase.from('cases').delete().eq('id',data.id);
-      setMessage(`Case creation failed and was rolled back: ${err?.message||'Unknown error'}`);
+      setMessage(userError(err,{fallback:'Case creation failed and was safely rolled back. Please try again.'}));
     }
     setSaving(false);
   }
   async function updateCaseStatus(c,next){
     if(next===c.overall_status)return;
     const {error}=await supabase.from('cases').update({overall_status:next,updated_by:session.user.id}).eq('id',c.id);
-    if(error){setMessage(error.message);return}
+    if(error){setMessage(userError(error));return}
     patchCaseStatusLocal(c.id,next); await history(c.id,'Overall status changed','overall_status',c.overall_status,next); void refreshCase(c.id);
   }
   async function updateStage(c,d,s,next){
@@ -617,7 +604,7 @@ ${company}`;
     const stageDate=['Processing','Completed'].includes(next)?(s.milestone_date||new Date().toISOString().slice(0,10)):s.milestone_date||null;
     patchStageLocal(c.id,d.id,s.id,{milestone_date:stageDate});
     const {error}=await supabase.from('document_stages').update({status:next,milestone_date:stageDate,is_manual_override:true,updated_by:session.user.id}).eq('id',s.id);
-    if(error){setMessage(error.message);patchStageLocal(c.id,d.id,s.id,{status:old});await refreshCase(c.id);return}
+    if(error){setMessage(userError(error));patchStageLocal(c.id,d.id,s.id,{status:old});await refreshCase(c.id);return}
     await history(c.id,'Stage status changed',s.stage_name,old,next,{document_id:d.id,document_name:d.document_name});
     await syncDocumentStatus(d.id);
     await syncCaseOverallStatus(c.id,c.overall_status);
@@ -627,7 +614,7 @@ ${company}`;
     const value=date||null;
     patchStageLocal(c.id,d.id,s.id,{milestone_date:value,is_manual_override:true});
     const {error}=await supabase.from('document_stages').update({milestone_date:value,is_manual_override:true,updated_by:session.user.id}).eq('id',s.id);
-    if(error){setMessage(error.message);await refreshCase(c.id);return}
+    if(error){setMessage(userError(error));await refreshCase(c.id);return}
     await history(c.id,'Stage date changed',`${s.stage_name} date`,s.milestone_date||null,value,{document_id:d.id,document_name:d.document_name});
     await refreshCase(c.id);
   }
@@ -642,7 +629,7 @@ ${company}`;
     setQuickCase(prev=>prev?mutate(prev):prev);
     const payload=optimistic.map(st=>({id:st.id,document_id:d.id,stage_name:st.stage_name,stage_order:st.stage_order,status:st.status,is_manual_override:st.is_manual_override,updated_by:session.user.id}));
     const {error}=await supabase.from('document_stages').upsert(payload,{onConflict:'id'});
-    if(error){setMessage(error.message);await refreshCase(c.id);return}
+    if(error){setMessage(userError(error));await refreshCase(c.id);return}
     await history(c.id,'Stage order changed','stage_order',before.join(','),after.join(','),{document_id:d.id,document_name:d.document_name});
     await refreshCase(c.id);
   }
@@ -680,9 +667,9 @@ ${company}`;
     const existing=showDoc.documents?.filter(d=>d.document_name.toLowerCase()===name.toLowerCase())||[];
     const occurrence=Math.max(0,...existing.map(d=>d.occurrence_no||0))+1;
     const {data:doc,error}=await supabase.from('documents').insert({case_id:caseId,document_name:name,holder_name:docForm.holder_name.trim()||null,source_tracking_reference:showDoc.tracking_reference,direct_to_delhi:Boolean(docForm.direct_to_delhi),direct_destination:docForm.direct_to_delhi?(docForm.direct_destination.trim()||'Delhi'):null,occurrence_no:occurrence,quantity:Number(docForm.quantity||1),document_status:'Pending'}).select('id').single();
-    if(error){setMessage(error.message);setSaving(false);return}
+    if(error){setMessage(userError(error));setSaving(false);return}
     const stages=docForm.stages.filter(Boolean).map((stage_name,i)=>({document_id:doc.id,stage_name,stage_order:i+1,status:'Pending'}));
-    if(stages.length){const {error:se}=await supabase.from('document_stages').insert(stages);if(se){setMessage(se.message);setSaving(false);return}}
+    if(stages.length){const {error:se}=await supabase.from('document_stages').insert(stages);if(se){setMessage(userError(se));setSaving(false);return}}
     await history(caseId,'Document added','document',null,name,{occurrence_no:occurrence,stages:docForm.stages});
     setShowDoc(null);setCustomStage('');setDocForm({document_name:'',holder_name:'',quantity:1,direct_to_delhi:false,direct_destination:'',stages:['MEA India','Embassy of India','MOFA Qatar']});await refreshCase(caseId);setSaving(false);
   }
@@ -693,7 +680,7 @@ ${company}`;
     if((d.document_stages||[]).some(x=>x.stage_name.toLowerCase()===name.toLowerCase())){setMessage('This stage already exists on the document.');return}
     const order=Math.max(0,...(d.document_stages||[]).map(x=>Number(x.stage_order||0)))+1;
     const {data,error}=await supabase.from('document_stages').insert({document_id:d.id,stage_name:name,stage_order:order,status:'Pending',is_manual_override:true,updated_by:session.user.id}).select('id,document_id,stage_name,stage_order,status,is_manual_override,updated_at').single();
-    if(error){setMessage(error.message);return}
+    if(error){setMessage(userError(error));return}
     await history(c.id,'Stage added','stage',null,name,{document_id:d.id,document_name:d.document_name});
     await refreshCase(c.id);
   }
@@ -703,21 +690,21 @@ ${company}`;
     const name=value.trim(); if(!name||name===st.stage_name)return;
     if((d.document_stages||[]).some(x=>x.id!==st.id&&x.stage_name.toLowerCase()===name.toLowerCase())){setMessage('Another stage with this name already exists.');return}
     const {error}=await supabase.from('document_stages').update({stage_name:name,is_manual_override:true,updated_by:session.user.id}).eq('id',st.id);
-    if(error){setMessage(error.message);return}
+    if(error){setMessage(userError(error));return}
     await history(c.id,'Stage renamed','stage_name',st.stage_name,name,{document_id:d.id,document_name:d.document_name});
     await refreshCase(c.id);
   }
   async function deleteStage(c,d,st){
     if(!confirm(`Remove stage ${st.stage_name} from ${d.document_name}?`))return;
     const {error}=await supabase.from('document_stages').delete().eq('id',st.id);
-    if(error){setMessage(error.message);return}
+    if(error){setMessage(userError(error));return}
     await history(c.id,'Stage removed','stage',st.stage_name,null,{document_id:d.id,document_name:d.document_name});
     await syncDocumentStatus(d.id); await syncCaseOverallStatus(c.id,c.overall_status); await refreshCase(c.id);
   }
   async function deleteDocument(c,d){
     if(!confirm(`Remove ${d.document_name} #${d.occurrence_no} from this case?`))return;
     const {error}=await supabase.from('documents').delete().eq('id',d.id);
-    if(error){setMessage(error.message);return}
+    if(error){setMessage(userError(error));return}
     await history(c.id,'Document removed','document',d.document_name,null,{occurrence_no:d.occurrence_no});await refreshCase(c.id);
   }
   function toggleExpanded(id){setExpanded(prev=>{const n=new Set(prev);n.has(id)?n.delete(id):n.add(id);return n})}
@@ -725,17 +712,17 @@ ${company}`;
   async function bulkStatus(next){
     if(!next||!selected.size)return;
     const ids=[...selected]; const {error}=await supabase.from('cases').update({overall_status:next,updated_by:session.user.id}).in('id',ids);
-    if(error){setMessage(error.message);return}
+    if(error){setMessage(userError(error));return}
     await Promise.all(ids.map(id=>history(id,'Bulk overall status changed','overall_status',null,next,{bulk:true})));
     setSelected(new Set());await loadCases();
   }
-  async function signOut(){await supabase.auth.signOut()}
+  async function signOut(){await clearCaseCache(caseCacheKey);const {error}=await supabase.auth.signOut({scope:'global'});if(error)setMessage(userError(error))}
   async function saveTrackingSettings(e){
     e.preventDefault();const value=String(trackingBaseDraft||'').trim();
     if(!/^https?:\/\//i.test(value))return setMessage('Enter a complete URL beginning with https://');
     if(isAdminProfile(profile)){
       const {error}=await supabase.from('app_settings').upsert({setting_key:'customer_tracking',setting_value:{base_url:value},updated_by:session.user.id,updated_at:new Date().toISOString()},{onConflict:'setting_key'});
-      if(error&&!/does not exist|schema cache|Could not find/i.test(String(error.message||'')))return setMessage(error.message);
+      if(error&&!/does not exist|schema cache|Could not find/i.test(String(error.message||'')))return setMessage(userError(error));
       if(!error)setTrackingSettingSynced(true);
     }
     setTrackingBaseUrl(value);try{localStorage.setItem(trackingSettingsKey,value)}catch{}
@@ -911,14 +898,14 @@ ${company}`;
       </div>
     </form></Modal>}
 
-    {trackingSettingsOpen&&<Modal className="tracking-settings-modal" onClose={()=>setTrackingSettingsOpen(false)} title="Customer Tracking Settings" subtitle="Set the public website page used in every QR code and WhatsApp tracking receipt."><form onSubmit={saveTrackingSettings}><Field label="Customer tracking page"><input required readOnly={!isAdmin} type="url" value={trackingBaseDraft} onChange={e=>setTrackingBaseDraft(e.target.value)} placeholder="https://tracker.example.com/public-track"/></Field><div className="tracking-settings-preview"><small>EXAMPLE CUSTOMER LINK</small><code>{`${String(trackingBaseDraft||'').replace(/\/$/,'')}${String(trackingBaseDraft||'').includes('?')?'&':'?'}ref=57841`}</code></div><p>{isAdmin?'This global setting is shared with every web user and device.':'Only an administrator can change the global tracking URL.'} The app automatically adds <b>?ref=TRACKING</b>.</p><div className="settings-sync-state"><i className={trackingSettingSynced?'online':'local'}/>{trackingSettingSynced?'Synced from Supabase':'Using local/default setting until V3.32 SQL is applied'}</div><div className="modal-actions"><button type="button" className="secondary" onClick={()=>setTrackingSettingsOpen(false)}>Close</button>{isAdmin&&<button className="primary">Save Global Tracking URL</button>}</div></form></Modal>}
+    {trackingSettingsOpen&&<Modal className="tracking-settings-modal" onClose={()=>setTrackingSettingsOpen(false)} title="Customer Tracking Settings" subtitle="Set the public website page used in every QR code and WhatsApp tracking receipt."><form onSubmit={saveTrackingSettings}><Field label="Customer tracking page"><input required readOnly={!isAdmin} type="url" value={trackingBaseDraft} onChange={e=>setTrackingBaseDraft(e.target.value)} placeholder="https://tracker.example.com/public-track"/></Field><div className="tracking-settings-preview"><small>EXAMPLE CUSTOMER LINK</small><code>{`${String(trackingBaseDraft||'').replace(/\/$/,'')}${String(trackingBaseDraft||'').includes('?')?'&':'?'}token=SECURE_CASE_TOKEN`}</code></div><p>{isAdmin?'This global setting is shared with every web user and device.':'Only an administrator can change the global tracking URL.'} Each shared link automatically receives a private, unguessable case token.</p><div className="settings-sync-state"><i className={trackingSettingSynced?'online':'local'}/>{trackingSettingSynced?'Synced from Supabase':'Using local/default setting until the security migration is applied'}</div><div className="modal-actions"><button type="button" className="secondary" onClick={()=>setTrackingSettingsOpen(false)}>Close</button>{isAdmin&&<button className="primary">Save Global Tracking URL</button>}</div></form></Modal>}
 
     {createdShare&&<Modal className="tracking-share-modal" onClose={()=>setCreatedShare(null)} title="Case Created Successfully" subtitle={`Tracking #${createdShare.tracking_reference} · Send the customer their direct tracking access.`}>
       <div className="tracking-share-success"><div className="tracking-share-check">✓</div><div><strong>{createdShare.customer_name||'Customer'}</strong><span>The case is saved. The link and QR open this tracking directly—no tracking number needs to be typed.</span></div></div>
       <div className="tracking-share-layout">
         <div className="tracking-receipt-preview">{createdReceipt?<img src={createdReceipt} alt={`Tracking receipt for ${createdShare.tracking_reference}`}/>:<div className="tracking-share-qr-loading">Creating tracking receipt…</div>}<strong>Customer tracking receipt</strong><span>Share as an image with the direct tracking link and QR.</span></div>
         <div className="tracking-share-details">
-          <div className="tracking-share-link"><small>DIRECT TRACKING LINK</small><code>{customerTrackingUrl(createdShare.tracking_reference)}</code><button type="button" className="secondary" onClick={async()=>{try{await navigator.clipboard.writeText(customerTrackingUrl(createdShare.tracking_reference));setMessage('Tracking link copied.')}catch{setMessage('Unable to copy link.')}}}>Copy Link</button></div>
+          <div className="tracking-share-link"><small>DIRECT TRACKING LINK</small><code>{customerTrackingUrl(createdShare)}</code><button type="button" className="secondary" onClick={async()=>{try{await navigator.clipboard.writeText(customerTrackingUrl(createdShare));setMessage('Tracking link copied.')}catch{setMessage('Unable to copy link.')}}}>Copy Link</button></div>
           <div className="tracking-share-mobile"><small>WHATSAPP TO</small><strong>{createdShare.mobile||'No mobile number entered'}</strong></div>
           <div className="tracking-message-editor">
             <div className="tracking-message-editor-head"><div><small>MESSAGE PREVIEW</small><span>Edit anything below before sending.</span></div><button type="button" className="secondary tiny" onClick={()=>setCreatedShareMessage(whatsappTrackingMessage(createdShare))}>Reset Message</button></div>
@@ -1442,7 +1429,7 @@ async function parseExcelFile(file,type){
 async function extractPdfText(file){
   const pdfjs=await import('pdfjs-dist/legacy/build/pdf.mjs');
   if(!pdfjs.GlobalWorkerOptions.workerSrc){
-    pdfjs.GlobalWorkerOptions.workerSrc=`https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.mjs`;
+    pdfjs.GlobalWorkerOptions.workerSrc='/pdf.worker.min.mjs';
   }
   const data=new Uint8Array(await file.arrayBuffer());
   const pdf=await pdfjs.getDocument({data}).promise;
@@ -1653,7 +1640,7 @@ function CaseCartPicker({cases,selectedIds,onChange,title='Cases',placeholder='S
 function AppointmentsView({session,cases,notify,seedCase,seedIds=[],clearSeed,setModuleExport}){
   const empty={id:'',case_id:'',document_id:'',stage_id:'',appointment_date:'',appointment_time:'',authority:'',location:'',assigned_to:'',status:'Scheduled',notes:''};
   const [rows,setRows]=useState([]),[form,setForm]=useState(empty),[open,setOpen]=useState(false),[bulkOpen,setBulkOpen]=useState(false),[bulkRefs,setBulkRefs]=useState([]),[busy,setBusy]=useState(false),[q,setQ]=useState(''),[searchBy,setSearchBy]=useState('tracking'),[from,setFrom]=useState(''),[to,setTo]=useState(''),[statusFilter,setStatusFilter]=useState(''),[selected,setSelected]=useState(new Set()),[bulkEdit,setBulkEdit]=useState(false),[bulkForm,setBulkForm]=useState({appointment_date:'',appointment_time:'',status:'',assigned_to:''});
-  async function load(){const {data,error}=await supabase.from('appointments').select('*').order('appointment_date',{ascending:true}).order('appointment_time',{ascending:true});if(error){notify(error.message);return}setRows(data||[])}
+  async function load(){const {data,error}=await supabase.from('appointments').select('*').order('appointment_date',{ascending:true}).order('appointment_time',{ascending:true});if(error){notify(userError(error));return}setRows(data||[])}
   useEffect(()=>{load()},[]);
   useEffect(()=>{if(seedCase){setForm({...empty,case_id:seedCase.id});setOpen(true);clearSeed?.()}else if(seedIds?.length){setBulkRefs(seedIds);setBulkOpen(true);clearSeed?.()}},[seedCase,seedIds?.join('|')]);
   const c=cases.find(x=>x.id===form.case_id),docs=c?.documents||[],doc=docs.find(x=>x.id===form.document_id),stages=doc?.document_stages||[];
@@ -1662,11 +1649,11 @@ function AppointmentsView({session,cases,notify,seedCase,seedIds=[],clearSeed,se
   const visible=rankCaseSearchResults(rows.filter(r=>{const cc=cases.find(x=>x.id===r.case_id);const hay=[cc?.tracking_reference,cc?.mobile,cc?.customer_name,cc?.bill_no,r.authority,r.assigned_to,r.notes,r.location].join(' ').toLowerCase();return(!cc||caseMatchesFieldSearch(cc,q,searchBy,hay))&&(!from||r.appointment_date>=from)&&(!to||r.appointment_date<=to)&&(!statusFilter||r.status===statusFilter)}),q,searchBy,r=>cases.find(x=>x.id===r.case_id),r=>[r.authority,r.assigned_to,r.notes,r.location].join(' '));
   const groups=visible.reduce((a,r)=>{(a[r.appointment_date||'No date']??=[]).push(r);return a},{});
   useEffect(()=>setModuleExport?.({view:'appointments',title:'Appointments Export',rows:visible.map(r=>{const cc=cases.find(x=>x.id===r.case_id);return{'Date':r.appointment_date||'','Time':r.appointment_time||'','Tracking No.':cc?.tracking_reference||'','Customer':cc?.customer_name||'','Mobile':cc?.mobile||'','Authority':r.authority||'','Location':r.location||'','Assigned To':r.assigned_to||'','Status':r.status||'','Notes':r.notes||''}})}),[visible,cases,setModuleExport]);
-  async function save(e){e.preventDefault();setBusy(true);const payload={case_id:form.case_id,document_id:form.document_id||null,stage_id:form.stage_id||null,appointment_date:form.appointment_date,appointment_time:form.appointment_time||null,authority:form.authority||null,location:form.location||null,assigned_to:form.assigned_to||null,status:form.status,notes:form.notes||null,updated_by:session.user.id};let error;if(form.id)({error}=await supabase.from('appointments').update(payload).eq('id',form.id));else({error}=await supabase.from('appointments').insert({...payload,created_by:session.user.id}));setBusy(false);if(error)return notify(error.message);setOpen(false);setForm(empty);notify(form.id?'Appointment updated.':'Appointment created.');load()}
-  async function del(id){if(!confirm('Delete this appointment?'))return;const {error}=await supabase.from('appointments').delete().eq('id',id);if(error)return notify(error.message);setSelected(p=>{const n=new Set(p);n.delete(id);return n});load()}
-  async function setStatus(id,status){setRows(x=>x.map(r=>r.id===id?{...r,status}:r));const {error}=await supabase.from('appointments').update({status,updated_by:session.user.id,updated_at:new Date().toISOString()}).eq('id',id);if(error){notify(error.message);load()}}
-  async function bulkCreate(e){e.preventDefault();if(!bulkRefs.length)return;setBusy(true);const rowsToInsert=bulkRefs.map(id=>({case_id:id,appointment_date:bulkForm.appointment_date,appointment_time:bulkForm.appointment_time||null,authority:bulkForm.authority||null,location:bulkForm.location||null,assigned_to:bulkForm.assigned_to||null,status:'Scheduled',notes:bulkForm.notes||null,created_by:session.user.id,updated_by:session.user.id}));const {error}=await supabase.from('appointments').insert(rowsToInsert);setBusy(false);if(error)return notify(error.message);setBulkOpen(false);setBulkRefs([]);notify(`${rowsToInsert.length} appointments created.`);load()}
-  async function applyBulk(){if(!selected.size)return;const patch={updated_by:session.user.id,updated_at:new Date().toISOString()};if(bulkForm.appointment_date)patch.appointment_date=bulkForm.appointment_date;if(bulkForm.appointment_time)patch.appointment_time=bulkForm.appointment_time;if(bulkForm.status)patch.status=bulkForm.status;if(bulkForm.assigned_to)patch.assigned_to=bulkForm.assigned_to;const {error}=await supabase.from('appointments').update(patch).in('id',[...selected]);if(error)return notify(error.message);notify(`${selected.size} appointment(s) updated.`);setSelected(new Set());setBulkEdit(false);load()}
+  async function save(e){e.preventDefault();setBusy(true);const payload={case_id:form.case_id,document_id:form.document_id||null,stage_id:form.stage_id||null,appointment_date:form.appointment_date,appointment_time:form.appointment_time||null,authority:form.authority||null,location:form.location||null,assigned_to:form.assigned_to||null,status:form.status,notes:form.notes||null,updated_by:session.user.id};let error;if(form.id)({error}=await supabase.from('appointments').update(payload).eq('id',form.id));else({error}=await supabase.from('appointments').insert({...payload,created_by:session.user.id}));setBusy(false);if(error)return notify(userError(error));setOpen(false);setForm(empty);notify(form.id?'Appointment updated.':'Appointment created.');load()}
+  async function del(id){if(!confirm('Delete this appointment?'))return;const {error}=await supabase.from('appointments').delete().eq('id',id);if(error)return notify(userError(error));setSelected(p=>{const n=new Set(p);n.delete(id);return n});load()}
+  async function setStatus(id,status){setRows(x=>x.map(r=>r.id===id?{...r,status}:r));const {error}=await supabase.from('appointments').update({status,updated_by:session.user.id,updated_at:new Date().toISOString()}).eq('id',id);if(error){notify(userError(error));load()}}
+  async function bulkCreate(e){e.preventDefault();if(!bulkRefs.length)return;setBusy(true);const rowsToInsert=bulkRefs.map(id=>({case_id:id,appointment_date:bulkForm.appointment_date,appointment_time:bulkForm.appointment_time||null,authority:bulkForm.authority||null,location:bulkForm.location||null,assigned_to:bulkForm.assigned_to||null,status:'Scheduled',notes:bulkForm.notes||null,created_by:session.user.id,updated_by:session.user.id}));const {error}=await supabase.from('appointments').insert(rowsToInsert);setBusy(false);if(error)return notify(userError(error));setBulkOpen(false);setBulkRefs([]);notify(`${rowsToInsert.length} appointments created.`);load()}
+  async function applyBulk(){if(!selected.size)return;const patch={updated_by:session.user.id,updated_at:new Date().toISOString()};if(bulkForm.appointment_date)patch.appointment_date=bulkForm.appointment_date;if(bulkForm.appointment_time)patch.appointment_time=bulkForm.appointment_time;if(bulkForm.status)patch.status=bulkForm.status;if(bulkForm.assigned_to)patch.assigned_to=bulkForm.assigned_to;const {error}=await supabase.from('appointments').update(patch).in('id',[...selected]);if(error)return notify(userError(error));notify(`${selected.size} appointment(s) updated.`);setSelected(new Set());setBulkEdit(false);load()}
   return <section className="appt-manager"><div className="module-titlebar"><div><h1>Appointment Manager</h1><p>Manage appointments by case, document and attestation stage with date, time, authority, assignee and status.</p></div><div><button className="secondary" onClick={()=>{setBulkRefs([]);setBulkOpen(true)}}>+ Bulk Add</button><button className="primary" onClick={()=>{setForm(empty);setOpen(true)}}>+ New Appointment</button></div></div><div className="appt-stats legacy4"><div><span>TODAY</span><strong>{stats.today}</strong><small>Scheduled today</small></div><div><span>UPCOMING</span><strong>{stats.upcoming}</strong><small>Next 30 days</small></div><div><span>OVERDUE</span><strong>{stats.overdue}</strong><small>Not completed</small></div><div><span>COMPLETED</span><strong>{stats.completed}</strong><small>Appointments done</small></div></div><div className="panel appt-panel"><div className="appt-filterbar"><SearchBySelect value={searchBy} onChange={setSearchBy}/><input className="search" placeholder="Search tracking, mobile, customer, authority, assignee, notes..." value={q} onChange={e=>setQ(e.target.value)}/><input type="date" value={from} onChange={e=>setFrom(e.target.value)}/><input type="date" value={to} onChange={e=>setTo(e.target.value)}/><select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}><option value="">All statuses</option>{['Scheduled','Confirmed','Completed','Cancelled','Missed'].map(x=><option key={x}>{x}</option>)}</select><button className="secondary" onClick={()=>{setQ('');setFrom('');setTo('');setStatusFilter('')}}>Clear</button><button className="secondary" onClick={()=>setSelected(new Set(visible.map(x=>x.id)))}>Select visible</button><button className="secondary" onClick={()=>setSelected(new Set())}>Clear selection</button></div><div className="appt-bulkrow"><button className="primary" onClick={()=>setBulkEdit(true)}>Bulk reschedule / status</button><span>{selected.size} selected</span></div><div className="appt-list">{Object.entries(groups).map(([date,items])=><div className="appt-date-group" key={date}><div className="appt-date-title">{fmtDate(date)}</div><div className="appt-grid">{items.map(r=>{const cc=cases.find(x=>x.id===r.case_id);const overdue=r.appointment_date<today&&!['Completed','Cancelled'].includes(r.status);return <article className={`appt-card ${overdue?'overdue':r.appointment_date===today?'today':'upcoming'}`} key={r.id}><div className="appt-card-head"><div><input type="checkbox" checked={selected.has(r.id)} onChange={()=>setSelected(p=>{const n=new Set(p);n.has(r.id)?n.delete(r.id):n.add(r.id);return n})}/><h3>{r.authority||'Appointment'}</h3><span>#{cc?.tracking_reference||'—'} · {cc?.customer_name||''}</span></div><StatusPill status={r.status}/></div><div className="appt-meta"><span>Time: <b>{r.appointment_time||'—'}</b></span><span>Assigned: <b>{r.assigned_to||'—'}</b></span><span>Location: <b>{r.location||'—'}</b></span><span>{r.stage_id?'Stage linked':r.document_id?'Document linked':'Whole case'}</span></div>{r.notes&&<p>{r.notes}</p>}<div className="appt-actions"><button className="primary tiny" onClick={()=>{setForm({...empty,...r});setOpen(true)}}>Edit</button><button className="secondary tiny" onClick={()=>setStatus(r.id,'Completed')}>Complete</button><button className="danger tiny" onClick={()=>del(r.id)}>Delete</button></div></article>})}</div></div>)}{!visible.length&&<div className="empty">No appointments match the current filters.</div>}</div></div>
   {open&&<Modal title={form.id?'Edit Appointment':'New Appointment'} subtitle="Link the booking to a case, document or exact stage." onClose={()=>{setOpen(false);setForm(empty)}}><form className="form-grid" onSubmit={save}><Field label="Case" wide><select required value={form.case_id} onChange={e=>setForm({...form,case_id:e.target.value,document_id:'',stage_id:''})}><option value="">Select case</option>{cases.map(x=><option key={x.id} value={x.id}>{x.tracking_reference} · {x.customer_name}</option>)}</select></Field><Field label="Date"><input required type="date" value={form.appointment_date} onChange={e=>setForm({...form,appointment_date:e.target.value})}/></Field><Field label="Time"><input type="time" value={form.appointment_time||''} onChange={e=>setForm({...form,appointment_time:e.target.value})}/></Field><Field label="Authority"><input value={form.authority||''} onChange={e=>setForm({...form,authority:e.target.value})}/></Field><Field label="Location"><input value={form.location||''} onChange={e=>setForm({...form,location:e.target.value})}/></Field><Field label="Assigned To"><input value={form.assigned_to||''} onChange={e=>setForm({...form,assigned_to:e.target.value})}/></Field><Field label="Status"><select value={form.status} onChange={e=>setForm({...form,status:e.target.value})}>{['Scheduled','Confirmed','Completed','Cancelled','Missed'].map(x=><option key={x}>{x}</option>)}</select></Field><Field label="Document"><select value={form.document_id||''} onChange={e=>setForm({...form,document_id:e.target.value,stage_id:''})}><option value="">Whole case</option>{docs.map(d=><option key={d.id} value={d.id}>{d.document_name}</option>)}</select></Field><Field label="Stage"><select value={form.stage_id||''} onChange={e=>setForm({...form,stage_id:e.target.value})}><option value="">No exact stage</option>{stages.map(st=><option key={st.id} value={st.id}>{st.stage_name}</option>)}</select></Field><Field label="Notes" wide><textarea rows="3" value={form.notes||''} onChange={e=>setForm({...form,notes:e.target.value})}/></Field><div className="modal-actions wide"><button type="button" className="secondary" onClick={()=>setOpen(false)}>Cancel</button><button className="primary" disabled={busy}>{busy?'Saving…':'Save Appointment'}</button></div></form></Modal>}
   {bulkOpen&&<Modal className="bulk-appointment-modal" title="Bulk Add Appointments" subtitle="Search cases, add them to the selection, then create one appointment schedule." onClose={()=>setBulkOpen(false)}><form className="form-grid bulk-appointment-form" onSubmit={bulkCreate}><CaseCartPicker cases={cases} selectedIds={bulkRefs} onChange={setBulkRefs} title="Appointment cases"/><Field label="Date"><input required type="date" value={bulkForm.appointment_date||''} onChange={e=>setBulkForm({...bulkForm,appointment_date:e.target.value})}/></Field><Field label="Time"><input type="time" value={bulkForm.appointment_time||''} onChange={e=>setBulkForm({...bulkForm,appointment_time:e.target.value})}/></Field><Field label="Authority"><input value={bulkForm.authority||''} onChange={e=>setBulkForm({...bulkForm,authority:e.target.value})}/></Field><Field label="Location"><input value={bulkForm.location||''} onChange={e=>setBulkForm({...bulkForm,location:e.target.value})}/></Field><Field label="Assigned To"><input value={bulkForm.assigned_to||''} onChange={e=>setBulkForm({...bulkForm,assigned_to:e.target.value})}/></Field><Field label="Notes" wide><textarea rows="3" value={bulkForm.notes||''} onChange={e=>setBulkForm({...bulkForm,notes:e.target.value})}/></Field><div className="modal-actions wide"><button type="button" className="secondary" onClick={()=>setBulkOpen(false)}>Cancel</button><button className="primary" disabled={busy||!bulkRefs.length}>{busy?'Creating…':`Create ${bulkRefs.length||''} Appointment${bulkRefs.length===1?'':'s'}`}</button></div></form></Modal>}
@@ -1706,7 +1693,7 @@ function BatchReportsView({session,cases,notify,seedIds,clearSeed,setModuleExpor
 
   async function load(){
     const {data,error}=await supabase.from('batch_reports').select('*,batch_report_items(*)').order('batch_date',{ascending:false});
-    if(error)return notify(error.message);
+    if(error)return notify(userError(error));
     setRows(data||[]);
   }
   useEffect(()=>{load()},[]);
@@ -1745,7 +1732,7 @@ function BatchReportsView({session,cases,notify,seedIds,clearSeed,setModuleExpor
       const r=await supabase.from('batch_reports').insert({...payload,created_by:session.user.id}).select('id').single();
       error=r.error;batchId=r.data?.id;
     }
-    if(error){setBusy(false);return notify(error.message)}
+    if(error){setBusy(false);return notify(userError(error))}
     if(targetRefs.length){
       await supabase.from('batch_report_items').delete().eq('batch_id',batchId);
       const ins=targetRefs.map((id,i)=>{
@@ -1754,7 +1741,7 @@ function BatchReportsView({session,cases,notify,seedIds,clearSeed,setModuleExpor
         return{batch_id:batchId,case_id:id,sort_order:i+1,quantity:qty,amount:qty*Number(edit.default_price||0),card_reference:edit.card_reference||null,remarks:c?.branches?.name||'',manual_tracking:c?.tracking_reference||'',manual_name:c?.customer_name||'',notes:null}
       });
       const ri=await supabase.from('batch_report_items').insert(ins);
-      if(ri.error){setBusy(false);return notify(ri.error.message)}
+      if(ri.error){setBusy(false);return notify(userError(ri.error))}
       if(edit.case_status)await supabase.from('cases').update({overall_status:edit.case_status,updated_by:session.user.id}).in('id',targetRefs);
       for(const a of edit.stage_actions||[]){
         if(!a.stage_name||!a.status)continue;
@@ -1776,13 +1763,13 @@ function BatchReportsView({session,cases,notify,seedIds,clearSeed,setModuleExpor
   async function saveRows(){
     const payload=draftItems.map((i,idx)=>({id:i.id,batch_id:view.id,case_id:i.case_id,document_id:i.document_id||null,stage_id:i.stage_id||null,sort_order:idx+1,quantity:Number(i.quantity||0),amount:Number(i.amount||0),card_reference:i.card_reference||null,remarks:i.remarks||null,manual_tracking:i.manual_tracking||null,manual_name:i.manual_name||null,notes:i.notes||null}));
     const {error}=await supabase.from('batch_report_items').upsert(payload,{onConflict:'id'});
-    if(error)return notify(error.message);
+    if(error)return notify(userError(error));
     notify('Batch rows saved.');load();
   }
 
   function patchItem(idx,patch){setDraftItems(x=>x.map((it,i)=>i===idx?{...it,...patch}:it))}
   function qtyChange(idx,v){const qty=Number(v||0);patchItem(idx,{quantity:qty,amount:qty*Number(view.default_price||0)})}
-  async function delBatch(id){if(!confirm('Delete this batch report?'))return;const {error}=await supabase.from('batch_reports').delete().eq('id',id);if(error)return notify(error.message);load()}
+  async function delBatch(id){if(!confirm('Delete this batch report?'))return;const {error}=await supabase.from('batch_reports').delete().eq('id',id);if(error)return notify(userError(error));load()}
 
   const totalQty=draftItems.reduce((n,i)=>n+Number(i.quantity||0),0);
   const totalAmt=draftItems.reduce((n,i)=>n+Number(i.amount||0),0);
@@ -1949,7 +1936,7 @@ function ImportView({session,cases,branches,reload,notify}){
       setReview(nextReview);
       const draft={parsed:next,review:nextReview,savedAt:new Date().toISOString(),fileNames:Object.fromEntries(Object.entries(files).map(([k,v])=>[k,v?.name||null]))};
       await idbSet(IMPORT_DRAFT_KEY,draft); await idbDel(IMPORT_JOB_KEY); setSavedDraft({draft,job:null});
-    }catch(e){notify(e.message||String(e))}finally{setBusy(false)}
+    }catch(e){notify(userError(e))}finally{setBusy(false)}
   }
 
   async function pauseGate(jobPatch={}){
@@ -2054,7 +2041,7 @@ function ImportView({session,cases,branches,reload,notify}){
       await saveJob({status:'review',phase:'review',percent:92,summary});
       setImportProgress({status:'review',percent:92,title:'Review before finalizing',detail:'The source data is synced. Review the results below before the app recalculates document workflow statuses.',current:0,total:0,phase:'Review',summary});
       setSavedDraft({draft:await idbGet(IMPORT_DRAFT_KEY),job:await idbGet(IMPORT_JOB_KEY)});
-    }catch(e){addLog(`ERROR: ${e.message||String(e)}`);await saveJob({status:'error',error:e.message||String(e)});setImportProgress({status:'error',title:'Import stopped',detail:e.message||String(e),phase:'Error'});notify(e.message||String(e));}
+    }catch(e){const safe=userError(e);addLog(`ERROR: ${safe}`);await saveJob({status:'error',error:safe});setImportProgress({status:'error',title:'Import stopped',detail:safe,phase:'Error'});notify(safe);}
     finally{setBusy(false)}
   }
 
@@ -2167,7 +2154,7 @@ function ImportView({session,cases,branches,reload,notify}){
       const summary={docsCreated:insertedDocs.length,googleDocsCreated:googleFallbackCount,stagesCreated:stageCreated,stagesUpdated:stageUpdated,manualPreserved,unmatchedBills:unmatchedBills.length,skippedDocRows,skippedStageRows};
       setProgress({open:true,status:'success',percent:100,title:'Documents & stages synced',detail:`${insertedDocs.length.toLocaleString()} documents created and ${(stageCreated+stageUpdated).toLocaleString()} stage records synced.`,phase:'Complete',summary});
       notify('Document and stage repair completed.');
-    }catch(e){addLog(`ERROR: ${e.message||String(e)}`);setImportProgress({status:'error',title:'Workflow repair stopped',detail:e.message||String(e),phase:'Error'});notify(e.message||String(e));}
+    }catch(e){const safe=userError(e);addLog(`ERROR: ${safe}`);setImportProgress({status:'error',title:'Workflow repair stopped',detail:safe,phase:'Error'});notify(safe);}
     finally{setBusy(false)}
   }
 
@@ -2181,7 +2168,7 @@ function ImportView({session,cases,branches,reload,notify}){
       const parts=chunk(rows,350);let done=0;for(let i=0;i<parts.length;i++){const {error}=await supabase.from('documents').upsert(parts[i],{onConflict:'id'});if(error)throw error;done+=parts[i].length;setImportProgress({percent:93+Math.round((done/Math.max(1,rows.length))*5),title:'Finalizing workflows',detail:`${done.toLocaleString()} of ${rows.length.toLocaleString()} document statuses finalized`,current:done,total:rows.length,phase:'Finalize'});}
       setImportProgress({percent:99,title:'Refreshing workspace',detail:'Loading the latest live data…',phase:'Finalize'});await reload();
       await idbDel(IMPORT_JOB_KEY);await idbDel(IMPORT_DRAFT_KEY);setSavedDraft(null);setProgress({open:true,status:'success',percent:100,title:'Import completed',detail:`${job.summary.created} case${job.summary.created===1?'':'s'} created, ${job.summary.updated} updated, ${job.summary.docsCreated} new document${job.summary.docsCreated===1?'':'s'}.`,phase:'Complete',summary:job.summary});notify('Import finalized successfully.');
-    }catch(e){setImportProgress({status:'error',title:'Finalize failed',detail:e.message||String(e),phase:'Error'});notify(e.message||String(e));}finally{setBusy(false)}
+    }catch(e){const safe=userError(e);setImportProgress({status:'error',title:'Finalize failed',detail:safe,phase:'Error'});notify(safe)}finally{setBusy(false)}
   }
 
 
@@ -2218,12 +2205,12 @@ function ImportView({session,cases,branches,reload,notify}){
             validation:match?'Matched existing case':'Reference required'
           });
         }catch(e){
-          out.push({fileName:file.name,filenameInvoice:'',printedBill:'',actualReference:'',customer:'',mobile:'',invoiceDate:'',total:0,paid:0,balance:0,text:'',matchedCaseId:null,matchType:'',selected:false,validation:`Could not parse: ${e.message||e}`});
+          out.push({fileName:file.name,filenameInvoice:'',printedBill:'',actualReference:'',customer:'',mobile:'',invoiceDate:'',total:0,paid:0,balance:0,text:'',matchedCaseId:null,matchType:'',selected:false,validation:userError(e,{fallback:'Could not parse this PDF.'})});
         }
       }
       setPdfRows(out);
       setPdfLog(l=>[...l,`PDF review ready: ${out.length} file${out.length===1?'':'s'}.`]);
-    }catch(e){notify(e.message||String(e))}finally{setPdfBusy(false)}
+    }catch(e){notify(userError(e))}finally{setPdfBusy(false)}
   }
 
   async function importPdfInvoices(){
@@ -2283,8 +2270,8 @@ function ImportView({session,cases,branches,reload,notify}){
       setPdfLog(l=>[...l,`Completed · ${created} created · ${updated} updated.`]);
       notify(`PDF import completed: ${created} created, ${updated} updated.`);
     }catch(e){
-      setPdfLog(l=>[...l,`ERROR: ${e.message||String(e)}`]);
-      notify(e.message||String(e));
+      setPdfLog(l=>[...l,`ERROR: ${userError(e)}`]);
+      notify(userError(e));
     }finally{setPdfImporting(false)}
   }
 
@@ -2505,7 +2492,7 @@ function OperationsView({companyName='Your Organization',session,profile,cases,n
     setSaving(true);
     const ids=[...selected];
     const {error}=await supabase.from('cases').update({overall_status:bulkStatus,updated_by:session.user.id}).in('id',ids);
-    if(error){setSaving(false);return notify(error.message)}
+    if(error){setSaving(false);return notify(userError(error))}
     await writeHistory(ids,'Operations bulk status changed','overall_status',bulkStatus);
     notify(`${ids.length} case(s) changed to ${bulkStatus}.`);
     setBulkStatus('');clearSelection();setSaving(false);await onRefresh?.();
@@ -2517,7 +2504,7 @@ function OperationsView({companyName='Your Organization',session,profile,cases,n
     setSaving(true);
     const ids=[...selected];
     const {error}=await supabase.from('cases').update({assigned_to:bulkStaff,updated_by:session.user.id}).in('id',ids);
-    if(error){setSaving(false);return notify(error.message)}
+    if(error){setSaving(false);return notify(userError(error))}
     await writeHistory(ids,'Operations staff assignment','assigned_to',bulkStaff);
     notify(`${ids.length} case(s) assigned to ${bulkStaff}.`);
     setBulkStaff('');clearSelection();setSaving(false);await onRefresh?.();
@@ -2526,7 +2513,7 @@ function OperationsView({companyName='Your Organization',session,profile,cases,n
   async function setCaseStatus(c,status){
     setSaving(true);
     const {error}=await supabase.from('cases').update({overall_status:status,updated_by:session.user.id}).eq('id',c.id);
-    if(error){setSaving(false);return notify(error.message)}
+    if(error){setSaving(false);return notify(userError(error))}
     await writeHistory(c.id,'Operations quick status','overall_status',status);
     notify(`#${c.tracking_reference} changed to ${status}.`);
     setSaving(false);await onRefresh?.();
@@ -2535,7 +2522,7 @@ function OperationsView({companyName='Your Organization',session,profile,cases,n
   async function assignCase(c,staffName){
     setSaving(true);
     const {error}=await supabase.from('cases').update({assigned_to:staffName||null,updated_by:session.user.id}).eq('id',c.id);
-    if(error){setSaving(false);return notify(error.message)}
+    if(error){setSaving(false);return notify(userError(error))}
     await writeHistory(c.id,'Operations staff assignment','assigned_to',staffName||'Unassigned');
     notify(`#${c.tracking_reference} assignment updated.`);
     setSaving(false);await onRefresh?.();
@@ -2549,7 +2536,7 @@ function OperationsView({companyName='Your Organization',session,profile,cases,n
     if(!confirm(`Mark ${ids.length} ${needle.toUpperCase()} stage(s) completed for #${c.tracking_reference}?`))return;
     setSaving(true);
     const {error}=await supabase.from('document_stages').update({status:'Completed',is_manual_override:true,updated_by:session.user.id}).in('id',ids);
-    if(error){setSaving(false);return notify(error.message)}
+    if(error){setSaving(false);return notify(userError(error))}
     await writeHistory(c.id,`Operations ${needle.toUpperCase()} completed`,'document_stages','Completed');
     notify(`${needle.toUpperCase()} stages completed.`);
     setSaving(false);await onRefresh?.();
@@ -2559,7 +2546,7 @@ function OperationsView({companyName='Your Organization',session,profile,cases,n
   async function saveFlags(){
     setSaving(true);
     const {error}=await supabase.from('cases').update({flags:flagDraft,updated_by:session.user.id}).eq('id',flagCase.id);
-    if(error){setSaving(false);return notify(error.message)}
+    if(error){setSaving(false);return notify(userError(error))}
     await writeHistory(flagCase.id,'Exception flags updated','flags',flagDraft.join(', '));
     notify('Flags updated.');setFlagCase(null);setSaving(false);await onRefresh?.();
   }
@@ -2770,7 +2757,7 @@ function PaymentsView({companyName='Your Organization',session,cases,notify,seed
   async function load(){
     setLoading(true);
     const {data,error}=await supabase.from('payments').select('*').order('received_at',{ascending:false}).limit(2000);
-    if(error)notify(error.message);else setRows(data||[]);
+    if(error)notify(userError(error));else setRows(data||[]);
     setLoading(false);
   }
   useEffect(()=>{load()},[]);
@@ -2860,16 +2847,16 @@ function PaymentsView({companyName='Your Organization',session,cases,notify,seed
     if(form.id){
       const old=rows.find(r=>r.id===form.id);
       const {error}=await supabase.from('payments').update({amount,payment_method:form.payment_method,payment_reference:form.payment_reference||null,notes:form.notes||null}).eq('id',form.id);
-      if(error){setSaving(false);return notify(error.message)}
+      if(error){setSaving(false);return notify(userError(error))}
       if(old){
-        try{await updateCaseFinance(form.case_id,amount-Number(old.amount||0))}catch(err){setSaving(false);return notify(err.message)}
+        try{await updateCaseFinance(form.case_id,amount-Number(old.amount||0))}catch(err){setSaving(false);return notify(userError(err))}
       }
       await writeHistory(form.case_id,'Payment edited',`${form.payment_method} · ${fmtMoney(amount)}`);
       notify('Payment updated.');
     }else{
       const {data,error}=await supabase.from('payments').insert({case_id:form.case_id,amount,payment_method:form.payment_method,payment_reference:form.payment_reference||null,notes:form.notes||null,received_by:session.user.id}).select('*').single();
-      if(error){setSaving(false);return notify(error.message)}
-      try{await updateCaseFinance(form.case_id,amount)}catch(err){setSaving(false);return notify(err.message)}
+      if(error){setSaving(false);return notify(userError(error))}
+      try{await updateCaseFinance(form.case_id,amount)}catch(err){setSaving(false);return notify(userError(err))}
       await writeHistory(form.case_id,'Payment recorded',`${form.payment_method} · ${fmtMoney(amount)}`);
       setReceipt({...data,case:caseMap.get(form.case_id)});
       notify('Payment recorded.');
@@ -2882,8 +2869,8 @@ function PaymentsView({companyName='Your Organization',session,cases,notify,seed
     if(!confirm(`Delete payment ${fmtMoney(r.amount)}${c?` for #${c.tracking_reference}`:''}?`))return;
     setSaving(true);
     const {error}=await supabase.from('payments').delete().eq('id',r.id);
-    if(error){setSaving(false);return notify(error.message)}
-    try{await updateCaseFinance(r.case_id,-Number(r.amount||0))}catch(err){setSaving(false);return notify(err.message)}
+    if(error){setSaving(false);return notify(userError(error))}
+    try{await updateCaseFinance(r.case_id,-Number(r.amount||0))}catch(err){setSaving(false);return notify(userError(err))}
     await writeHistory(r.case_id,'Payment deleted',`${r.payment_method||'Payment'} · ${fmtMoney(r.amount)}`);
     notify('Payment deleted and case balance recalculated.');
     setSaving(false);await load();
@@ -3032,7 +3019,7 @@ function CustodyView({session,profile,branches:branchOptions=[],cases,notify,see
       supabase.from('profiles').select('id,full_name,role').order('full_name'),
       supabase.from('custody_transfers').select('*,custody_transfer_items(*)').order('requested_at',{ascending:false}).limit(1000)
     ]);
-    if(m.error)notify(m.error.message);else setRows(m.data||[]);
+    if(m.error)notify(userError(m.error));else setRows(m.data||[]);
     if(!p.error)setProfiles(p.data||[]);
     if(!t.error)setTransfers(t.data||[]);
     setLoading(false);
@@ -3149,11 +3136,11 @@ function CustodyView({session,profile,branches:branchOptions=[],cases,notify,see
     const destinationBranch=branchOptions.find(b=>sameLocation(b.name,form.to_location));
     const sourceBranch=branchOptions.find(b=>sameLocation(b.name,form.from_location));
     const {data,error}=await supabase.from('custody_transfers').insert({transfer_no:transferNo,from_branch_id:sourceBranch?.id||selectedCase?.branch_id||ownBranchId||null,to_branch_id:destinationBranch?.id||null,from_location:form.from_location||null,to_location:form.to_location.trim(),status:'In Transit',requested_by:session.user.id,notes:form.notes||null}).select('*').single();
-    if(error){setSaving(false);return notify(error.message)}
+    if(error){setSaving(false);return notify(userError(error))}
     const documentIds=form.document_ids.length?form.document_ids:[null];
     const items=documentIds.map(documentId=>({transfer_id:data.id,case_id:form.case_id,document_id:documentId}));
     const itemResult=await supabase.from('custody_transfer_items').insert(items);
-    if(itemResult.error){await supabase.from('custody_transfers').delete().eq('id',data.id);setSaving(false);return notify(itemResult.error.message)}
+    if(itemResult.error){await supabase.from('custody_transfers').delete().eq('id',data.id);setSaving(false);return notify(userError(itemResult.error))}
     await writeHistory(form.case_id,'Custody transfer dispatched',`${form.from_location||'Unassigned'} → ${form.to_location.trim()} · ${transferNo}`);
     setOpen(false);setForm(emptyForm);setCaseSearch('');setSaving(false);
     notify(`${transferNo} created. Location will change after receipt is confirmed.`);
@@ -3170,10 +3157,10 @@ function CustodyView({session,profile,branches:branchOptions=[],cases,notify,see
     const destinationBranch=branchOptions.find(b=>sameLocation(b.name,bulkTo));
     const sourceBranchIds=[...new Set(origins.map(origin=>branchOptions.find(b=>sameLocation(b.name,origin))?.id).filter(Boolean))];
     const {data,error}=await supabase.from('custody_transfers').insert({transfer_no:transferNo,from_branch_id:sourceBranchIds.length===1?sourceBranchIds[0]:ownBranchId||null,to_branch_id:destinationBranch?.id||null,from_location:origins.length===1?origins[0]:'Multiple locations',to_location:bulkTo.trim(),status:'In Transit',requested_by:session.user.id,notes:bulkNotes||null}).select('*').single();
-    if(error){setSaving(false);return notify(error.message)}
+    if(error){setSaving(false);return notify(userError(error))}
     const items=ids.flatMap(id=>{const docs=caseMap.get(id)?.documents||[];return docs.length?docs.map(d=>({transfer_id:data.id,case_id:id,document_id:d.id})):[{transfer_id:data.id,case_id:id,document_id:null}]});
     const itemResult=await supabase.from('custody_transfer_items').insert(items);
-    if(itemResult.error){await supabase.from('custody_transfers').delete().eq('id',data.id);setSaving(false);return notify(itemResult.error.message)}
+    if(itemResult.error){await supabase.from('custody_transfers').delete().eq('id',data.id);setSaving(false);return notify(userError(itemResult.error))}
     await supabase.from('case_history').insert(ids.map(id=>({case_id:id,user_id:session.user.id,action:'Custody batch dispatched',field_name:'physical_location',new_value:`${bulkTo.trim()} · ${transferNo}`,metadata:{source:'custody',transfer_id:data.id}})));
     notify(`${transferNo} created with ${items.length} document(s). Awaiting receipt.`);
     setBulkOpen(false);setBulkTo('');setBulkNotes('');clearSelection();setSaving(false);
@@ -3203,30 +3190,8 @@ function CustodyView({session,profile,branches:branchOptions=[],cases,notify,see
       notify(hasDiscrepancy?`${transfer.transfer_no} received with discrepancy recorded.`:`${transfer.transfer_no} fully received. Current document location updated.`);
       Promise.all([load(),onRefresh?.()]).catch(()=>{});return;
     }
-    const rpcMissing=/does not exist|schema cache|Could not find the function|PGRST202/i.test(String(rpcResult.error.message||''));
-    if(!rpcMissing){setSaving(false);return notify(rpcResult.error.message)}
-    // Compatibility fallback for deployments that have not run V3.32 yet.
-    const verifiedAt=new Date().toISOString();
-    const itemResults=await Promise.all(checkedItems.map(item=>supabase.from('custody_transfer_items').update({receive_status:item.receive_status,discrepancy_note:item.discrepancy_note,verified_by:session.user.id,verified_at:verifiedAt}).eq('id',item.id)));
-    const itemError=itemResults.find(r=>r.error)?.error;if(itemError){setSaving(false);return notify(itemError.message)}
-    const transferResult=await supabase.from('custody_transfers').update({status:'Received',received_by:session.user.id,received_at:verifiedAt,receipt_notes:receiptNotes||null,has_discrepancy:hasDiscrepancy}).eq('id',transfer.id).eq('status','In Transit');
-    if(transferResult.error){setSaving(false);return notify(transferResult.error.message)}
-    const movementPayload=checkedItems.filter(x=>x.receive_status!=='Missing').map(item=>({case_id:item.case_id,document_id:item.document_id||null,from_location:docMap.get(item.document_id)?.physical_location||transfer.from_location||null,to_location:transfer.to_location,notes:[transfer.transfer_no,receiptNotes,item.discrepancy_note].filter(Boolean).join(' · '),handed_by:session.user.id,moved_at:verifiedAt}));
-    if(movementPayload.length){const movementResult=await supabase.from('custody_movements').insert(movementPayload);if(movementResult.error){setSaving(false);return notify(`Receipt was confirmed, but custody history could not be written: ${movementResult.error.message}`)}}
-    if(documentIds.length){const d=await supabase.from('documents').update({physical_location:transfer.to_location}).in('id',documentIds);if(d.error){setSaving(false);return notify(d.error.message)}}
-    const caseResults=await Promise.all(caseIds.map(async caseId=>{
-      const c=caseMap.get(caseId),caseDocIds=(c?.documents||[]).map(d=>d.id),receivedForCase=checkedItems.filter(x=>x.case_id===caseId&&x.receive_status!=='Missing').map(x=>x.document_id).filter(Boolean);
-      const allMoved=caseDocIds.length?caseDocIds.every(id=>receivedForCase.includes(id)):checkedItems.some(x=>x.case_id===caseId&&x.receive_status!=='Missing');
-      const updated=await supabase.from('cases').update({physical_location:allMoved?transfer.to_location:'Mixed locations',updated_by:session.user.id}).eq('id',caseId);
-      if(updated.error)return {error:updated.error};
-      await writeHistory(caseId,'Custody transfer received',`${transfer.from_location||'Unassigned'} → ${transfer.to_location} · ${transfer.transfer_no}`);
-      return {error:null};
-    }));
-    const caseError=caseResults.find(r=>r?.error)?.error;if(caseError){setSaving(false);return notify(caseError.message)}
-    setReceiptTransfer(null);setReceiptStates({});setReceiptNotes('');
-    notify(hasDiscrepancy?`${transfer.transfer_no} received with discrepancy recorded.`:`${transfer.transfer_no} fully received. Current document location updated.`);
     setSaving(false);
-    Promise.all([load(),onRefresh?.()]).catch(()=>{});
+    return notify(userError(rpcResult.error));
   }
 
   function printTransferManifest(t){
@@ -3418,7 +3383,7 @@ function DeliveryQrScanner({cases,onClose,onOpenCase,onAction,notify,title='Scan
 
 function DeliveriesView({session,cases,notify,reload,seedCase,clearSeed,onQrAction,setModuleExport}){
   const [rows,setRows]=useState([]),[deliveriesLoaded,setDeliveriesLoaded]=useState(false),[q,setQ]=useState(''),[searchBy,setSearchBy]=useState('tracking'),[filter,setFilter]=useState('Ready for Delivery'),[selected,setSelected]=useState(new Set()),[financeOpen,setFinanceOpen]=useState(new Set()),[open,setOpen]=useState(null),[view,setView]=useState(null),[scan,setScan]=useState(false),[labelCase,setLabelCase]=useState(null),[labelSheetOpen,setLabelSheetOpen]=useState(false),[labelSheetTick,setLabelSheetTick]=useState(0),[form,setForm]=useState({receiver_name:'',receiver_mobile:'',receiver_id_reference:'',payment_collected:'',payment_method:'Cash',payment_reference:'',assigned_to:'',notes:'',selected_docs:[]});
-  async function load(){const {data,error}=await supabase.from('deliveries').select('*').order('created_at',{ascending:false}).limit(1000);if(error)notify(error.message);else setRows(data||[]);setDeliveriesLoaded(true)}useEffect(()=>{load()},[]);useEffect(()=>{if(seedCase&&deliveriesLoaded){startDelivery(seedCase);clearSeed?.()}},[seedCase,deliveriesLoaded]);
+  async function load(){const {data,error}=await supabase.from('deliveries').select('*').order('created_at',{ascending:false}).limit(1000);if(error)notify(userError(error));else setRows(data||[]);setDeliveriesLoaded(true)}useEffect(()=>{load()},[]);useEffect(()=>{if(seedCase&&deliveriesLoaded){startDelivery(seedCase);clearSeed?.()}},[seedCase,deliveriesLoaded]);
   const deliveredDocumentIds=useMemo(()=>{const map=new Map();for(const delivery of rows){const ids=(delivery.items||[]).map(i=>i.id).filter(Boolean);if(!ids.length)continue;const set=map.get(delivery.case_id)||new Set();ids.forEach(id=>set.add(id));map.set(delivery.case_id,set)}return map},[rows]);
   const remainingDocuments=c=>(c.documents||[]).filter(d=>!deliveredDocumentIds.get(c.id)?.has(d.id));
   const latestDelivery=c=>rows.find(r=>r.case_id===c.id);
@@ -3438,7 +3403,7 @@ function DeliveriesView({session,cases,notify,reload,seedCase,clearSeed,onQrActi
   const visible=rankCaseSearchResults(deliveryBase.filter(c=>caseMatchesFieldSearch(c,q,searchBy,[c.tracking_reference,c.customer_name,c.mobile,c.bill_no].join(' '))),q,searchBy);
   useEffect(()=>setModuleExport?.({view:'deliveries',title:filter==='Delivered'?'Delivered Cases':'Ready for Customer Delivery',rows:visible.map(c=>{const delivery=rows.find(r=>r.case_id===c.id),m=moneyParts(c);return{'Tracking No.':c.tracking_reference||'','Customer':c.customer_name||'','Mobile':c.mobile||'','Branch':c.branches?.name||'','Status':delivery?.status||c.overall_status||'','Documents':c.documents?.map(d=>`${d.document_name} × ${d.quantity||1}`).join('; ')||'','Receiver':delivery?.receiver_name||'','Delivered At':delivery?.delivered_at||'','Balance (QAR)':m.balance,'Collected at Delivery (QAR)':Number(delivery?.payment_collected||0)}})}),[visible,rows,filter,setModuleExport]);
   function startDelivery(c){const pending=remainingDocuments(c);if(!pending.length){const completed=latestDelivery(c);if(completed)setView(completed);notify('All documents for this case were already delivered. You can print the delivery slip.');return}setOpen(c);setForm({receiver_name:c.customer_name||'',receiver_mobile:c.mobile||'',receiver_id_reference:'',payment_collected:Number(c.balance_payment||0)>0?String(c.balance_payment):'',payment_method:'Cash',payment_reference:'',assigned_to:'',notes:'',selected_docs:pending.map(d=>d.id)})}
-  async function confirm(e){e.preventDefault();const c=open,pending=remainingDocuments(c);const docs=pending.filter(d=>form.selected_docs.includes(d.id));if(!docs.length)return notify('Select at least one undelivered document.');const isPartial=docs.length<pending.length,collected=Number(form.payment_collected||0),deliveryRef=`DLV-${new Date().toISOString().slice(0,10).replaceAll('-','')}-${String(c.tracking_reference).slice(-6)}`;const audit=[{text:`Delivery ${isPartial?'partially completed':'completed'} by ${session.user.email||'user'}`,at:new Date().toISOString()}];const payload={case_id:c.id,status:isPartial?'Partial':'Delivered',receiver_name:form.receiver_name,receiver_mobile:form.receiver_mobile||null,receiver_id_reference:form.receiver_id_reference||null,payment_collected:collected,payment_method:form.payment_method||null,payment_reference:form.payment_reference||null,assigned_to:form.assigned_to||null,items:docs.map(d=>({id:d.id,name:d.document_name,qty:Number(d.quantity||1)})),audit,print_count:0,delivered_by:session.user.id,delivered_at:new Date().toISOString(),notes:form.notes||null};const {data,error}=await supabase.from('deliveries').insert(payload).select('*').single();if(error)return notify(error.message);if(collected>0){await supabase.from('payments').insert({case_id:c.id,amount:collected,payment_method:form.payment_method,payment_reference:form.payment_reference||deliveryRef,notes:`Collected on ${deliveryRef}`,received_by:session.user.id})}await supabase.from('cases').update({overall_status:isPartial?'Ready for Delivery':'Delivered',balance_payment:Math.max(0,Number(c.balance_payment||0)-collected),updated_by:session.user.id}).eq('id',c.id);setOpen(null);setView(data);notify(isPartial?'Partial delivery saved.':'Delivery completed.');load();reload()}
+  async function confirm(e){e.preventDefault();const c=open,pending=remainingDocuments(c);const docs=pending.filter(d=>form.selected_docs.includes(d.id));if(!docs.length)return notify('Select at least one undelivered document.');const isPartial=docs.length<pending.length,collected=Number(form.payment_collected||0),deliveryRef=`DLV-${new Date().toISOString().slice(0,10).replaceAll('-','')}-${String(c.tracking_reference).slice(-6)}`;const audit=[{text:`Delivery ${isPartial?'partially completed':'completed'} by ${session.user.email||'user'}`,at:new Date().toISOString()}];const payload={case_id:c.id,status:isPartial?'Partial':'Delivered',receiver_name:form.receiver_name,receiver_mobile:form.receiver_mobile||null,receiver_id_reference:form.receiver_id_reference||null,payment_collected:collected,payment_method:form.payment_method||null,payment_reference:form.payment_reference||null,assigned_to:form.assigned_to||null,items:docs.map(d=>({id:d.id,name:d.document_name,qty:Number(d.quantity||1)})),audit,print_count:0,delivered_by:session.user.id,delivered_at:new Date().toISOString(),notes:form.notes||null};const {data,error}=await supabase.from('deliveries').insert(payload).select('*').single();if(error)return notify(userError(error));if(collected>0){await supabase.from('payments').insert({case_id:c.id,amount:collected,payment_method:form.payment_method,payment_reference:form.payment_reference||deliveryRef,notes:`Collected on ${deliveryRef}`,received_by:session.user.id})}await supabase.from('cases').update({overall_status:isPartial?'Ready for Delivery':'Delivered',balance_payment:Math.max(0,Number(c.balance_payment||0)-collected),updated_by:session.user.id}).eq('id',c.id);setOpen(null);setView(data);notify(isPartial?'Partial delivery saved.':'Delivery completed.');load();reload()}
   function printLabel(c){setLabelCase(c)}
   async function printSelected(){const cs=ready.filter(c=>selected.has(c.id));if(!cs.length)return notify('Select ready cases first.');await printCaseLabels(cs)}
   function printNote(d){const c=cases.find(x=>x.id===d.case_id);const w=window.open('','_blank');if(!w)return;const items=d.items||[];w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(d.delivery_no||'Delivery Slip')}</title><style>${premiumPrintCss('A4 portrait')}</style></head><body><div class="print-page">${premiumPrintHeader('Customer Delivery Slip',`Documents handed over for tracking #${c?.tracking_reference||'—'}`,d.delivery_no||'DELIVERED')}<main class="print-body"><section class="print-meta"><div><small>Tracking</small><strong>#${escapeHtml(c?.tracking_reference||'—')}</strong></div><div><small>Customer</small><strong>${escapeHtml(c?.customer_name||'—')}</strong></div><div><small>Receiver</small><strong>${escapeHtml(d.receiver_name||'—')}</strong></div><div><small>Mobile</small><strong>${escapeHtml(d.receiver_mobile||'—')}</strong></div></section><table class="print-table"><thead><tr><th>#</th><th>Document delivered</th><th>Quantity</th></tr></thead><tbody>${items.map((i,index)=>`<tr><td>${index+1}</td><td>${escapeHtml(i.name)}</td><td>${Number(i.qty||1)}</td></tr>`).join('')||'<tr><td colspan="3">No document items recorded.</td></tr>'}</tbody></table><div class="print-amount"><small>AMOUNT COLLECTED</small><strong>${fmtMoney(d.payment_collected)}</strong></div><section class="print-meta"><div><small>Payment method</small><strong>${escapeHtml(d.payment_method||'—')}</strong></div><div><small>Payment reference</small><strong>${escapeHtml(d.payment_reference||'—')}</strong></div><div><small>Delivery status</small><strong>${escapeHtml(d.status||'Delivered')}</strong></div><div><small>Delivered at</small><strong>${escapeHtml(d.delivered_at?new Date(d.delivered_at).toLocaleString('en-GB'):'—')}</strong></div></section>${d.notes?`<div class="print-note"><b>Delivery notes</b><br>${escapeHtml(d.notes)}</div>`:''}<div class="print-signatures"><div>Delivered by / Date</div><div>Received by customer / Date</div></div>${premiumPrintFooter()}</main></div><script>window.onload=()=>setTimeout(()=>window.print(),200)<\/script></body></html>`);w.document.close()}
@@ -3615,7 +3580,7 @@ function CourierShipmentsView({session,cases,notify,reload,setModuleExport}){
   useEffect(()=>setModuleExport?.({view:'courier',title:'Courier Shipments',rows:shipments.map(sh=>({'Shipment No.':sh.shipment_no||'','Direction':sh.direction||'','Destination':sh.destination||'','Agent / Office':sh.agent_name||'','Carrier':sh.carrier||'','AWB':sh.awb_no||'','Dispatch Date':sh.dispatch_date||'','Status':sh.status||'','Documents':sh.courier_shipment_items?.length||0,'Received':(sh.courier_shipment_items||[]).filter(i=>i.receipt_status==='Received').length,'Missing':(sh.courier_shipment_items||[]).filter(i=>i.receipt_status==='Missing').length}))}),[shipments,setModuleExport]);
   const caseGroups=useMemo(()=>{const map=new Map();for(const x of pickerDocs){if(!map.has(x.c.id))map.set(x.c.id,{c:x.c,docs:[]});map.get(x.c.id).docs.push(x.d)}return [...map.values()]},[pickerDocs]);
   const selectedRows=useMemo(()=>docs.filter(x=>selected.has(x.d.id)),[docs,selected]);
-  async function load(){setLoading(true);const {data,error}=await supabase.from('courier_shipments').select('*,courier_shipment_items(id,document_id,required_attestation,received_at,receipt_status,exception_note)').order('created_at',{ascending:false}).limit(300);if(error)notify(error.message);else setShipments(data||[]);setLoading(false)}
+  async function load(){setLoading(true);const {data,error}=await supabase.from('courier_shipments').select('*,courier_shipment_items(id,document_id,required_attestation,received_at,receipt_status,exception_note)').order('created_at',{ascending:false}).limit(300);if(error)notify(userError(error));else setShipments(data||[]);setLoading(false)}
   useEffect(()=>{load()},[]);
   function resetEditor(){setOpen(false);setEditId(null);setSelected(new Set());setWorkMap({});setForm(empty);setQ('');setOpenCases(new Set())}
   function startCreate(){setEditId(null);setSelected(new Set());setWorkMap({});setForm(empty);setQ('');setOpenCases(new Set());setOpen(true)}
@@ -3624,11 +3589,11 @@ function CourierShipmentsView({session,cases,notify,reload,setModuleExport}){
   function toggleCase(id){setOpenCases(prev=>{const n=new Set(prev);n.has(id)?n.delete(id):n.add(id);return n})}
   function toggleCaseDocs(group){setSelected(prev=>{const n=new Set(prev);const ids=group.docs.map(d=>d.id);const all=ids.every(id=>n.has(id));ids.forEach(id=>{if(all)n.delete(id);else n.add(id)});if(!all)setWorkMap(w=>{const out={...w};ids.forEach(id=>{if(out[id]===undefined)out[id]=''});return out});return n})}
   function toggleStage(id,stage){setWorkMap(prev=>{const parts=String(prev[id]||'').split(/\s*[•,]\s*/).map(x=>x.trim()).filter(Boolean);const has=parts.includes(stage);const next=has?parts.filter(x=>x!==stage):[...parts,stage];return {...prev,[id]:next.join(' • ')}})}
-  async function saveShipment(e){e.preventDefault();if(!selected.size)return notify('Select at least one document for the shipment.');const missing=[...selected].filter(id=>!String(workMap[id]||'').trim());if(missing.length)return notify(`Enter required attestation / work for all selected documents (${missing.length} missing).`);setSaving(true);try{const shipNo=form.shipment_no.trim()||`SHP-${new Date().toISOString().slice(0,10).replace(/-/g,'')}-${String(Date.now()).slice(-4)}`;let shipmentId=editId;if(editId){const {error}=await supabase.from('courier_shipments').update({...form,shipment_no:shipNo,updated_by:session.user.id,updated_at:new Date().toISOString()}).eq('id',editId);if(error)throw error;const current=shipments.find(x=>x.id===editId);const existingIds=(current?.courier_shipment_items||[]).map(x=>x.document_id);const removed=existingIds.filter(id=>!selected.has(id));if(removed.length){const {error:de}=await supabase.from('courier_shipment_items').delete().eq('shipment_id',editId).in('document_id',removed);if(de)throw de}const rows=[...selected].map(document_id=>({shipment_id:editId,document_id,required_attestation:String(workMap[document_id]||'').trim()}));const {error:ue}=await supabase.from('courier_shipment_items').upsert(rows,{onConflict:'shipment_id,document_id'});if(ue)throw ue}else{const {data,error}=await supabase.from('courier_shipments').insert({...form,shipment_no:shipNo,status:'Draft',created_by:session.user.id,updated_by:session.user.id}).select('*').single();if(error)throw error;shipmentId=data.id;const items=[...selected].map(document_id=>({shipment_id:shipmentId,document_id,required_attestation:String(workMap[document_id]||'').trim(),receipt_status:'Pending'}));const {error:ie}=await supabase.from('courier_shipment_items').insert(items);if(ie)throw ie}resetEditor();notify(editId?`Shipment ${shipNo} updated.`:`Shipment ${shipNo} created.`);await load()}catch(err){notify(err.message||String(err))}finally{setSaving(false)}}
-  async function deleteShipment(sh){if(!window.confirm(`Delete shipment ${sh.shipment_no}?\n\nThis removes the shipment and its manifest items. It will not reverse any document milestone already recorded.`))return;const {error}=await supabase.from('courier_shipments').delete().eq('id',sh.id);if(error)return notify(error.message);if(detail?.id===sh.id)setDetail(null);notify(`Shipment ${sh.shipment_no} deleted.`);await load()}
-  async function changeStatus(sh,status,documentIdsOverride=null){const today=new Date().toISOString().slice(0,10);const patch={status,updated_by:session.user.id,updated_at:new Date().toISOString()};if(status==='Dispatched'&&!sh.dispatched_at)patch.dispatched_at=new Date().toISOString();if(status==='Received by Agent'&&!sh.received_at)patch.received_at=new Date().toISOString();const {error}=await supabase.from('courier_shipments').update(patch).eq('id',sh.id);if(error)return notify(error.message);if(['Dispatched','Received by Agent'].includes(status)){const ids=documentIdsOverride||(status==='Received by Agent'?(sh.courier_shipment_items||[]).filter(x=>x.receipt_status==='Received').map(x=>x.document_id):(sh.courier_shipment_items||[]).map(x=>x.document_id));if(ids.length){const milestone=status==='Dispatched'?(sh.destination?.toLowerCase().includes('delhi')?'On Courier to Delhi':`On Courier to ${sh.destination}`):(sh.destination?.toLowerCase().includes('delhi')?'Received in Delhi':`Received by ${sh.destination}`);await supabase.from('documents').update({current_milestone:milestone,current_milestone_date:today}).in('id',ids);for(const c of cases){const hit=(c.documents||[]).filter(d=>ids.includes(d.id));if(hit.length)await supabase.from('case_history').insert(hit.map(d=>({case_id:c.id,user_id:session.user.id,action:'Courier shipment update',field_name:'courier',new_value:`${sh.shipment_no} · ${milestone}`,metadata:{shipment_id:sh.id,document_id:d.id,awb_no:sh.awb_no||null}})))}}}notify(`Shipment updated to ${status}.`);await load();await reload?.()}
-  async function confirmReceipt(sh){const received=new Date().toISOString();const ids=(sh.courier_shipment_items||[]).map(x=>x.id);if(!ids.length)return;const {error}=await supabase.from('courier_shipment_items').update({receipt_status:'Received',received_at:received,received_by:session.user.id}).in('id',ids);if(error)return notify(error.message);await changeStatus(sh,'Received by Agent',(sh.courier_shipment_items||[]).map(x=>x.document_id))}
-  async function setItemReceipt(sh,item,status){const received=status==='Received'?new Date().toISOString():null;const {error}=await supabase.from('courier_shipment_items').update({receipt_status:status,received_at:received,received_by:status==='Received'?session.user.id:null}).eq('id',item.id);if(error)return notify(error.message);if(status==='Received'){const milestone=sh.destination?.toLowerCase().includes('delhi')?'Received in Delhi':`Received by ${sh.destination}`;await supabase.from('documents').update({current_milestone:milestone,current_milestone_date:new Date().toISOString().slice(0,10)}).eq('id',item.document_id)}await load();await reload?.()}
+  async function saveShipment(e){e.preventDefault();if(!selected.size)return notify('Select at least one document for the shipment.');const missing=[...selected].filter(id=>!String(workMap[id]||'').trim());if(missing.length)return notify(`Enter required attestation / work for all selected documents (${missing.length} missing).`);setSaving(true);try{const shipNo=form.shipment_no.trim()||`SHP-${new Date().toISOString().slice(0,10).replace(/-/g,'')}-${String(Date.now()).slice(-4)}`;let shipmentId=editId;if(editId){const {error}=await supabase.from('courier_shipments').update({...form,shipment_no:shipNo,updated_by:session.user.id,updated_at:new Date().toISOString()}).eq('id',editId);if(error)throw error;const current=shipments.find(x=>x.id===editId);const existingIds=(current?.courier_shipment_items||[]).map(x=>x.document_id);const removed=existingIds.filter(id=>!selected.has(id));if(removed.length){const {error:de}=await supabase.from('courier_shipment_items').delete().eq('shipment_id',editId).in('document_id',removed);if(de)throw de}const rows=[...selected].map(document_id=>({shipment_id:editId,document_id,required_attestation:String(workMap[document_id]||'').trim()}));const {error:ue}=await supabase.from('courier_shipment_items').upsert(rows,{onConflict:'shipment_id,document_id'});if(ue)throw ue}else{const {data,error}=await supabase.from('courier_shipments').insert({...form,shipment_no:shipNo,status:'Draft',created_by:session.user.id,updated_by:session.user.id}).select('*').single();if(error)throw error;shipmentId=data.id;const items=[...selected].map(document_id=>({shipment_id:shipmentId,document_id,required_attestation:String(workMap[document_id]||'').trim(),receipt_status:'Pending'}));const {error:ie}=await supabase.from('courier_shipment_items').insert(items);if(ie)throw ie}resetEditor();notify(editId?`Shipment ${shipNo} updated.`:`Shipment ${shipNo} created.`);await load()}catch(err){notify(userError(err))}finally{setSaving(false)}}
+  async function deleteShipment(sh){if(!window.confirm(`Delete shipment ${sh.shipment_no}?\n\nThis removes the shipment and its manifest items. It will not reverse any document milestone already recorded.`))return;const {error}=await supabase.from('courier_shipments').delete().eq('id',sh.id);if(error)return notify(userError(error));if(detail?.id===sh.id)setDetail(null);notify(`Shipment ${sh.shipment_no} deleted.`);await load()}
+  async function changeStatus(sh,status,documentIdsOverride=null){const today=new Date().toISOString().slice(0,10);const patch={status,updated_by:session.user.id,updated_at:new Date().toISOString()};if(status==='Dispatched'&&!sh.dispatched_at)patch.dispatched_at=new Date().toISOString();if(status==='Received by Agent'&&!sh.received_at)patch.received_at=new Date().toISOString();const {error}=await supabase.from('courier_shipments').update(patch).eq('id',sh.id);if(error)return notify(userError(error));if(['Dispatched','Received by Agent'].includes(status)){const ids=documentIdsOverride||(status==='Received by Agent'?(sh.courier_shipment_items||[]).filter(x=>x.receipt_status==='Received').map(x=>x.document_id):(sh.courier_shipment_items||[]).map(x=>x.document_id));if(ids.length){const milestone=status==='Dispatched'?(sh.destination?.toLowerCase().includes('delhi')?'On Courier to Delhi':`On Courier to ${sh.destination}`):(sh.destination?.toLowerCase().includes('delhi')?'Received in Delhi':`Received by ${sh.destination}`);await supabase.from('documents').update({current_milestone:milestone,current_milestone_date:today}).in('id',ids);for(const c of cases){const hit=(c.documents||[]).filter(d=>ids.includes(d.id));if(hit.length)await supabase.from('case_history').insert(hit.map(d=>({case_id:c.id,user_id:session.user.id,action:'Courier shipment update',field_name:'courier',new_value:`${sh.shipment_no} · ${milestone}`,metadata:{shipment_id:sh.id,document_id:d.id,awb_no:sh.awb_no||null}})))}}}notify(`Shipment updated to ${status}.`);await load();await reload?.()}
+  async function confirmReceipt(sh){const received=new Date().toISOString();const ids=(sh.courier_shipment_items||[]).map(x=>x.id);if(!ids.length)return;const {error}=await supabase.from('courier_shipment_items').update({receipt_status:'Received',received_at:received,received_by:session.user.id}).in('id',ids);if(error)return notify(userError(error));await changeStatus(sh,'Received by Agent',(sh.courier_shipment_items||[]).map(x=>x.document_id))}
+  async function setItemReceipt(sh,item,status){const received=status==='Received'?new Date().toISOString():null;const {error}=await supabase.from('courier_shipment_items').update({receipt_status:status,received_at:received,received_by:status==='Received'?session.user.id:null}).eq('id',item.id);if(error)return notify(userError(error));if(status==='Received'){const milestone=sh.destination?.toLowerCase().includes('delhi')?'Received in Delhi':`Received by ${sh.destination}`;await supabase.from('documents').update({current_milestone:milestone,current_milestone_date:new Date().toISOString().slice(0,10)}).eq('id',item.document_id)}await load();await reload?.()}
   function printManifest(sh){const items=sh.courier_shipment_items||[];const rows=items.map(item=>{const x=docs.find(z=>z.d.id===item.document_id);return x?{...x,item}:null}).filter(Boolean);const w=window.open('','_blank');if(!w)return notify('Please allow pop-ups to print the manifest.');w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(sh.shipment_no)}</title><style>${premiumPrintCss('A4 portrait')}</style></head><body><div class="print-page">${premiumPrintHeader('Document Courier Manifest',`${sh.direction||'Outbound'} shipment to ${sh.destination||'destination'}`,sh.shipment_no||'COURIER')}<main class="print-body"><section class="print-meta"><div><small>Carrier</small><strong>${escapeHtml(sh.carrier||'—')}</strong></div><div><small>AWB / Tracking</small><strong>${escapeHtml(sh.awb_no||'—')}</strong></div><div><small>Dispatch date</small><strong>${escapeHtml(fmtDate(sh.dispatch_date))}</strong></div><div><small>Receiving agent</small><strong>${escapeHtml(sh.agent_name||'—')}</strong></div></section><table class="print-table"><thead><tr><th>#</th><th>Tracking</th><th>Document holder</th><th>Document</th><th>Qty</th><th>Required attestation / work</th></tr></thead><tbody>${rows.map((x,i)=>`<tr><td>${i+1}</td><td><b>#${escapeHtml(x.d.source_tracking_reference||x.c.tracking_reference)}</b></td><td>${escapeHtml(x.d.holder_name||x.c.customer_name||'—')}</td><td>${escapeHtml(x.d.document_name||'—')}</td><td>${Number(x.d.quantity||1)}</td><td><b>${escapeHtml(x.item.required_attestation||'—')}</b></td></tr>`).join('')||'<tr><td colspan="6">No documents assigned.</td></tr>'}</tbody></table><section class="print-kpis"><div><small>Documents</small><strong>${rows.length}</strong></div><div><small>Total quantity</small><strong>${rows.reduce((n,x)=>n+Number(x.d.quantity||1),0)}</strong></div><div><small>Direction</small><strong>${escapeHtml(sh.direction||'Outbound')}</strong></div><div><small>Status</small><strong>${escapeHtml(sh.status||'Draft')}</strong></div></section><div class="print-signatures"><div>Prepared / Sent by</div><div>Received and verified by agent</div></div>${premiumPrintFooter()}</main></div><script>window.onload=()=>setTimeout(()=>window.print(),200)<\/script></body></html>`);w.document.close()}
   return <section className="courier-module"><div className="courier-kpis"><div><span>SHIPMENTS</span><strong>{shipments.length}</strong><small>Recent batches</small></div><div><span>IN TRANSIT</span><strong>{shipments.filter(x=>['Dispatched','In Transit'].includes(x.status)).length}</strong><small>Active courier movement</small></div><div><span>WAITING RECEIPT</span><strong>{shipments.filter(x=>x.status==='Dispatched').length}</strong><small>Agent confirmation pending</small></div><div><span>DOCUMENTS READY</span><strong>{ready.length}</strong><small>Available for batch selection</small></div></div><div className="courier-toolbar"><div><h2>Courier Batches</h2><p>Create, edit, receive and manage courier shipment batches.</p></div><button className="primary" onClick={startCreate}>＋ Create Shipment</button></div>{loading?<Empty text="Loading shipments…"/>:<div className="courier-grid">{shipments.length?shipments.map(sh=><article className="courier-card" key={sh.id}><div className="courier-card-head"><div><span>{sh.direction||'Outbound'} · {sh.carrier||'Courier'}</span><strong>{sh.shipment_no}</strong><small>{sh.destination} · {fmtDate(sh.dispatch_date)}</small></div><StatusPill status={sh.status}/></div><div className="courier-meta"><span><b>{sh.courier_shipment_items?.length||0}</b> documents</span><span>AWB <b>{sh.awb_no||'—'}</b></span></div><div className="courier-actions"><button className="secondary" onClick={()=>printManifest(sh)}>Print Manifest</button><button className="secondary" onClick={()=>startEdit(sh)}>Edit</button>{sh.status==='Draft'&&<button className="primary" onClick={()=>changeStatus(sh,'Dispatched')}>Dispatch</button>}{sh.status==='Dispatched'&&<button className="primary" onClick={()=>confirmReceipt(sh)}>Mark All Received</button>}<button className="secondary" onClick={()=>setDetail(detail?.id===sh.id?null:sh)}>{detail?.id===sh.id?'Hide':'Details'}</button><button className="secondary courier-delete" onClick={()=>deleteShipment(sh)}>Delete</button></div>{detail?.id===sh.id&&<div className="courier-detail"><p><b>Agent:</b> {sh.agent_name||'—'}</p><label>Status<select value={sh.status} onChange={e=>changeStatus(sh,e.target.value)}><option>Draft</option><option>Prepared</option><option>Dispatched</option><option>In Transit</option><option>Received by Agent</option><option>Closed</option><option>Cancelled</option></select></label><div className="courier-receipt-list">{(sh.courier_shipment_items||[]).map(item=>{const x=docs.find(z=>z.d.id===item.document_id);return <div key={item.id}><span><b>#{x?.d?.source_tracking_reference||x?.c?.tracking_reference||'—'}</b> · {x?.d?.holder_name||x?.c?.customer_name||'Document'} · {x?.d?.document_name||''}<small className="courier-detail-work">Required: {item.required_attestation||'—'}</small></span><div><button className={item.receipt_status==='Received'?'receipt-active':''} onClick={()=>setItemReceipt(sh,item,'Received')}>Received</button><button className={item.receipt_status==='Missing'?'missing-active':''} onClick={()=>setItemReceipt(sh,item,'Missing')}>Missing</button></div></div>})}</div></div>}</article>):<Empty text="No courier shipments yet"/>}</div>}
   {open&&<Modal title={editId?'Edit Courier Shipment':'Create Courier Shipment'} subtitle={editId?'Update shipment details, selected documents and assigned work.':'Search cases on the left and build the shipment on the right.'} onClose={resetEditor}><form className="courier-create courier-create-wide" onSubmit={saveShipment}><div className="courier-wide-form"><div className="courier-wide-fields"><Field label="Shipment No."><input value={form.shipment_no} onChange={e=>setForm({...form,shipment_no:e.target.value})} placeholder="Auto if blank"/></Field><Field label="Direction"><select value={form.direction} onChange={e=>setForm({...form,direction:e.target.value})}><option>Outbound</option><option>Return</option><option>Domestic</option></select></Field><Field label="Destination"><input required value={form.destination} onChange={e=>setForm({...form,destination:e.target.value})}/></Field><Field label="Receiving Agent / Office"><input value={form.agent_name} onChange={e=>setForm({...form,agent_name:e.target.value})}/></Field><Field label="Carrier"><select value={form.carrier} onChange={e=>setForm({...form,carrier:e.target.value})}><option>DHL</option><option>Aramex</option><option>Internal Courier</option><option>Other</option></select></Field><Field label="AWB / Tracking"><input value={form.awb_no} onChange={e=>setForm({...form,awb_no:e.target.value})}/></Field><Field label="Dispatch Date"><input type="date" value={form.dispatch_date} onChange={e=>setForm({...form,dispatch_date:e.target.value})}/></Field></div><div className="courier-split-picker"><section className="courier-search-pane"><div className="courier-pane-title"><div><strong>Find Documents</strong><span>Search and expand a case to select documents</span></div><b>{caseGroups.length} cases</b></div><SearchBySelect value={searchBy} onChange={setSearchBy}/><div className="courier-side-search"><Icon name="search" size={16}/><input autoFocus placeholder="Tracking, customer, holder, document, stage…" value={q} onChange={e=>setQ(e.target.value)}/>{q&&<button type="button" onClick={()=>setQ('')}>×</button>}</div><div className="courier-side-results">{caseGroups.slice(0,150).map(group=>{const c=group.c;const isOpen=openCases.has(c.id)||!!q||group.docs.some(d=>selected.has(d.id));const selectedCount=group.docs.filter(d=>selected.has(d.id)).length;return <div className={`courier-case-accordion ${selectedCount?'has-selected':''}`} key={c.id}><div className="courier-case-row"><button type="button" className="courier-case-toggle" onClick={()=>toggleCase(c.id)}><span className="courier-chevron">{isOpen?'⌄':'›'}</span><div><strong>#{c.tracking_reference} · {c.customer_name||'Customer'}</strong><span>{c.branches?.name||'—'} · {group.docs.length} document{group.docs.length===1?'':'s'}</span></div></button><button type="button" className="courier-case-select" onClick={()=>toggleCaseDocs(group)}>{selectedCount===group.docs.length?'Clear':selectedCount?`${selectedCount}/${group.docs.length}`:'Select All'}</button></div>{isOpen&&<div className="courier-case-docs courier-case-docs-simple">{group.docs.map(d=>{const checked=selected.has(d.id);return <label key={d.id} className={checked?'selected':''}><input type="checkbox" checked={checked} onChange={()=>toggle(d.id)}/><div className="courier-doc-main"><strong>{d.holder_name||c.customer_name||'Document holder'}</strong><span>{d.document_name||'Document'} · Qty {Number(d.quantity||1)}</span><small>{d.current_milestone||c.current_milestone||d.document_status||'No milestone'}</small></div></label>})}</div>}</div>})}{!caseGroups.length&&<div className="courier-picker-empty">No matching cases or documents found.</div>}</div></section><aside className="courier-basket-pane"><div className="courier-pane-title"><div><strong>Shipment Basket</strong><span>Assign only the work this agent must complete</span></div><b>{selected.size} selected</b></div><div className="courier-basket-list">{selectedRows.map(({c,d})=>{const stages=availableStages(d);return <div className="courier-basket-item" key={d.id}><div className="courier-basket-item-head"><div><strong>#{d.source_tracking_reference||c.tracking_reference}</strong><span>{d.holder_name||c.customer_name||'Document holder'}</span><small>{d.document_name||'Document'} · Qty {Number(d.quantity||1)}</small></div><button type="button" title="Remove" onClick={()=>toggle(d.id)}>×</button></div><label>Required Work / Attestation<input className="courier-work-input" value={workMap[d.id]||''} onChange={e=>setWorkMap(prev=>({...prev,[d.id]:e.target.value}))} placeholder="e.g. MEA"/></label>{stages.length>0&&<div className="courier-work-chips">{stages.map(stage=>{const active=String(workMap[d.id]||'').split(/\s*[•,]\s*/).map(x=>x.trim()).includes(stage);return <button type="button" className={active?'active':''} key={stage} onClick={()=>toggleStage(d.id,stage)}>{stage}</button>})}</div>}</div>})}{!selectedRows.length&&<div className="courier-basket-empty"><strong>No documents selected</strong><span>Search on the left, expand a case and select the documents for this shipment.</span></div>}</div><div className="courier-basket-summary"><span>Total document instances</span><strong>{selected.size}</strong></div></aside></div></div><div className="modal-actions courier-wide-actions"><button type="button" className="secondary" onClick={resetEditor}>Cancel</button><button className="primary" disabled={saving||!selected.size}>{saving?'Saving…':editId?`Save Changes · ${selected.size}`:`Create Shipment · ${selected.size}`}</button></div></form></Modal>}
