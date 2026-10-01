@@ -188,7 +188,9 @@
       output.innerHTML = list.length>1?matchesHtml(list):list.length?resultHtml(list[0]):empty();
       if (list.length===1) {
         const u = new URL(window.location.href);
-        u.searchParams.set('ref', list[0].tracking_reference);
+        const reference=String(list[0].tracking_reference||'');
+        if(/^[A-Za-z0-9._-]+$/.test(reference)&&KenzaTrackingConfig.trackingPageUrl&&u.pathname.replace(/\/$/,'').startsWith(new URL(KenzaTrackingConfig.trackingPageUrl).pathname.replace(/\/$/,''))){u.pathname=new URL(KenzaTrackingConfig.trackingPageUrl).pathname+encodeURIComponent(reference);u.searchParams.delete('ref');u.searchParams.delete('org');u.searchParams.delete('token');}
+        else u.searchParams.set('ref',reference);
         history.replaceState({},'',u);
       }
     } catch (e) {
@@ -311,7 +313,7 @@
         if (e.target.closest('[data-kt-print]')) printResult(root);
       });
 
-      const params=new URLSearchParams(location.search),ref=params.get('ref'),token=params.get('token');
+      const params=new URLSearchParams(location.search),ref=params.get('ref')||KenzaTrackingConfig.reference,token=params.get('token');
       if(ref||token){input.value=ref||'';lookup(root,ref||'',token||'');}
     });
   });

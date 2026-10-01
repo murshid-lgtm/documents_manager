@@ -2,18 +2,37 @@
 /**
  * Plugin Name: Document Tracking Connector
  * Description: White-label WordPress customer document tracking. Use shortcode [kenza_tracking].
- * Version: 2.6.1
+ * Version: 2.6.2
  * Author: Document Operations Platform
  */
 if (!defined('ABSPATH')) exit;
 
-define('KENZA_TRACK_VERSION', '2.6.1');
+define('KENZA_TRACK_VERSION', '2.6.2');
 define('KENZA_TRACK_OPTION', 'kenza_tracking_api_base');
 define('KENZA_TRACK_ORG_OPTION', 'kenza_tracking_org_slug');
 define('KENZA_TRACK_COMPANY_OPTION', 'kenza_tracking_company_name');
 define('KENZA_TRACK_TITLE_OPTION', 'kenza_tracking_search_title');
 define('KENZA_TRACK_DESCRIPTION_OPTION', 'kenza_tracking_search_description');
 define('KENZA_TRACK_HELPER_OPTION', 'kenza_tracking_search_helper');
+
+// This website is bound to one organization in saved connector settings.
+// Pretty customer links do not need organization identifiers in their URL.
+function kenza_tracking_register_routes() {
+    add_rewrite_rule('^track/([A-Za-z0-9._-]+)/?$', 'index.php?pagename=track&kenza_tracking_ref=$matches[1]', 'top');
+}
+add_action('init', 'kenza_tracking_register_routes');
+add_filter('query_vars', function($vars) { $vars[] = 'kenza_tracking_ref'; return $vars; });
+add_filter('redirect_canonical', function($redirect) {
+    return get_query_var('kenza_tracking_ref') !== '' ? false : $redirect;
+});
+register_activation_hook(__FILE__, function() { kenza_tracking_register_routes(); flush_rewrite_rules(); update_option('kenza_tracking_routes_version', KENZA_TRACK_VERSION); });
+register_deactivation_hook(__FILE__, function() { flush_rewrite_rules(); delete_option('kenza_tracking_routes_version'); });
+add_action('admin_init', function() {
+    if (current_user_can('manage_options') && get_option('kenza_tracking_routes_version') !== KENZA_TRACK_VERSION) {
+        kenza_tracking_register_routes(); flush_rewrite_rules(); update_option('kenza_tracking_routes_version', KENZA_TRACK_VERSION);
+    }
+});
+
 
 function kenza_tracking_default_api() {
     return '';
@@ -103,6 +122,8 @@ add_shortcode('kenza_tracking', function ($atts = []) {
         'nonce' => wp_create_nonce('kenza_tracking_lookup'),
         'title' => sanitize_text_field($atts['title']),
         'companyName' => sanitize_text_field($company),
+        'reference' => sanitize_text_field((string)get_query_var('kenza_tracking_ref', '')),
+        'trackingPageUrl' => home_url('/track/'),
     ]);
 
     ob_start(); ?>
