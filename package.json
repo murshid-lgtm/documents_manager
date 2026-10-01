@@ -1,13 +1,13 @@
 {
   "name": "document-operations-platform",
-  "version": "4.0.23",
+  "version": "4.0.24",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "node scripts/prepare-assets.mjs && next build",
     "start": "next start",
     "audit:production": "npm audit --omit=dev --audit-level=high",
-    "test:security": "node scripts/sync-clean-install-security.mjs --check && node scripts/security-tests.mjs",
+    "test:security": "node scripts/sync-clean-install-security.mjs --check && node scripts/security-tests.mjs && node scripts/tracking-tests.mjs",
     "security:check": "npm run test:security && npm run build && npm run audit:production"
   },
   "dependencies": {
