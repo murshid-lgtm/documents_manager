@@ -5,6 +5,10 @@ import * as XLSX from 'xlsx';
 import QRCode from 'qrcode';
 import jsQR from 'jsqr';
 import ProductSettings from './ProductSettings';
+import dynamic from 'next/dynamic';
+import PwaExperience from './PwaExperience';
+import CustomerPicker from './CustomerPicker';
+const BusinessWorkspace=dynamic(()=>import('./BusinessWorkspace'),{loading:()=> <div className="business-empty">Loading workspace…</div>});
 import SimpleLegacyImport from './SimpleLegacyImport';
 import {userError} from '../lib/userError';
 import {trackingLink,receiptBlob} from '../lib/trackingLinks';
@@ -125,6 +129,8 @@ export default function AppShell({session,initialProfile}){
   const [profile,setProfile]=useState(initialProfile||null);
   const [currentOrganization,setCurrentOrganization]=useState(null);
   const [brandSettings,setBrandSettings]=useState(null);
+  const [planModules,setPlanModules]=useState(null);
+  useEffect(()=>{let live=true;const orgId=profile?.organization_id||brandSettings?.organization_id;const loadPlan=async()=>{if(!orgId)return;const {data}=await supabase.from('platform_subscriptions').select('allowed_modules').eq('organization_id',orgId).maybeSingle();if(live)setPlanModules(data?.allowed_modules||null)};loadPlan();window.addEventListener('company-plan-changed',loadPlan);return()=>{live=false;window.removeEventListener('company-plan-changed',loadPlan)}},[profile?.organization_id,brandSettings?.organization_id]);
   const [branches,setBranches]=useState([]);
   const [cases,setCases]=useState([]);
   const [loading,setLoading]=useState(true);
@@ -190,7 +196,7 @@ export default function AppShell({session,initialProfile}){
     const timer=setTimeout(()=>setMessage(''),5200);
     return ()=>clearTimeout(timer);
   },[message]);
-  const emptyCase={tracking_reference:'',bill_no:'',internal_invoice_no:'',customer_name:'',mobile:'',submission_date:'',promise_date:'',branch_id:'',overall_status:'Received',total_amount:'',advance_paid:'',notes:'',account_name:'',account_contact:'',account_mobile:'',intake_source:'Branch',direct_to_delhi:false,direct_destination:'',current_milestone:'Submitted',current_milestone_date:''};
+  const emptyCase={tracking_reference:'',bill_no:'',internal_invoice_no:'',customer_name:'',mobile:'',customer_id:null,customer_email:'',email_updates:false,whatsapp_opt_in:false,submission_date:'',promise_date:'',branch_id:'',overall_status:'Received',total_amount:'',advance_paid:'',notes:'',account_name:'',account_contact:'',account_mobile:'',intake_source:'Branch',direct_to_delhi:false,direct_destination:'',current_milestone:'Submitted',current_milestone_date:''};
   const [form,setForm]=useState(emptyCase);
   const freshNewCaseDoc=()=>({document_name:'',holder_name:'',holder_custom:false,quantity:1,direct_to_delhi:false,direct_destination:'',stages:['MEA India','Embassy of India','MOFA Qatar'],custom_stage:''});
   const [newCaseDocs,setNewCaseDocs]=useState([freshNewCaseDoc()]);
@@ -313,6 +319,7 @@ ${company}`;
   const [custodySeedCase,setCustodySeedCase]=useState(null);
   const [batchSeed,setBatchSeed]=useState([]);
   const [globalScan,setGlobalScan]=useState(false);
+  const [mobileMenu,setMobileMenu]=useState(false);
   const [notificationOpen,setNotificationOpen]=useState(false);
   const [auditRows,setAuditRows]=useState([]);
   const [auditLoading,setAuditLoading]=useState(false);
@@ -377,7 +384,7 @@ ${company}`;
     if(!hasCache)setLoading(true); setMessage('');
     const [{data:p,error:pe},{data:b,error:be}]=await Promise.all([
       supabase.from('profiles').select('id,full_name,role,branch_id,is_active,organization_id,is_platform_super_admin,staff_modules').eq('id',session.user.id).single(),
-      supabase.from('branches').select('id,name').eq('is_active',true).order('name')
+      supabase.from('branches').select('id,name,organization_id,is_active').eq('is_active',true).order('name')
     ]);
     if(pe||be)setMessage(userError(pe||be,{fallback:'Unable to load account settings.'}));
     if(!p?.is_active||pe){setCasesLoadError('Your account settings could not be loaded. Sign in again or retry.');setCases([]);await clearCaseCache(caseCacheKey);setLoading(false);return}
@@ -485,7 +492,7 @@ ${company}`;
   }
   async function refreshCase(caseId){
     const {data,error}=await supabase.from('cases').select(`
-      id,tracking_reference,public_tracking_token,tracking_family,bill_no,internal_invoice_no,customer_name,mobile,submission_date,promise_date,overall_status,total_amount,advance_paid,second_payment,discount_return,balance_payment,notes,assigned_to,physical_location,flags,created_at,updated_at,branch_id,account_name,account_contact,account_mobile,intake_source,direct_to_delhi,direct_destination,current_milestone,current_milestone_date,branches!cases_branch_id_fkey(name),
+      id,tracking_reference,public_tracking_token,tracking_family,bill_no,internal_invoice_no,customer_name,mobile,customer_id,customer_email,email_updates,whatsapp_opt_in,submission_date,promise_date,overall_status,total_amount,advance_paid,second_payment,discount_return,balance_payment,notes,assigned_to,physical_location,flags,created_at,updated_at,branch_id,account_name,account_contact,account_mobile,intake_source,direct_to_delhi,direct_destination,current_milestone,current_milestone_date,branches!cases_branch_id_fkey(name),
       documents!documents_case_id_fkey(id,document_name,holder_name,source_tracking_reference,occurrence_no,quantity,document_status,physical_location,direct_to_delhi,direct_destination,current_milestone,current_milestone_date,created_at,document_stages!document_stages_document_id_fkey(id,stage_name,stage_order,status,milestone_date,is_manual_override,updated_at))
     `).eq('id',caseId).single();
     if(!error&&data)replaceCaseLocal(data);
@@ -497,7 +504,7 @@ ${company}`;
     const ref=String(tracking||'').trim();
     if(!ref)return null;
     const {data,error}=await supabase.from('cases').select(`
-      id,tracking_reference,public_tracking_token,tracking_family,bill_no,internal_invoice_no,customer_name,mobile,submission_date,promise_date,overall_status,total_amount,advance_paid,second_payment,discount_return,balance_payment,notes,assigned_to,physical_location,flags,created_at,updated_at,branch_id,account_name,account_contact,account_mobile,intake_source,direct_to_delhi,direct_destination,current_milestone,current_milestone_date,branches!cases_branch_id_fkey(name),
+      id,tracking_reference,public_tracking_token,tracking_family,bill_no,internal_invoice_no,customer_name,mobile,customer_id,customer_email,email_updates,whatsapp_opt_in,submission_date,promise_date,overall_status,total_amount,advance_paid,second_payment,discount_return,balance_payment,notes,assigned_to,physical_location,flags,created_at,updated_at,branch_id,account_name,account_contact,account_mobile,intake_source,direct_to_delhi,direct_destination,current_milestone,current_milestone_date,branches!cases_branch_id_fkey(name),
       documents!documents_case_id_fkey(id,document_name,holder_name,source_tracking_reference,occurrence_no,quantity,document_status,physical_location,direct_to_delhi,direct_destination,current_milestone,current_milestone_date,created_at,document_stages!document_stages_document_id_fkey(id,stage_name,stage_order,status,milestone_date,is_manual_override,updated_at))
     `).eq('tracking_reference',ref).maybeSingle();
     if(error)return null;
@@ -556,7 +563,7 @@ ${company}`;
       // Fetch the complete newly-created case and place it into the current list immediately.
       // This avoids a successful transaction appearing to be missing while the paged background reload runs.
       const {data:createdCase,error:createdCaseError}=await supabase.from('cases').select(`
-        id,tracking_reference,public_tracking_token,tracking_family,bill_no,internal_invoice_no,customer_name,mobile,submission_date,promise_date,overall_status,total_amount,advance_paid,second_payment,discount_return,balance_payment,notes,assigned_to,physical_location,flags,created_at,updated_at,branch_id,account_name,account_contact,account_mobile,intake_source,direct_to_delhi,direct_destination,current_milestone,current_milestone_date,branches!cases_branch_id_fkey(name),
+        id,tracking_reference,public_tracking_token,tracking_family,bill_no,internal_invoice_no,customer_name,mobile,customer_id,customer_email,email_updates,whatsapp_opt_in,submission_date,promise_date,overall_status,total_amount,advance_paid,second_payment,discount_return,balance_payment,notes,assigned_to,physical_location,flags,created_at,updated_at,branch_id,account_name,account_contact,account_mobile,intake_source,direct_to_delhi,direct_destination,current_milestone,current_milestone_date,branches!cases_branch_id_fkey(name),
         documents!documents_case_id_fkey(id,document_name,holder_name,source_tracking_reference,occurrence_no,quantity,document_status,physical_location,direct_to_delhi,direct_destination,current_milestone,current_milestone_date,created_at,document_stages!document_stages_document_id_fkey(id,stage_name,stage_order,status,milestone_date,is_manual_override,updated_at))
       `).eq('id',data.id).single();
       if(!createdCaseError&&createdCase){
@@ -743,8 +750,8 @@ ${company}`;
 
   const role=accessRole(profile);
   const isAdmin=isAdminProfile(profile);
-  const moduleEnabled=key=>(!Array.isArray(brandSettings?.enabled_modules)||brandSettings.enabled_modules.includes(key))&&(isAdmin||!Array.isArray(profile?.staff_modules)||profile.staff_modules.includes(key));
-  useEffect(()=>{if(!profile||view==='settings')return;if(!moduleEnabled(view)){const next=['dashboard','cases','documents','operations','deliveries','custody','appointments','batches','courier','payments','reports'].find(moduleEnabled);setView(next||'no-access')}},[profile,brandSettings,view]);
+  const moduleEnabled=key=>(!Array.isArray(planModules)||planModules.includes(key))&&(!Array.isArray(brandSettings?.enabled_modules)||brandSettings.enabled_modules.includes(key))&&(isAdmin||!Array.isArray(profile?.staff_modules)||profile.staff_modules.includes(key));
+  useEffect(()=>{if(!profile||view==='settings')return;if(!moduleEnabled(view)){const next=['dashboard','cases','documents','operations','deliveries','custody','appointments','batches','courier','payments','reports','crm','sales','services'].find(moduleEnabled);setView(next||'no-access')}},[profile,brandSettings,view]);
   const isBranch=isBranchProfile(profile);
   const ownBranch=profile?.branch_id||null;
   const homeCases=useMemo(()=>isBranch&&ownBranch?cases.filter(c=>c.branch_id===ownBranch):cases,[cases,isBranch,ownBranch]);
@@ -774,7 +781,7 @@ ${company}`;
       &&(ddFilter==='All'||(ddFilter==='DD only'?Boolean(c.direct_to_delhi||(c.documents||[]).some(d=>d.direct_to_delhi)):!c.direct_to_delhi&&!(c.documents||[]).some(d=>d.direct_to_delhi)));
   });return rankCaseSearchResults(matched,q,searchBy)},[cases,query,searchBy,statusFilter,branchFilter,documentFilter,quantityFilter,mobileFilter,balanceFilter,accountFilter,intakeFilter,ddFilter]);
   const stats=useMemo(()=>({total:homeCases.length,received:homeCases.filter(c=>c.overall_status==='Received').length,under:homeCases.filter(c=>c.overall_status==='Under Process').length,waiting:homeCases.filter(c=>c.overall_status==='Waiting').length,ready:homeCases.filter(c=>c.overall_status==='Ready for Delivery').length,delivered:homeCases.filter(c=>c.overall_status==='Delivered').length,docs:homeCases.reduce((n,c)=>n+(c.documents?.length||0),0),pendingStages:homeCases.reduce((n,c)=>n+(c.documents||[]).flatMap(d=>d.document_stages||[]).filter(s=>s.status==='Pending'||s.status==='Processing').length,0)}),[homeCases]);
-  const pageTitle={dashboard:'Dashboard',cases:'Cases',documents:'Documents & Stages',import:'Excel Import',appointments:'Appointments',batches:'Batch Reports',operations:'Operations',payments:'Payments',deliveries:'Deliveries',custody:'Custody',reports:'Reports',courier:'Courier Shipments',settings:profile?.is_platform_super_admin?'Platform Management':'Company Management'}[view]||(brandSettings?.product_name||'Document Tracker');
+  const pageTitle={dashboard:'Dashboard',cases:'Cases',documents:'Documents & Stages',import:'Excel Import',appointments:'Appointments',batches:'Batch Reports',operations:'Operations',payments:'Payments',deliveries:'Deliveries',custody:'Custody',reports:'Reports',courier:'Courier Shipments',crm:'CRM',sales:'Sales',services:'Services',settings:profile?.is_platform_super_admin?'Platform Management':'Company Management'}[view]||(brandSettings?.product_name||'Document Tracker');
   const pageSubtitle={
     dashboard:isBranch?`Priority view for ${ownBranchName}. All cases remain searchable.`:'Live overview of attestation cases, workload and receivables.',
     cases:'Search, filter, create and edit every field.',
@@ -788,7 +795,7 @@ ${company}`;
     custody:'Track physical document location, custody movements and handovers.',
     courier:'Create courier batches, manifests, dispatch documents and confirm agent receipts.',
     reports:'Operational, financial and case reporting.',
-    settings:'Manage branding, branches, staff, access and product configuration.'
+    crm:'Customers, leads and follow-ups in one workspace.',sales:'Quotations, invoices and sales collections.',services:'Service jobs, approvals and renewals.',settings:'Manage branding, branches, staff, access and product configuration.'
   }[view]||'Live overview of attestation cases, workload and receivables.';
 
   return <div className={`app-shell ${sidebarCollapsed?'sidebar-collapsed':''}`}>
@@ -810,6 +817,9 @@ ${company}`;
         {moduleEnabled('courier')&&<Nav active={view==='courier'} onClick={()=>setView('courier')} icon="truck">Courier Shipments</Nav>}
       </div>
       <div className="nav-section"><span>FINANCE & INSIGHTS</span>
+        {moduleEnabled('crm')&&<Nav active={view==='crm'} onClick={()=>setView('crm')} icon="user">CRM</Nav>}
+        {moduleEnabled('sales')&&<Nav active={view==='sales'} onClick={()=>setView('sales')} icon="wallet">Sales</Nav>}
+        {moduleEnabled('services')&&<Nav active={view==='services'} onClick={()=>setView('services')} icon="layers">Services</Nav>}
         {moduleEnabled('payments')&&<Nav active={view==='payments'} onClick={()=>setView('payments')} icon="wallet">Payments</Nav>}
         {moduleEnabled('reports')&&<Nav active={view==='reports'} onClick={()=>setView('reports')} icon="chart">Reports</Nav>}
         {isAdmin&&moduleEnabled('import')&&<Nav active={view==='import'} onClick={()=>setView('import')} icon="upload">Import Data</Nav>}
@@ -819,6 +829,7 @@ ${company}`;
     </aside>
 
     <main className="content">
+      <PwaExperience/>
       <header className={`topbar unified-app-topbar ${view==='cases'?'legacy-cases-topbar':''}`}><div><h1>{pageTitle}</h1><p className="muted">{pageSubtitle}</p></div><div className="top-actions"><span className={`access-chip ${role}`}>{role==='admin'?'ADMIN':role==='branch'?ownBranchName.toUpperCase():'STAFF'}</span><button className="notification-trigger" onClick={()=>setNotificationOpen(true)} aria-label={`Notifications${unreadActivity?`, ${unreadActivity} unread`:''}`} title="Notifications and activity"><Icon name="bell" size={17}/>{unreadActivity>0&&<b>{unreadActivity>99?'99+':unreadActivity}</b>}</button><ExportMenu title={moduleExport?.view===view?moduleExport.title:`${pageTitle} Export`} rows={moduleExport?.view===view?moduleExport.rows:caseExportRows(view==='cases'?filtered:homeCases)} notify={setMessage}/>{view!=='cases'&&<button className="secondary" onClick={loadCases}>↻ Refresh</button>}<button className="primary" onClick={openNewCase}>＋ New Case</button></div></header>
       {message&&<AppToast message={message} onClose={()=>setMessage('')}/>}
 
@@ -828,7 +839,8 @@ ${company}`;
       {view==='cases'&&<CasesView preferenceKey={`cases_view_${profile?.organization_id||'platform'}_${profile?.id||'user'}`} cases={filtered} allCases={cases} recentCaseIds={recentCaseIds} favoriteCaseIds={favoriteCaseIds} toggleFavorite={toggleFavoriteCase} clearRecent={clearRecentCases} clearFavorites={clearFavoriteCases} shareDetailed={shareDetailedTracking} loading={loading} query={query} setQuery={setQuery} searchBy={searchBy} setSearchBy={setSearchBy} statusFilter={statusFilter} setStatusFilter={setStatusFilter} branchFilter={branchFilter} setBranchFilter={setBranchFilter} documentFilter={documentFilter} setDocumentFilter={setDocumentFilter} quantityFilter={quantityFilter} setQuantityFilter={setQuantityFilter} mobileFilter={mobileFilter} setMobileFilter={setMobileFilter} balanceFilter={balanceFilter} setBalanceFilter={setBalanceFilter} accountFilter={accountFilter} setAccountFilter={setAccountFilter} intakeFilter={intakeFilter} setIntakeFilter={setIntakeFilter} ddFilter={ddFilter} setDdFilter={setDdFilter} branches={branches} expanded={expanded} toggleExpanded={toggleExpanded} selected={selected} toggleSelected={toggleSelected} updateCaseStatus={updateCaseStatus} updateStage={updateStage} updateStageDate={updateStageDate} reorderStages={reorderStages} quick={openCase} addDoc={setShowDoc} deleteDocument={deleteDocument} addStage={addStageToDocument} renameStage={renameStage} deleteStage={deleteStage} bulkStatus={bulkStatus} appointment={c=>{setAppointmentCase(c);setView('appointments')}} bulkAppointment={()=>{setAppointmentSeedIds([...selected]);setView('appointments')}} batchSelected={()=>{setBatchSeed([...selected]);setView('batches')}}/>}
       {view==='documents'&&<DocumentsView cases={cases} query={query} setQuery={setQuery} updateStage={updateStage} updateStageDate={updateStageDate} quick={setQuickCase} setModuleExport={publishModuleExport}/>}
       {view==='import'&&<SimpleLegacyImport session={session} cases={cases} branches={branches} reload={loadCases} notify={setMessage}/>}
-      {view==='settings'&&isAdmin&&<ProductSettings session={session} profile={profile} currentOrganization={currentOrganization} onBrandChange={setBrandSettings} notify={setMessage}/>}
+      {['crm','sales','services'].includes(view)&&<BusinessWorkspace key={view} view={view} profile={profile} organization={currentOrganization} branches={branches} brand={brandSettings} notify={setMessage} setModuleExport={publishModuleExport}/>}
+      {view==='settings'&&isAdmin&&<ProductSettings session={session} profile={profile} currentOrganization={currentOrganization} onBrandChange={settings=>{setBrandSettings(settings);if(profile?.is_platform_super_admin&&settings?.organization_id)supabase.from('organizations').select('*').eq('id',settings.organization_id).maybeSingle().then(({data})=>{if(data)setCurrentOrganization(data)})}} notify={setMessage}/>}
       {view==='appointments'&&<AppointmentsView session={session} cases={cases} notify={setMessage} seedCase={appointmentCase} seedIds={appointmentSeedIds} clearSeed={()=>{setAppointmentCase(null);setAppointmentSeedIds([])}} setModuleExport={publishModuleExport}/>}
       {view==='batches'&&<BatchReportsView session={session} cases={cases} notify={setMessage} seedIds={batchSeed} clearSeed={()=>setBatchSeed([])} setModuleExport={publishModuleExport}/>}
       {view==='operations'&&<OperationsView companyName={brandSettings?.company_name||currentOrganization?.name||'Your Organization'}
@@ -859,19 +871,24 @@ ${company}`;
       {moduleEnabled('cases')&&<button className={view==='cases'?'active':''} onClick={()=>setView('cases')}><Icon name="file" size={18}/><span>Cases</span></button>}
       <button className="scan-command" onClick={()=>setGlobalScan(true)}><span className="scan-orb"><Icon name="scan" size={24}/></span><b>Scan</b></button>
       {moduleEnabled('operations')&&<button className={view==='operations'?'active':''} onClick={()=>setView('operations')}><Icon name="activity" size={18}/><span>Operations</span></button>}
-      {moduleEnabled('deliveries')&&<button className={view==='deliveries'?'active':''} onClick={()=>setView('deliveries')}><Icon name="package" size={18}/><span>Delivery</span></button>}
+      <button className={mobileMenu?'active':''} onClick={()=>setMobileMenu(true)}><Icon name="filter" size={18}/><span>More</span></button>
     </nav>
 
+    {mobileMenu&&<div className="mobile-menu-sheet" onClick={()=>setMobileMenu(false)}><section role="dialog" aria-modal="true" aria-label="All modules" onClick={e=>e.stopPropagation()}><header><h2>Your workspace</h2><button className="business-close" aria-label="Close menu" onClick={()=>setMobileMenu(false)}><Icon name="close"/></button></header><div className="mobile-menu-grid">{[['dashboard','Home','home'],['cases','Cases','file'],['crm','CRM','user'],['sales','Sales','wallet'],['services','Services','layers'],['documents','Documents','layers'],['operations','Operations','activity'],['deliveries','Deliveries','package'],['custody','Custody','handover'],['appointments','Appointments','calendar'],['batches','Batches','batch'],['courier','Courier','truck'],['payments','Payments','wallet'],['reports','Reports','chart'],...(isAdmin?[['import','Import','upload'],['settings','Settings','settings']]:[])].filter(([key])=>key==='settings'||moduleEnabled(key)).map(([key,label,icon])=><button key={key} onClick={()=>{setView(key);setMobileMenu(false)}}><Icon name={icon} size={24}/><span>{label}</span></button>)}</div></section></div>}
     {loading&&cases.length===0&&<div className="app-loading-stage"><div className="loading-brand"><div>{(brandSettings?.short_name||brandSettings?.company_name||'D').slice(0,1).toUpperCase()}</div><strong>{brandSettings?.product_name||'Document Operations'}</strong><span>Preparing your operations workspace</span><i/></div></div>}
     {globalScan&&<DeliveryQrScanner cases={cases} onClose={()=>setGlobalScan(false)} onAction={openScannedAction} notify={setMessage} title="Scan Case QR"/>}
 
     {showNew&&<Modal className="new-case-modal invoice-case-modal" onClose={()=>!saving&&setShowNew(false)} title="New Attestation Case" subtitle="Create the complete transaction like an invoice — customer, documents, attestation and payment in one workspace."><form onSubmit={createCase} className="invoice-case-workspace">
       <datalist id="document-catalog-list">{documentCatalogNames.map(name=><option key={name} value={name}/>)}</datalist>
 
+      <div className="invoice-customer-link"><Field label="Link an existing customer (optional)"><CustomerPicker organizationId={profile?.organization_id||brandSettings?.organization_id} value={form.customer_id} onSelect={customer=>setForm(f=>({...f,customer_id:customer.id,customer_name:customer.name,mobile:customer.mobile||'',customer_email:customer.email||'',email_updates:customer.email_updates,whatsapp_opt_in:customer.whatsapp_opt_in,...(profile?.role==='branch'?{}:{branch_id:customer.branch_id||f.branch_id})}))}/></Field></div>
       <section className="invoice-customer-bar">
         <Field label="Tracking Reference"><input autoFocus required value={form.tracking_reference} onChange={e=>setForm({...form,tracking_reference:e.target.value})} placeholder="Tracking ID"/></Field>
         <Field label="Customer Name"><input required value={form.customer_name} onChange={e=>setForm({...form,customer_name:e.target.value})} placeholder="Customer / payer name"/></Field>
         <Field label="Mobile"><input value={form.mobile} onChange={e=>setForm({...form,mobile:e.target.value})} placeholder="Mobile number"/></Field>
+        <Field label="Customer Email"><input type="email" value={form.customer_email||''} onChange={e=>setForm({...form,customer_email:e.target.value})} placeholder="Optional email address"/></Field>
+        <label className="business-check"><input type="checkbox" checked={form.email_updates||false} onChange={e=>setForm({...form,email_updates:e.target.checked})}/> Email updates agreed</label>
+        <label className="business-check"><input type="checkbox" checked={form.whatsapp_opt_in||false} onChange={e=>setForm({...form,whatsapp_opt_in:e.target.checked})}/> WhatsApp updates agreed</label>
         <Field label="Bill No."><input value={form.bill_no} onChange={e=>setForm({...form,bill_no:e.target.value})} placeholder="e.g. S/A/5802"/></Field>
         <Field label="Branch"><select value={form.branch_id} onChange={e=>setForm({...form,branch_id:e.target.value})}><option value="">Select branch</option>{branches.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}</select></Field>
         <Field label="Submission Date"><input type="date" value={form.submission_date} onChange={e=>setForm({...form,submission_date:e.target.value})}/></Field>
@@ -903,6 +920,9 @@ ${company}`;
           <Field label="Paid Now"><input type="number" step="0.01" min="0" value={form.advance_paid} onChange={e=>setForm({...form,advance_paid:e.target.value})} placeholder="0.00"/></Field>
           <div className="invoice-balance"><span>Balance</span><strong>{fmtMoney(Math.max(0,Number(form.total_amount||0)-Number(form.advance_paid||0)))}</strong></div>
           <details className="invoice-extra-details"><summary>More case details</summary><div className="invoice-extra-grid">
+            <Field label="Customer email"><input type="email" value={form.customer_email||''} onChange={e=>setForm({...form,customer_email:e.target.value})}/></Field>
+            <label className="wide check-line"><input type="checkbox" checked={Boolean(form.email_updates)} onChange={e=>setForm({...form,email_updates:e.target.checked})}/><span>Customer agrees to email updates</span></label>
+            <label className="wide check-line"><input type="checkbox" checked={Boolean(form.whatsapp_opt_in)} onChange={e=>setForm({...form,whatsapp_opt_in:e.target.checked})}/><span>Customer opted in to WhatsApp updates</span></label>
             <Field label="Organization / B2B"><input value={form.account_name} onChange={e=>setForm({...form,account_name:e.target.value})} placeholder="Optional"/></Field>
             <Field label="Promise Date"><input type="date" value={form.promise_date} onChange={e=>setForm({...form,promise_date:e.target.value})}/></Field>
             <Field label="Intake Source"><select value={form.intake_source} onChange={e=>setForm({...form,intake_source:e.target.value})}><option>Branch</option><option>Collection</option><option>External Office</option></select></Field>
@@ -3988,6 +4008,9 @@ function QuickView({c,branches=[],session,favorite=false,onToggleFavorite,onDeta
         internal_invoice_no:String(form.internal_invoice_no||'').trim()||null,
         customer_name:customer,
         mobile:String(form.mobile||'').trim()||null,
+        customer_email:String(form.customer_email||'').trim()||null,
+        email_updates:Boolean(form.email_updates),
+        whatsapp_opt_in:Boolean(form.whatsapp_opt_in),
         tracking_family:trackingFamily(tracking),
         account_name:String(form.account_name||'').trim()||null,
         account_contact:String(form.account_contact||'').trim()||null,
@@ -4281,6 +4304,9 @@ function QuickView({c,branches=[],session,favorite=false,onToggleFavorite,onDeta
             <Field label="Software Bill"><input value={form.bill_no||''} onChange={e=>setForm({...form,bill_no:e.target.value})}/></Field>
             <Field label="Customer"><input required value={form.customer_name||''} onChange={e=>setForm({...form,customer_name:e.target.value})}/></Field>
             <Field label="Mobile"><input value={form.mobile||''} onChange={e=>setForm({...form,mobile:e.target.value})}/></Field>
+            <Field label="Customer email"><input type="email" value={form.customer_email||''} onChange={e=>setForm({...form,customer_email:e.target.value})}/></Field>
+            <label className="wide check-line"><input type="checkbox" checked={Boolean(form.email_updates)} onChange={e=>setForm({...form,email_updates:e.target.checked})}/><span>Customer agrees to email updates</span></label>
+            <label className="wide check-line"><input type="checkbox" checked={Boolean(form.whatsapp_opt_in)} onChange={e=>setForm({...form,whatsapp_opt_in:e.target.checked})}/><span>Customer opted in to WhatsApp updates</span></label>
             <Field label="Organization / B2B"><input value={form.account_name||''} onChange={e=>setForm({...form,account_name:e.target.value})}/></Field>
             <Field label="Account Contact"><input value={form.account_contact||''} onChange={e=>setForm({...form,account_contact:e.target.value})}/></Field>
             <Field label="Intake Source"><select value={form.intake_source||'Branch'} onChange={e=>setForm({...form,intake_source:e.target.value})}><option>Branch</option><option>Collection</option><option>External Office</option></select></Field>

@@ -12,3 +12,5 @@ coverage/
 .DS_Store
 
 /public/pdf.worker.min.mjs
+
+/supabase/.temp/

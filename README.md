@@ -1,3 +1,9 @@
+# Business Operations Platform V5.0
+
+See [V5_RELEASE.md](V5_RELEASE.md) for the current upgrade, modules, mobile installation and communications setup.
+
+The notes below describe historical releases; use the V5 guide for current behaviour.
+
 # Document Operations Platform V4.0.20
 
 ## Required security deployment steps
