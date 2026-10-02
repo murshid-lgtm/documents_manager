@@ -1,6 +1,7 @@
 import './globals.css';
 import './checkout.css';
 import './business.css';
+import './finance.css';
 
 export const metadata = {
   title: 'Document Tracker',
