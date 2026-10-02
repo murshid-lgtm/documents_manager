@@ -755,7 +755,7 @@ ${company}`;
   function openNewCase(){caseCheckoutKey.current=null;
     if(!moduleEnabled('cases')&&!moduleEnabled('operations'))return setMessage('Your account cannot create cases. Ask your administrator for access.');
     const today=new Date().toISOString().slice(0,10);
-    setForm({...emptyCase,submission_date:today,branch_id:isBranch&&ownBranch?ownBranch:'',intake_source:'Branch',overall_status:'Received',current_milestone:'Submitted'});
+    setForm({...emptyCase,submission_date:today,branch_id:!isAdmin&&!profile?.is_platform_super_admin?(profile?.branch_id||''):'',intake_source:'Branch',overall_status:'Received',current_milestone:'Submitted'});
     setNewCaseDocs([freshNewCaseDoc()]);
     setShowNew(true);
   }
@@ -886,7 +886,7 @@ ${company}`;
         <label className="business-check"><input type="checkbox" checked={form.email_updates||false} onChange={e=>setForm({...form,email_updates:e.target.checked})}/> Email updates agreed</label>
         <label className="business-check"><input type="checkbox" checked={form.whatsapp_opt_in||false} onChange={e=>setForm({...form,whatsapp_opt_in:e.target.checked})}/> WhatsApp updates agreed</label>
         <Field label="Bill No."><input value={form.bill_no} onChange={e=>setForm({...form,bill_no:e.target.value})} placeholder="e.g. S/A/5802"/></Field>
-        <Field label="Branch"><select value={form.branch_id} onChange={e=>setForm({...form,branch_id:e.target.value})}><option value="">Select branch</option>{branches.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}</select></Field>
+        <Field label="Branch"><select required disabled={!isAdmin&&!profile?.is_platform_super_admin} value={form.branch_id} onChange={e=>setForm({...form,branch_id:e.target.value})}><option value="">Select branch</option>{branches.filter(b=>isAdmin||profile?.is_platform_super_admin||b.id===profile?.branch_id).map(b=><option key={b.id} value={b.id}>{b.name}</option>)}</select></Field>
         <Field label="Submission Date"><input type="date" value={form.submission_date} onChange={e=>setForm({...form,submission_date:e.target.value})}/></Field>
       </section>
 

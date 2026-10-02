@@ -13,7 +13,7 @@ try{
  await db.query("insert into organization_settings(organization_id,company_name) values($1,'A'),($2,'B')",[id(1),id(2)]);
  await db.query("insert into branches(id,organization_id,name) values($1,$4,'Al Khor'),($2,$4,'Safari'),($3,$5,'Other')",[id(11),id(12),id(13),id(1),id(2)]);
  for(const n of [21,22,23,24,25]){await db.query('insert into auth.users(id,email) values($1,$2)',[id(n),`u${n}@example.test`]);await db.query('insert into auth.sessions(id,user_id) values($1,$2)',[id(n+100),id(n)])}
- for(const [n,org,role,branch,modules,platform] of [[21,1,'admin',null,null,false],[22,1,'branch',11,null,false],[23,1,'branch',12,null,false],[24,2,'staff',null,null,false],[25,1,'staff',null,['crm'],false]])await db.query('update profiles set organization_id=$2,role=$3,branch_id=$4,staff_modules=$5,is_platform_super_admin=$6 where id=$1',[id(n),id(org),role,branch?id(branch):null,modules,platform]);
+ for(const [n,org,role,branch,modules,platform] of [[21,1,'admin',null,null,false],[22,1,'branch',11,null,false],[23,1,'branch',12,null,false],[24,2,'staff',null,null,false],[25,1,'staff',11,['crm'],false]])await db.query('update profiles set organization_id=$2,role=$3,branch_id=$4,staff_modules=$5,is_platform_super_admin=$6 where id=$1',[id(n),id(org),role,branch?id(branch):null,modules,platform]);
  await login(21);
  const service=(await db.query("insert into service_catalog(organization_id,name,service_type,base_price,workflow) values($1,'Business setup','Staged service',100,$2) returning id",[id(1),JSON.stringify(['Approval','Registration'])])).rows[0].id;
  const sale=(await db.query("insert into service_catalog(organization_id,name,service_type,base_price) values($1,'Printing','Sale',5) returning id",[id(1)])).rows[0].id;
@@ -52,6 +52,22 @@ try{
  await system();await db.query('update profiles set staff_modules=$1 where id=$2',[['sales'],id(25)]);await login(25);
  const simple={...request,customer_name:'Sales only client',paid:5,items:[{service_id:sale,quantity:1,government_fee:0,service_fee:5}]};
  assert.ok((await db.query('select checkout_sale($1,$2) id',[JSON.stringify(simple),id(312)])).rows[0].id);checks++;
+ await system();await db.query('update profiles set staff_modules=null where id=$1',[id(25)]);await login(25);
+ await denied('select checkout_sale($1,$2)',[JSON.stringify({...simple,branch_id:id(12)}),id(313)]);
+ const qc={organization_id:id(1),branch_id:id(11),name:'Quick customer',mobile:'50001234'};
+ assert.equal((await db.query('select quick_add_customer($1,$2) id',[JSON.stringify(qc),id(318)])).rows[0].id,id(318));checks++;
+ assert.equal((await db.query('select quick_add_customer($1,$2) id',[JSON.stringify(qc),id(318)])).rows[0].id,id(318));checks++;
+ await denied('select quick_add_customer($1,$2)',[JSON.stringify({...qc,branch_id:id(12)}),id(319)]);
+ await denied('select quick_add_service($1,$2)',[JSON.stringify({organization_id:id(1),name:'Invalid',government_fee:'NaN',service_charge:5}),id(320)]);
+
+ const newService={organization_id:id(1),name:'Quick typed work',government_fee:20,service_charge:30,service_type:'Sale',workflow:[]};
+ const sid=(await db.query('select quick_add_service($1,$2) id',[JSON.stringify(newService),id(314)])).rows[0].id;assert.equal(sid,id(314));checks++;
+ assert.equal((await db.query('select quick_add_service($1,$2) id',[JSON.stringify(newService),id(314)])).rows[0].id,sid);checks++;
+ const numbered={...simple,document_no:'MANUAL-2026-001',items:[{service_id:sid,quantity:2,government_fee:20,service_fee:30}],paid:100};
+ const inv=(await db.query('select checkout_sale($1,$2) id',[JSON.stringify(numbered),id(315)])).rows[0].id;assert.equal((await db.query('select document_no from sales_documents where id=$1',[inv])).rows[0].document_no,'MANUAL-2026-001');checks++;
+ await denied('select checkout_sale($1,$2)',[JSON.stringify(numbered),id(316)]);
+ await denied("update sales_documents set document_no='changed' where id=$1",[inv]);
+ await system();await db.query('update profiles set branch_id=null where id=$1',[id(25)]);await login(25);await denied('select checkout_sale($1,$2)',[JSON.stringify(simple),id(317)]);
  await db.exec('reset role;set role anon');await denied('select checkout_sale($1,$2)',[JSON.stringify(request),id(307)]);
  console.log(`PASS: ${checks} connected checkout assertions.`);
 }finally{await db.close()}
