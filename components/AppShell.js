@@ -8,6 +8,7 @@ import ProductSettings from './ProductSettings';
 import dynamic from 'next/dynamic';
 import PwaExperience from './PwaExperience';
 import CustomerPicker from './CustomerPicker';
+import DocumentFees from './DocumentFees';
 const BusinessWorkspace=dynamic(()=>import('./BusinessWorkspace'),{loading:()=> <div className="business-empty">Loading workspace…</div>});
 import SimpleLegacyImport from './SimpleLegacyImport';
 import {userError} from '../lib/userError';
@@ -521,6 +522,11 @@ ${company}`;
     setCases(prev=>prev.some(x=>x.id===c.id)?prev:[c,...prev]);
     setQuickCase(c);
   }
+
+  const [documentPrices,setDocumentPrices]=useState([]);
+  const caseCheckoutKey=useRef(null);
+  useEffect(()=>{let live=true;setDocumentPrices([]);const org=profile?.is_platform_super_admin?brandSettings?.organization_id:profile?.organization_id;if(showNew&&org&&form.branch_id)supabase.from('document_prices').select('*').eq('organization_id',org).eq('branch_id',form.branch_id).then(({data})=>{if(live)setDocumentPrices(data||[])});return()=>{live=false}},[showNew,form.branch_id,profile?.organization_id,brandSettings?.organization_id]);
+  useEffect(()=>{if(showNew)setForm(f=>({...f,total_amount:newCaseDocs.filter(d=>String(d.document_name||'').trim()).reduce((n,d)=>n+Number(d.quantity||1)*(Number(d.government_fee||0)+Number(d.service_fee||0)),0)}))},[newCaseDocs,showNew]);
   async function createCase(e){
     e.preventDefault(); setSaving(true); setMessage('');
     const docsToCreate=newCaseDocs.filter(d=>String(d.document_name||'').trim());
@@ -537,7 +543,9 @@ ${company}`;
     }
     // DD belongs to individual documents. The legacy case-level DD columns remain false/null.
     const payload={...form,tracking_reference:form.tracking_reference.trim(),tracking_family:trackingFamily(form.tracking_reference),account_name:form.account_name?.trim()||null,account_contact:form.account_contact?.trim()||null,account_mobile:form.account_mobile?.trim()||null,intake_source:form.intake_source||'Branch',direct_to_delhi:false,direct_destination:null,current_milestone:form.current_milestone?.trim()||'Submitted',current_milestone_date:form.current_milestone_date||null,bill_no:form.bill_no.trim()||null,internal_invoice_no:form.internal_invoice_no.trim()||null,customer_name:form.customer_name.trim(),mobile:form.mobile.trim()||null,submission_date:form.submission_date||null,promise_date:form.promise_date||null,branch_id:form.branch_id||null,total_amount:total,advance_paid:advance,balance_payment:Math.max(0,total-advance),notes:form.notes.trim()||null,created_by:session.user.id,updated_by:session.user.id};
-    const {data,error}=await supabase.from('cases').insert(payload).select('id').single();
+    caseCheckoutKey.current ||= crypto.randomUUID();
+    const {data:createdId,error}=await supabase.rpc('create_attestation_checkout',{request_key:caseCheckoutKey.current,input:{case:{...payload,organization_id:profile?.is_platform_super_admin?brandSettings.organization_id:profile.organization_id},documents:docsToCreate.map(d=>({...d,government_fee:Number(d.government_fee||0),service_fee:Number(d.service_fee||0),holder_name:d.holder_custom?d.holder_name:form.customer_name}))}});
+    const data={id:createdId};
     if(error){
       const isDuplicate=error.code==='23505' || /duplicate key|tracking_reference_key/i.test(String(error.message||''));
       if(isDuplicate){
@@ -547,18 +555,6 @@ ${company}`;
       setMessage(userError(error));setSaving(false);return
     }
     try{
-      const nameCounts={};
-      for(const item of docsToCreate){
-        const name=String(item.document_name||'').trim();
-        const key=name.toLowerCase(); nameCounts[key]=(nameCounts[key]||0)+1;
-        const occurrence=nameCounts[key];
-        const {data:doc,error:de}=await supabase.from('documents').insert({case_id:data.id,document_name:name,holder_name:(item.holder_custom?String(item.holder_name||'').trim():String(form.customer_name||'').trim())||null,source_tracking_reference:payload.tracking_reference,direct_to_delhi:Boolean(item.direct_to_delhi),direct_destination:item.direct_to_delhi?(String(item.direct_destination||'').trim()||'Delhi'):null,occurrence_no:occurrence,quantity:Number(item.quantity||1),document_status:'Pending'}).select('id').single();
-        if(de)throw de;
-        const stages=(item.stages||[]).filter(Boolean).map((stage_name,i)=>({document_id:doc.id,stage_name,stage_order:i+1,status:'Pending'}));
-        const {error:se}=await supabase.from('document_stages').insert(stages); if(se)throw se;
-        await history(data.id,'Document added during case creation','document',null,name,{occurrence_no:occurrence,direct_to_delhi:Boolean(item.direct_to_delhi),stages:item.stages});
-      }
-      await history(data.id,'Case created',null,null,form.overall_status,{tracking_reference:payload.tracking_reference,documents:docsToCreate.length,total_amount:total,advance_paid:advance});
       await rememberDocumentNames(docsToCreate.map(d=>d.document_name));
       // Fetch the complete newly-created case and place it into the current list immediately.
       // This avoids a successful transaction appearing to be missing while the paged background reload runs.
@@ -584,10 +580,10 @@ ${company}`;
       setBranchFilter(isBranch&&ownBranch?ownBranch:'All');
       const shareCase=(!createdCaseError&&createdCase)?normalizeCaseRow(createdCase):{...payload,id:data.id,mobile:payload.mobile,customer_name:payload.customer_name};
       setCreatedShare(shareCase);
-      setShowNew(false);setForm(emptyCase);setNewCaseDocs([freshNewCaseDoc()]);setMessage(`Case ${payload.tracking_reference} created successfully.`);void loadCases();
+      caseCheckoutKey.current=null;setShowNew(false);setForm(emptyCase);setNewCaseDocs([freshNewCaseDoc()]);setMessage(`Case ${payload.tracking_reference} created successfully.`);void loadCases();
     }catch(err){
       // Best-effort rollback so a failed document/stage insert does not leave a half-created manual transaction.
-      await supabase.from('cases').delete().eq('id',data.id);
+      // The RPC saves all records in one database transaction; no client rollback is needed.
       setMessage(userError(err,{fallback:'Case creation failed and was safely rolled back. Please try again.'}));
     }
     setSaving(false);
@@ -756,7 +752,7 @@ ${company}`;
   const ownBranch=profile?.branch_id||null;
   const homeCases=useMemo(()=>isBranch&&ownBranch?cases.filter(c=>c.branch_id===ownBranch):cases,[cases,isBranch,ownBranch]);
   const ownBranchName=branches.find(b=>b.id===ownBranch)?.name||'Your branch';
-  function openNewCase(){
+  function openNewCase(){caseCheckoutKey.current=null;
     if(!moduleEnabled('cases')&&!moduleEnabled('operations'))return setMessage('Your account cannot create cases. Ask your administrator for access.');
     const today=new Date().toISOString().slice(0,10);
     setForm({...emptyCase,submission_date:today,branch_id:isBranch&&ownBranch?ownBranch:'',intake_source:'Branch',overall_status:'Received',current_milestone:'Submitted'});
@@ -837,12 +833,12 @@ ${company}`;
       {casesLoadError&&<section className="settings-card" role="alert"><h2>Unable to load cases</h2><p>{casesLoadError}</p><button className="primary" onClick={loadCases}>Retry</button></section>}
       {view==='dashboard'&&!casesLoadError&&<Dashboard companyName={brandSettings?.company_name||currentOrganization?.name||'Your Organization'} stats={stats} cases={homeCases} onOpen={openCase} onCases={()=>setView('cases')} onScan={()=>setGlobalScan(true)} onDeliveries={()=>setView('deliveries')} onPayments={()=>setView('payments')} onCustody={()=>setView('custody')} branchName={isBranch?ownBranchName:null}/>}
       {view==='cases'&&<CasesView preferenceKey={`cases_view_${profile?.organization_id||'platform'}_${profile?.id||'user'}`} cases={filtered} allCases={cases} recentCaseIds={recentCaseIds} favoriteCaseIds={favoriteCaseIds} toggleFavorite={toggleFavoriteCase} clearRecent={clearRecentCases} clearFavorites={clearFavoriteCases} shareDetailed={shareDetailedTracking} loading={loading} query={query} setQuery={setQuery} searchBy={searchBy} setSearchBy={setSearchBy} statusFilter={statusFilter} setStatusFilter={setStatusFilter} branchFilter={branchFilter} setBranchFilter={setBranchFilter} documentFilter={documentFilter} setDocumentFilter={setDocumentFilter} quantityFilter={quantityFilter} setQuantityFilter={setQuantityFilter} mobileFilter={mobileFilter} setMobileFilter={setMobileFilter} balanceFilter={balanceFilter} setBalanceFilter={setBalanceFilter} accountFilter={accountFilter} setAccountFilter={setAccountFilter} intakeFilter={intakeFilter} setIntakeFilter={setIntakeFilter} ddFilter={ddFilter} setDdFilter={setDdFilter} branches={branches} expanded={expanded} toggleExpanded={toggleExpanded} selected={selected} toggleSelected={toggleSelected} updateCaseStatus={updateCaseStatus} updateStage={updateStage} updateStageDate={updateStageDate} reorderStages={reorderStages} quick={openCase} addDoc={setShowDoc} deleteDocument={deleteDocument} addStage={addStageToDocument} renameStage={renameStage} deleteStage={deleteStage} bulkStatus={bulkStatus} appointment={c=>{setAppointmentCase(c);setView('appointments')}} bulkAppointment={()=>{setAppointmentSeedIds([...selected]);setView('appointments')}} batchSelected={()=>{setBatchSeed([...selected]);setView('batches')}}/>}
-      {view==='documents'&&<DocumentsView cases={cases} query={query} setQuery={setQuery} updateStage={updateStage} updateStageDate={updateStageDate} quick={setQuickCase} setModuleExport={publishModuleExport}/>}
+      {view==='documents'&&<DocumentsView cases={cases} query={query} setQuery={setQuery} updateStage={updateStage} updateStageDate={updateStageDate} quick={setQuickCase} setModuleExport={publishModuleExport} onOpenCase={async c=>{const row=await fetchCaseByTracking(c.tracking_reference);if(row)setQuickCase(row)}}/>}
       {view==='import'&&<SimpleLegacyImport session={session} cases={cases} branches={branches} reload={loadCases} notify={setMessage}/>}
-      {['crm','sales','services'].includes(view)&&<BusinessWorkspace key={view} view={view} profile={profile} organization={currentOrganization} branches={branches} brand={brandSettings} notify={setMessage} setModuleExport={publishModuleExport}/>}
+      {['crm','sales','services'].includes(view)&&<BusinessWorkspace key={view} view={view} profile={profile} organization={currentOrganization} branches={branches} brand={brandSettings} notify={setMessage} setModuleExport={publishModuleExport} onOpenCase={async c=>{const row=await fetchCaseByTracking(c.tracking_reference);if(row)setQuickCase(row)}}/>}
       {view==='settings'&&isAdmin&&<ProductSettings session={session} profile={profile} currentOrganization={currentOrganization} onBrandChange={settings=>{setBrandSettings(settings);if(profile?.is_platform_super_admin&&settings?.organization_id)supabase.from('organizations').select('*').eq('id',settings.organization_id).maybeSingle().then(({data})=>{if(data)setCurrentOrganization(data)})}} notify={setMessage}/>}
-      {view==='appointments'&&<AppointmentsView session={session} cases={cases} notify={setMessage} seedCase={appointmentCase} seedIds={appointmentSeedIds} clearSeed={()=>{setAppointmentCase(null);setAppointmentSeedIds([])}} setModuleExport={publishModuleExport}/>}
-      {view==='batches'&&<BatchReportsView session={session} cases={cases} notify={setMessage} seedIds={batchSeed} clearSeed={()=>setBatchSeed([])} setModuleExport={publishModuleExport}/>}
+      {view==='appointments'&&<AppointmentsView session={session} cases={cases} notify={setMessage} seedCase={appointmentCase} seedIds={appointmentSeedIds} clearSeed={()=>{setAppointmentCase(null);setAppointmentSeedIds([])}} setModuleExport={publishModuleExport} onOpenCase={async c=>{const row=await fetchCaseByTracking(c.tracking_reference);if(row)setQuickCase(row)}}/>}
+      {view==='batches'&&<BatchReportsView session={session} cases={cases} notify={setMessage} seedIds={batchSeed} clearSeed={()=>setBatchSeed([])} setModuleExport={publishModuleExport} onOpenCase={async c=>{const row=await fetchCaseByTracking(c.tracking_reference);if(row)setQuickCase(row)}}/>}
       {view==='operations'&&<OperationsView companyName={brandSettings?.company_name||currentOrganization?.name||'Your Organization'}
         session={session}
         profile={profile}
@@ -857,11 +853,11 @@ ${company}`;
         onRefresh={loadCases}
         setModuleExport={publishModuleExport}
       />}
-      {view==='courier'&&<CourierShipmentsView session={session} cases={cases} notify={setMessage} reload={loadCases} setModuleExport={publishModuleExport}/>}
-      {view==='payments'&&<PaymentsView companyName={brandSettings?.company_name||currentOrganization?.name||'Your Organization'} session={session} cases={cases} notify={setMessage} seedCase={paymentSeedCase} clearSeed={()=>setPaymentSeedCase(null)} setModuleExport={publishModuleExport}/>}
-      {view==='custody'&&<CustodyView session={session} profile={profile} branches={branches} cases={cases} notify={setMessage} seedCase={custodySeedCase} clearSeed={()=>setCustodySeedCase(null)} onOpen={openCase} onRefresh={loadCases} setModuleExport={publishModuleExport}/>}
-      {view==='deliveries'&&<DeliveriesView session={session} cases={cases} notify={setMessage} reload={loadCases} seedCase={deliverySeedCase} clearSeed={()=>setDeliverySeedCase(null)} onQrAction={openScannedAction} setModuleExport={publishModuleExport}/>}
-      {view==='reports'&&<ReportsView cases={cases} notify={setMessage} setModuleExport={publishModuleExport}/>}
+      {view==='courier'&&<CourierShipmentsView session={session} cases={cases} notify={setMessage} reload={loadCases} setModuleExport={publishModuleExport} onOpenCase={async c=>{const row=await fetchCaseByTracking(c.tracking_reference);if(row)setQuickCase(row)}}/>}
+      {view==='payments'&&<PaymentsView companyName={brandSettings?.company_name||currentOrganization?.name||'Your Organization'} session={session} cases={cases} notify={setMessage} seedCase={paymentSeedCase} clearSeed={()=>setPaymentSeedCase(null)} setModuleExport={publishModuleExport} onOpenCase={async c=>{const row=await fetchCaseByTracking(c.tracking_reference);if(row)setQuickCase(row)}}/>}
+      {view==='custody'&&<CustodyView session={session} profile={profile} branches={branches} cases={cases} notify={setMessage} seedCase={custodySeedCase} clearSeed={()=>setCustodySeedCase(null)} onOpen={openCase} onRefresh={loadCases} setModuleExport={publishModuleExport} onOpenCase={async c=>{const row=await fetchCaseByTracking(c.tracking_reference);if(row)setQuickCase(row)}}/>}
+      {view==='deliveries'&&<DeliveriesView session={session} cases={cases} notify={setMessage} reload={loadCases} seedCase={deliverySeedCase} clearSeed={()=>setDeliverySeedCase(null)} onQrAction={openScannedAction} setModuleExport={publishModuleExport} onOpenCase={async c=>{const row=await fetchCaseByTracking(c.tracking_reference);if(row)setQuickCase(row)}}/>}
+      {view==='reports'&&<ReportsView cases={cases} notify={setMessage} setModuleExport={publishModuleExport} onOpenCase={async c=>{const row=await fetchCaseByTracking(c.tracking_reference);if(row)setQuickCase(row)}}/>}
     </main>
 
     {notificationOpen&&<NotificationCenter userId={session.user.id} rows={auditRows} cases={cases} loading={auditLoading} lastRead={auditLastRead} isAdmin={isAdmin} onClose={()=>setNotificationOpen(false)} onRefresh={loadAudit} onMarkAllRead={markActivityRead} onOpenCase={c=>{setNotificationOpen(false);openCase(c)}}/>}
@@ -909,14 +905,14 @@ ${company}`;
               <div className="invoice-workflow-cell"><div className="workflow-presets invoice-presets">{NEW_CASE_WORKFLOWS.filter(p=>p.label!=='Clear').map(p=><button type="button" key={p.label} className={(d.stages||[]).join('|')===p.stages.join('|')?'active':''} onClick={()=>patchNewDoc(idx,{stages:[...p.stages]})}>{p.label}</button>)}</div><details className="invoice-stage-more"><summary>{(d.stages||[]).length} stage{(d.stages||[]).length===1?'':'s'} selected</summary><div className="invoice-stage-pop"><div className="stage-checks stage-library compact-stage-library">{STAGE_LIBRARY.map(stage=><label key={stage} className="check"><input type="checkbox" checked={(d.stages||[]).includes(stage)} onChange={e=>patchNewDoc(idx,{stages:e.target.checked?[...(d.stages||[]),stage]:(d.stages||[]).filter(s=>s!==stage)})}/><span>{stage}</span></label>)}</div><div className="custom-stage-row"><input value={d.custom_stage||''} onChange={e=>patchNewDoc(idx,{custom_stage:e.target.value})} placeholder="Custom stage…"/><button type="button" className="secondary" onClick={()=>{const val=String(d.custom_stage||'').trim();if(!val)return;patchNewDoc(idx,{custom_stage:'',stages:(d.stages||[]).some(s=>s.toLowerCase()===val.toLowerCase())?d.stages:[...(d.stages||[]),val]})}}>＋ Add</button></div></div></details></div>
               <button type="button" className="icon-btn danger-soft" disabled={newCaseDocs.length===1} onClick={()=>setNewCaseDocs(v=>v.filter((_,i)=>i!==idx))} title="Remove document"><Icon name="trash" size={15}/></button>
             </div>
-            <div className="invoice-doc-subline"><span>{d.holder_custom?(d.holder_name||'Additional holder name required'):`Holder: ${form.customer_name||'Customer name'}`}</span><span>{(d.stages||[]).join(' → ')||'No attestation stages selected'}</span>{d.direct_to_delhi&&<span className="dd-note">DD · Direct to Delhi</span>}<button type="button" className="text-action" onClick={()=>addNewDoc(d)}>Duplicate workflow</button></div>
+            <DocumentFees document={d} prices={documentPrices} onChange={patch=>patchNewDoc(idx,patch)}/><div className="invoice-doc-subline"><span>{d.holder_custom?(d.holder_name||'Additional holder name required'):`Holder: ${form.customer_name||'Customer name'}`}</span><span>{(d.stages||[]).join(' → ')||'No attestation stages selected'}</span>{d.direct_to_delhi&&<span className="dd-note">DD · Direct to Delhi</span>}<button type="button" className="text-action" onClick={()=>addNewDoc(d)}>Duplicate workflow</button></div>
           </div>)}</div>
         </section>
 
         <aside className="invoice-summary-panel">
           <div className="invoice-summary-title"><strong>Transaction Summary</strong><span>Complete payment before creating the case.</span></div>
           <div className="invoice-summary-stats"><div><span>Documents</span><strong>{newCaseDocs.filter(d=>String(d.document_name||'').trim()).length}</strong></div><div><span>Total Qty</span><strong>{newCaseDocs.reduce((n,d)=>n+Number(d.quantity||0),0)}</strong></div></div>
-          <Field label="Total Amount"><input type="number" step="0.01" min="0" value={form.total_amount} onChange={e=>setForm({...form,total_amount:e.target.value})} placeholder="0.00"/></Field>
+          <Field label="Total Amount"><input type="number" step="0.01" min="0" value={form.total_amount} readOnly placeholder="0.00"/></Field>
           <Field label="Paid Now"><input type="number" step="0.01" min="0" value={form.advance_paid} onChange={e=>setForm({...form,advance_paid:e.target.value})} placeholder="0.00"/></Field>
           <div className="invoice-balance"><span>Balance</span><strong>{fmtMoney(Math.max(0,Number(form.total_amount||0)-Number(form.advance_paid||0)))}</strong></div>
           <details className="invoice-extra-details"><summary>More case details</summary><div className="invoice-extra-grid">

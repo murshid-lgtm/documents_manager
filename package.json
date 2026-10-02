@@ -8,8 +8,9 @@
     "start": "next start",
     "audit:production": "npm audit --omit=dev --audit-level=high",
     "test:security": "node scripts/sync-clean-install-security.mjs --check && node scripts/security-tests.mjs && node scripts/tracking-tests.mjs",
-    "security:check": "npm run test:security && npm run test:business && npm run build && npm run audit:production",
-    "test:business": "node scripts/business-tests.mjs && node scripts/communications-tests.mjs"
+    "security:check": "npm run test:security && npm run test:business && npm run test:checkout && npm run build && npm run audit:production",
+    "test:business": "node scripts/business-tests.mjs && node scripts/communications-tests.mjs",
+    "test:checkout": "node scripts/checkout-tests.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.117.2",

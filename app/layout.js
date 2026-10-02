@@ -1,4 +1,5 @@
 import './globals.css';
+import './checkout.css';
 import './business.css';
 
 export const metadata = {
