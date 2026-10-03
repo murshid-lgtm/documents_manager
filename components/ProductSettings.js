@@ -1,5 +1,6 @@
 'use client';
 import dynamic from 'next/dynamic';
+const BillingSettings=dynamic(()=>import('./BillingSettings'),{loading:()=> <div className="business-empty">Loading billing preferences…</div>});
 const PrintSettings=dynamic(()=>import('./PrintSettings'),{loading:()=> <div className="business-empty">Loading print settings…</div>});
 import AccessManagement from './AccessManagement';
 import CommunicationsSettings from './CommunicationsSettings';
@@ -56,6 +57,8 @@ function LoginPreview({settings,organization,mobile}){
 
 export default function ProductSettings({session,profile,currentOrganization,onBrandChange,notify}){
   const platform=Boolean(profile?.is_platform_super_admin);
+  const [settingsSearch,setSettingsSearch]=useState('');
+  const settingsNames={branding:'Company & branding',billing:'Numbering & billing',print:'Print templates',branches:'Branches',staff:'Users & roles',modules:'Module access',communications:'Communications',plan:'Subscription',companies:'Companies'};
   const [tab,setTab]=useState('branding'),[organizations,setOrganizations]=useState([]),[organizationId,setOrganizationId]=useState(profile?.organization_id||''),[settings,setSettings]=useState(emptySettings),[branches,setBranches]=useState([]),[staff,setStaff]=useState([]),[busy,setBusy]=useState(false),[uploading,setUploading]=useState(''),[previewMobile,setPreviewMobile]=useState(false),[newOrg,setNewOrg]=useState(emptyOrganization),[newBranch,setNewBranch]=useState(''),[invite,setInvite]=useState({email:'',full_name:'',role:'staff',branch_id:'',password:'',staff_modules:null});
   const selectedOrganization=useMemo(()=>organizations.find(x=>x.id===organizationId)||currentOrganization,[organizations,organizationId,currentOrganization]);
   const setField=(field,value)=>setSettings(s=>({...s,[field]:value}));
@@ -101,8 +104,9 @@ export default function ProductSettings({session,profile,currentOrganization,onB
 
   return <section className="product-settings">
     <div className="product-settings-hero"><div><span>WHITE-LABEL CONTROL CENTER</span><h2>{platform?'Platform administration':'Company administration'}</h2><p>Manage company identity, login experience, branches, staff and the features available across web and mobile.</p></div>{platform&&<select value={organizationId} onChange={e=>setOrganizationId(e.target.value)}>{organizations.map(o=><option key={o.id} value={o.id}>{o.name} · {o.status}</option>)}</select>}</div>
-    <div className="product-settings-tabs">{['branding','print','branches','staff','modules','communications','plan',...(platform?['companies']:[])].map(x=><button key={x} className={tab===x?'active':''} onClick={()=>setTab(x)}>{x[0].toUpperCase()+x.slice(1)}</button>)}</div>
+    <input aria-label="Search settings groups" placeholder="Search settings…" value={settingsSearch} onChange={e=>setSettingsSearch(e.target.value)}/><div className="product-settings-tabs">{['branding','billing','print','branches','staff','modules','communications','plan',...(platform?['companies']:[])].filter(x=>settingsNames[x].toLowerCase().includes(settingsSearch.toLowerCase())).map(x=><button key={x} className={tab===x?'active':''} onClick={()=>setTab(x)}>{settingsNames[x]}</button>)}</div>
     {busy&&<div className="settings-loading">Saving or loading company settings…</div>}
+    {tab==='billing'&&organizationId&&<BillingSettings key={organizationId} orgId={organizationId} notify={notify}/>}
     {tab==='print'&&organizationId&&<PrintSettings key={organizationId} orgId={organizationId} brand={settings} organization={selectedOrganization} notify={notify}/>}
     {tab==='branding'&&!organizationId&&<div className="settings-card settings-empty-state"><span>NO COMPANY SELECTED</span><h3>Create a client company first</h3><p>The platform owner remains global. Branding, branches and client access are configured separately inside each company.</p>{platform&&<button type="button" className="primary" onClick={()=>setTab('companies')}>Create Company</button>}</div>}
     {tab==='branding'&&organizationId&&<form className="settings-card branding-studio" onSubmit={saveBrand}>
