@@ -59,7 +59,7 @@ export default function Home() {
   if(!isSupabaseConfigured)return <main className="auth-shell"><div className="auth-card"><div className="auth-copy"><h2>Connect your database</h2><p className="muted">This deployment is ready, but its Supabase environment variables have not been added.</p></div><div className="error-box"><b>Required in Vercel</b><br/>NEXT_PUBLIC_SUPABASE_URL<br/>NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY</div><p className="muted">Add them in Project Settings → Environment Variables, then redeploy.</p></div></main>;
 
   if(accountError)return <main className="auth-shell"><div className="auth-card"><h2>Unable to open your workspace</h2><p role="alert">{accountError}</p><button className="primary" onClick={()=>{setAccountError('');setRetry(v=>v+1)}}>Retry</button><button onClick={()=>supabase.auth.signOut({scope:'local'})}>Back to sign in</button></div></main>;
-  if (session === undefined) return <main className="auth-shell"><div className="auth-card"><p>Verifying your workspace…</p></div></main>;
+  if (session === undefined) return <main className="workspace-startup" role="status"><span className="pdf-spinner"/><p>Opening your workspace…</p><i/></main>;
   if (passwordRecovery) return <Login resetMode onResetComplete={()=>{window.history.replaceState({},'',window.location.pathname);setPasswordRecovery(false)}} />;
   if (!session) return <Login initialNotice={loginNotice} />;
   return <AppShell key={session.user.id} session={session} initialProfile={profile} />;

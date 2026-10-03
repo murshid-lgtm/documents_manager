@@ -25,4 +25,6 @@ for(const kind of ['invoice','quotation','receipt']){
 }
 const artworkSettings=normalizePrintTemplate('invoice',{background_image:'javascript:alert(1)',logo_image:'data:image/svg+xml;base64,AAAA',background_fit:'unsafe',heading_x:999,heading_y:-999,heading_align:'unsafe',footer_y:-50});
 assert.equal(artworkSettings.background_image,'');assert.equal(artworkSettings.logo_image,'');assert.equal(artworkSettings.background_fit,'fill');assert.equal(artworkSettings.heading_x,60);assert.equal(artworkSettings.heading_y,-60);assert.equal(artworkSettings.heading_align,'right');assert.equal(artworkSettings.footer_y,0);checks+=7;
+const intrinsic=normalizePrintTemplate('invoice',{footer_size_mode:'actual',footer_pixel_width:2480,footer_pixel_height:156});assert.ok(Math.abs(intrinsic.footer_height-210*156/2480)<.01);checks++;
+const repeated=documentHtml({kind:'invoice',record:{items:[],total:0},brand:{},currency:'QAR',template:{header_image:'data:image/png;base64,AAAA',header_height:14,footer_image:'data:image/png;base64,AAAA'}});assert.ok(repeated.includes('margin:22mm 0'));checks++;assert.ok(repeated.includes('.header-art{position:fixed!important'));checks++;
 console.log(`PASS: ${checks} print-template assertions.`);

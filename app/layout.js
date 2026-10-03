@@ -3,6 +3,7 @@ import './checkout.css';
 import './business.css';
 import './finance.css';
 import './compact.css';
+import ActionFeedback from '../components/ActionFeedback';
 import PdfPreviewModal from '../components/PdfPreviewModal';
 
 export const metadata = {
@@ -18,7 +19,7 @@ export const viewport={width:'device-width',initialScale:1,viewportFit:'cover',t
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
-      <body>{children}<PdfPreviewModal/></body>
+      <body>{children}<PdfPreviewModal/><ActionFeedback/></body>
     </html>
   );
 }

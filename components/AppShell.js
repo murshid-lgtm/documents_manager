@@ -1,5 +1,6 @@
 'use client';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {notifyAction} from '../lib/actionFeedback';
 import { supabase } from '../lib/supabase';
 import * as XLSX from 'xlsx';
 import QRCode from 'qrcode';
@@ -132,19 +133,20 @@ export default function AppShell({session,initialProfile}){
   const [profile,setProfile]=useState(initialProfile||null);
   const [currentOrganization,setCurrentOrganization]=useState(null);
   const [brandSettings,setBrandSettings]=useState(null);
+  const [brandReady,setBrandReady]=useState(false);
+  const [navGroups,setNavGroups]=useState({overview:true});
   const [planModules,setPlanModules]=useState(null);
   useEffect(()=>{let live=true;const orgId=profile?.organization_id||brandSettings?.organization_id;const loadPlan=async()=>{if(!orgId)return;const {data}=await supabase.from('platform_subscriptions').select('allowed_modules').eq('organization_id',orgId).maybeSingle();if(live)setPlanModules(data?.allowed_modules||null)};loadPlan();window.addEventListener('company-plan-changed',loadPlan);return()=>{live=false;window.removeEventListener('company-plan-changed',loadPlan)}},[profile?.organization_id,brandSettings?.organization_id]);
   const [branches,setBranches]=useState([]);
   const [cases,setCases]=useState([]);
   const [loading,setLoading]=useState(true);
-  const [message,setRawMessage]=useState('');
+  const messageRef=useRef('');
   const [casesLoadError,setCasesLoadError]=useState('');
   const caseCacheKey=`${CASE_CACHE_KEY}_${session.user.id}`;
   const setMessage=useCallback(value=>{
-    setRawMessage(previous=>{
-      const next=typeof value==='function'?value(previous):value;
-      return next?userError(next):'';
-    });
+    const next=typeof value==='function'?value(messageRef.current):value;
+    messageRef.current=next?userError(next):'';
+    if(messageRef.current)notifyAction(messageRef.current);
   },[]);
   const [moduleExport,setModuleExport]=useState(null);
   const publishModuleExport=useCallback(next=>setModuleExport(prev=>{const signature=JSON.stringify(next);return prev?._signature===signature?prev:{...next,_signature:signature}}),[]);
@@ -195,11 +197,7 @@ export default function AppShell({session,initialProfile}){
   },[brandSettings]);
   const [showDoc,setShowDoc]=useState(null);
   const [saving,setSaving]=useState(false);
-  useEffect(()=>{
-    if(!message)return;
-    const timer=setTimeout(()=>setMessage(''),5200);
-    return ()=>clearTimeout(timer);
-  },[message]);
+
   const emptyCase={tracking_reference:'',bill_no:'',internal_invoice_no:'',customer_name:'',mobile:'',customer_id:null,customer_email:'',email_updates:false,whatsapp_opt_in:false,submission_date:'',promise_date:'',branch_id:'',overall_status:'Received',total_amount:'',advance_paid:'',notes:'',account_name:'',account_contact:'',account_mobile:'',intake_source:'Branch',direct_to_delhi:false,direct_destination:'',current_milestone:'Submitted',current_milestone_date:''};
   const [form,setForm]=useState(emptyCase);
   const freshNewCaseDoc=()=>({document_name:'',holder_name:'',holder_custom:false,quantity:1,direct_to_delhi:false,direct_destination:'',stages:['MEA India','Embassy of India','MOFA Qatar'],custom_stage:''});
@@ -351,6 +349,7 @@ ${company}`;
   }
   function openCase(c){if(!c)return;setQuickCase(c);setRecentCaseIds(prev=>{const next=[c.id,...prev.filter(id=>id!==c.id)].slice(0,12);try{localStorage.setItem(recentStorageKey,JSON.stringify(next))}catch{}return next})}
   useEffect(()=>{try{setSidebarCollapsed(localStorage.getItem('kenza_sidebar_collapsed')==='1')}catch{}},[]);
+  useEffect(()=>{const group=['dashboard','cases','documents'].includes(view)?'overview':['operations','deliveries','custody','appointments','batches','courier'].includes(view)?'operations':['crm','sales','services'].includes(view)?'customers':'finance';setNavGroups(x=>({...x,[group]:true}))},[view]);
   function toggleSidebar(){setSidebarCollapsed(v=>{const next=!v;try{localStorage.setItem('kenza_sidebar_collapsed',next?'1':'0')}catch{}return next})}
 
   const auditStorageKey=`kenza_audit_read_${session.user.id}`;
@@ -381,7 +380,7 @@ ${company}`;
   useEffect(()=>{
     let alive=true;
     void clearCaseCache(caseCacheKey);
-    bootstrap();
+    bootstrap().catch(()=>{setBrandReady(true);setLoading(false);setMessage('Your workspace could not be loaded. Please refresh to retry.')});
     return()=>{alive=false};
   },[]);
   async function bootstrap(hasCache=false){
@@ -391,7 +390,7 @@ ${company}`;
       supabase.from('branches').select('id,name,organization_id,is_active').eq('is_active',true).order('name')
     ]);
     if(pe||be)setMessage(userError(pe||be,{fallback:'Unable to load account settings.'}));
-    if(!p?.is_active||pe){setCasesLoadError('Your account settings could not be loaded. Sign in again or retry.');setCases([]);await clearCaseCache(caseCacheKey);setLoading(false);return}
+    if(!p?.is_active||pe){setCasesLoadError('Your account settings could not be loaded. Sign in again or retry.');setCases([]);setBrandReady(true);await clearCaseCache(caseCacheKey);setLoading(false);return}
     setProfile(p||null);
     setBranches(b||[]);
     if(p?.organization_id){
@@ -419,6 +418,7 @@ ${company}`;
         setCurrentOrganization(o||null);setBrandSettings(s||null);
       }
     }
+    setBrandReady(true);
     if(p && isBranchProfile(p) && p.branch_id) setBranchFilter(p.branch_id);
     else setBranchFilter('All');
     await loadCases();
@@ -797,33 +797,34 @@ ${company}`;
     crm:'Customers, leads and follow-ups in one workspace.',sales:'Quotations, invoices and sales collections.',services:'Service jobs, approvals and renewals.',settings:'Manage branding, branches, staff, access and product configuration.'
   }[view]||'Live overview of attestation cases, workload and receivables.';
 
+  if(!brandReady)return <main className="workspace-startup" role="status"><span className="pdf-spinner"/><p>Opening your workspace…</p><i/></main>;
   return <div className={`app-shell ${sidebarCollapsed?'sidebar-collapsed':''}`}>
     <aside className="sidebar">
-      <div className={`brand ${brandSettings?.logo_url&&brandSettings?.sidebar_logo_visible!==false?'brand-logo-mode':''} ${brandSettings?.logo_url&&brandSettings?.sidebar_logo_visible===false?'brand-logo-hidden':''}`} style={{'--sidebar-logo-size':`${Number(brandSettings?.sidebar_logo_size||100)}%`,'--sidebar-logo-align':brandSettings?.sidebar_logo_alignment||'center','--sidebar-logo-background':brandSettings?.sidebar_logo_background||'#FFFFFF','--sidebar-logo-radius':`${Number(brandSettings?.sidebar_logo_radius??14)}px`,'--sidebar-logo-width':`${Number(brandSettings?.sidebar_logo_container_width||190)}px`,'--sidebar-logo-height':`${Number(brandSettings?.sidebar_logo_container_height||64)}px`}}>{brandSettings?.logo_url?(brandSettings?.sidebar_logo_visible!==false?<div className="sidebar-logo-container"><img className="sidebar-brand-logo" src={brandSettings.logo_url} alt={brandSettings?.company_name||'Company logo'}/></div>:null):<><div className="brand-mark small">{(brandSettings?.short_name||brandSettings?.company_name||'D').slice(0,1).toUpperCase()}</div><div><strong>{brandSettings?.product_name||'Document Operations'}</strong><span>{brandSettings?.company_name||'Operations command center'}</span></div></>}<button className="sidebar-toggle" onClick={toggleSidebar} title={sidebarCollapsed?'Expand sidebar':'Collapse sidebar'} aria-label={sidebarCollapsed?'Expand sidebar':'Collapse sidebar'}><Icon name={sidebarCollapsed?'chevron-right':'chevron-left'} size={16}/></button></div>
+      <div className={`brand ${brandSettings?.logo_url&&brandSettings?.sidebar_logo_visible!==false?'brand-logo-mode':''} ${brandSettings?.logo_url&&brandSettings?.sidebar_logo_visible===false?'brand-logo-hidden':''}`} style={{'--sidebar-logo-size':`${Number(brandSettings?.sidebar_logo_size||100)}%`,'--sidebar-logo-align':brandSettings?.sidebar_logo_alignment||'center','--sidebar-logo-background':brandSettings?.sidebar_logo_background||'#FFFFFF','--sidebar-logo-radius':`${Number(brandSettings?.sidebar_logo_radius??14)}px`,'--sidebar-logo-width':`${Number(brandSettings?.sidebar_logo_container_width||190)}px`,'--sidebar-logo-height':`${Number(brandSettings?.sidebar_logo_container_height||64)}px`}}>{brandSettings?.logo_url?(brandSettings?.sidebar_logo_visible!==false?<div className="sidebar-logo-container"><img className="sidebar-brand-logo" src={brandSettings.logo_url} alt={brandSettings?.company_name||'Company logo'}/></div>:null):<><div className="brand-mark small">{(brandSettings?.short_name||brandSettings?.company_name||'D').slice(0,1).toUpperCase()}</div><div><strong>{brandSettings?.product_name||'Workspace'}</strong><span>{brandSettings?.company_name||'Operations command center'}</span></div></>}<button className="sidebar-toggle" onClick={toggleSidebar} title={sidebarCollapsed?'Expand sidebar':'Collapse sidebar'} aria-label={sidebarCollapsed?'Expand sidebar':'Collapse sidebar'}><Icon name={sidebarCollapsed?'chevron-right':'chevron-left'} size={16}/></button></div>
       <div className="sidebar-live"><i></i><span>Workspace online</span><b>LIVE</b></div>
       <div className="nav-scroll">
-      <div className="nav-section"><span>OVERVIEW</span>
+      <div className="nav-section nav-accordion"><button className="nav-group-toggle" aria-expanded={sidebarCollapsed||Boolean(navGroups.overview)} onClick={()=>setNavGroups(x=>({...x,overview:!x.overview}))}><span>OVERVIEW</span><Icon name={navGroups.overview?'chevron-down':'chevron-right'} size={13}/></button><div className="nav-group-items" hidden={!sidebarCollapsed&&!navGroups.overview}>
         {moduleEnabled('dashboard')&&<Nav active={view==='dashboard'} onClick={()=>setView('dashboard')} icon="home">Dashboard</Nav>}
         {moduleEnabled('cases')&&<Nav active={view==='cases'} onClick={()=>setView('cases')} icon="file">Cases <b className="count-badge">{homeCases.length}</b></Nav>}
         {moduleEnabled('documents')&&<Nav active={view==='documents'} onClick={()=>setView('documents')} icon="layers">Documents & Stages</Nav>}
-      </div>
-      <div className="nav-section"><span>OPERATIONS</span>
+      </div></div>
+      <div className="nav-section nav-accordion"><button className="nav-group-toggle" aria-expanded={sidebarCollapsed||Boolean(navGroups.operations)} onClick={()=>setNavGroups(x=>({...x,operations:!x.operations}))}><span>OPERATIONS</span><Icon name={navGroups.operations?'chevron-down':'chevron-right'} size={13}/></button><div className="nav-group-items" hidden={!sidebarCollapsed&&!navGroups.operations}>
         {moduleEnabled('operations')&&<Nav active={view==='operations'} onClick={()=>setView('operations')} icon="activity">Operations</Nav>}
         {moduleEnabled('deliveries')&&<Nav active={view==='deliveries'} onClick={()=>setView('deliveries')} icon="package">Deliveries</Nav>}
         {moduleEnabled('custody')&&<Nav active={view==='custody'} onClick={()=>setView('custody')} icon="handover">Custody</Nav>}
         {moduleEnabled('appointments')&&<Nav active={view==='appointments'} onClick={()=>setView('appointments')} icon="calendar">Appointments</Nav>}
         {moduleEnabled('batches')&&<Nav active={view==='batches'} onClick={()=>setView('batches')} icon="batch">Batch Reports</Nav>}
         {moduleEnabled('courier')&&<Nav active={view==='courier'} onClick={()=>setView('courier')} icon="truck">Courier Shipments</Nav>}
-      </div>
-      <div className="nav-section"><span>CUSTOMERS & SALES</span>
+      </div></div>
+      <div className="nav-section nav-accordion"><button className="nav-group-toggle" aria-expanded={sidebarCollapsed||Boolean(navGroups.customers)} onClick={()=>setNavGroups(x=>({...x,customers:!x.customers}))}><span>CUSTOMERS & SALES</span><Icon name={navGroups.customers?'chevron-down':'chevron-right'} size={13}/></button><div className="nav-group-items" hidden={!sidebarCollapsed&&!navGroups.customers}>
         {moduleEnabled('crm')&&<Nav active={view==='crm'} onClick={()=>setView('crm')} icon="user">CRM</Nav>}
         {moduleEnabled('sales')&&<Nav active={view==='sales'} onClick={()=>setView('sales')} icon="wallet">Sales</Nav>}
         {moduleEnabled('services')&&<Nav active={view==='services'} onClick={()=>setView('services')} icon="layers">Services</Nav>}
-        </div><div className="nav-section"><span>FINANCE & REPORTS</span>{moduleEnabled('sales')&&<Nav active={view==='accounting'} onClick={()=>setView('accounting')} icon="wallet">Accounts</Nav>}
+        </div></div><div className="nav-section nav-accordion"><button className="nav-group-toggle" aria-expanded={sidebarCollapsed||Boolean(navGroups.finance)} onClick={()=>setNavGroups(x=>({...x,finance:!x.finance}))}><span>FINANCE & REPORTS</span><Icon name={navGroups.finance?'chevron-down':'chevron-right'} size={13}/></button><div className="nav-group-items" hidden={!sidebarCollapsed&&!navGroups.finance}>{moduleEnabled('sales')&&<Nav active={view==='accounting'} onClick={()=>setView('accounting')} icon="wallet">Accounts</Nav>}
         {moduleEnabled('payments')&&<Nav active={view==='payments'} onClick={()=>setView('payments')} icon="wallet">Payments</Nav>}
         {moduleEnabled('reports')&&<Nav active={view==='reports'} onClick={()=>setView('reports')} icon="chart">Reports</Nav>}
         {isAdmin&&moduleEnabled('import')&&<Nav active={view==='import'} onClick={()=>setView('import')} icon="upload">Import Data</Nav>}
-      </div>
+      </div></div>
       </div>
       <div className="sidebar-foot"><div className="avatar">{(profile?.full_name||session.user.email||'U')[0].toUpperCase()}</div><div className="user-mini"><strong>{profile?.full_name||session.user.email}</strong><span>{role==='branch'?`${ownBranchName} · Branch`:role==='admin'?'Administrator':'Staff'}</span></div><button className="sidebar-settings" onClick={()=>isAdmin?setView('settings'):setTrackingSettingsOpen(true)} title={isAdmin?'Company management':'Tracking settings'} aria-label={isAdmin?'Company management':'Tracking settings'}><Icon name="settings" size={17}/></button><button className="signout" onClick={signOut} title="Sign out" aria-label="Sign out"><Icon name="logout" size={17}/></button></div>
     </aside>
@@ -831,7 +832,7 @@ ${company}`;
     <main className="content">
       <PwaExperience/>
       <header className={`topbar unified-app-topbar ${view==='cases'?'legacy-cases-topbar':''}`}><div><h1>{pageTitle}</h1><p className="muted">{pageSubtitle}</p></div><div className="top-actions"><span className={`access-chip ${role}`}>{role==='admin'?'ADMIN':role==='branch'?ownBranchName.toUpperCase():'STAFF'}</span><button className="notification-trigger" onClick={()=>setNotificationOpen(true)} aria-label={`Notifications${unreadActivity?`, ${unreadActivity} unread`:''}`} title="Notifications and activity"><Icon name="bell" size={17}/>{unreadActivity>0&&<b>{unreadActivity>99?'99+':unreadActivity}</b>}</button><ExportMenu title={moduleExport?.view===view?moduleExport.title:`${pageTitle} Export`} rows={moduleExport?.view===view?moduleExport.rows:caseExportRows(view==='cases'?filtered:homeCases)} notify={setMessage}/>{view!=='cases'&&<button className="secondary" onClick={loadCases}>↻ Refresh</button>}<button className="primary" onClick={openNewCase}>＋ New Case</button></div></header>
-      {message&&<AppToast message={message} onClose={()=>setMessage('')}/>}
+
 
       {view==='no-access'&&<section className="settings-card"><h2>No modules assigned</h2><p>Ask your company administrator to enable the modules you need.</p></section>}
       {casesLoadError&&<section className="settings-card" role="alert"><h2>Unable to load cases</h2><p>{casesLoadError}</p><button className="primary" onClick={loadCases}>Retry</button></section>}
@@ -875,7 +876,7 @@ ${company}`;
     </nav>
 
     {mobileMenu&&<div className="mobile-menu-sheet" onClick={()=>setMobileMenu(false)}><section role="dialog" aria-modal="true" aria-label="All modules" onClick={e=>e.stopPropagation()}><header><h2>Your workspace</h2><button className="business-close" aria-label="Close menu" onClick={()=>setMobileMenu(false)}><Icon name="close"/></button></header><div className="mobile-menu-grid">{[['dashboard','Home','home'],['cases','Cases','file'],['crm','CRM','user'],['sales','Sales','wallet'],['accounting','Accounts','wallet'],['services','Services','layers'],['documents','Documents','layers'],['operations','Operations','activity'],['deliveries','Deliveries','package'],['custody','Custody','handover'],['appointments','Appointments','calendar'],['batches','Batches','batch'],['courier','Courier','truck'],['payments','Payments','wallet'],['reports','Reports','chart'],...(isAdmin?[['import','Import','upload'],['settings','Settings','settings']]:[])].filter(([key])=>key==='settings'||moduleEnabled(key)).map(([key,label,icon])=><button key={key} onClick={()=>{setView(key);setMobileMenu(false)}}><Icon name={icon} size={24}/><span>{label}</span></button>)}</div></section></div>}
-    {loading&&cases.length===0&&<div className="app-loading-stage"><div className="loading-brand"><div>{(brandSettings?.short_name||brandSettings?.company_name||'D').slice(0,1).toUpperCase()}</div><strong>{brandSettings?.product_name||'Document Operations'}</strong><span>Preparing your operations workspace</span><i/></div></div>}
+    {loading&&cases.length===0&&<div className="app-loading-stage"><div className="loading-brand"><div>{(brandSettings?.short_name||brandSettings?.company_name||'D').slice(0,1).toUpperCase()}</div><strong>{brandSettings?.product_name||'Workspace'}</strong><span>Preparing your operations workspace</span><i/></div></div>}
     {globalScan&&<DeliveryQrScanner cases={cases} onClose={()=>setGlobalScan(false)} onAction={openScannedAction} notify={setMessage} title="Scan Case QR"/>}
 
     {showNew&&<Modal className="new-case-modal invoice-case-modal" onClose={()=>!saving&&setShowNew(false)} title="New Attestation Case" subtitle="Create the complete transaction like an invoice — customer, documents, attestation and payment in one workspace."><form onSubmit={createCase} className="invoice-case-workspace">
@@ -1655,7 +1656,7 @@ async function printCaseLabels(cases){
   cases=(cases||[]).filter(Boolean);
   if(!cases.length)return;
   const w=window.open('','_blank','width=1100,height=900');
-  if(!w)return alert('Popup blocked. Allow popups to print.');
+  if(!w)return notifyAction('Popup blocked. Allow popups to print.','error');
   w.document.write('<p style="font-family:Arial;padding:20px">Preparing labels…</p>');
   const html=await buildLabelHtml(cases);
   w.document.open();w.document.write(html);w.document.close();
@@ -1722,7 +1723,7 @@ function batchReportPrintHtml(batch,items){
 }
 function printBatchReport(batch,items){
   const w=window.open('','_blank','width=1100,height=900');
-  if(!w)return alert('Please allow pop-ups to print the batch report.');
+  if(!w)return notifyAction('Please allow pop-ups to print the batch report.','error');
   w.document.open();w.document.write(batchReportPrintHtml(batch,items));w.document.close();
 }
 function BatchReportsView({session,cases,notify,seedIds,clearSeed,setModuleExport}){
