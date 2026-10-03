@@ -25,6 +25,16 @@ try{
  const template=(await db.query("insert into named_print_templates(organization_id,kind,name,settings) values($1,'invoice','A4 custom',$2) returning id",[id(1),JSON.stringify({paper:'A4',footer:''})])).rows[0].id;
  await db.query('select set_default_print_template($1)',[template]);
  assert.equal((await db.query('select is_default from named_print_templates where id=$1',[template])).rows[0].is_default,true);checks++;
+ const artwork='data:image/png;base64,'+Buffer.alloc(24000,1).toString('base64');
+ await db.query('update named_print_templates set settings=$2 where id=$1',[template,JSON.stringify({paper:'A4',logo_url:artwork})]);
+ assert.equal((await db.query('select settings from named_print_templates where id=$1',[template])).rows[0].settings.logo_url,artwork);checks++;
+ await denied("update named_print_templates set settings=jsonb_build_object('background_image',repeat('x',8388609)) where id=$1",[template]);
+ await denied("update named_print_templates set settings='[]'::jsonb where id=$1",[template]);
+ await login(24);
+ assert.equal((await db.query('select id from named_print_templates where id=$1',[template])).rows.length,0);checks++;
+ assert.equal((await db.query("update named_print_templates set settings=jsonb_build_object('logo_url','other') where id=$1 returning id",[template])).rows.length,0);checks++;
+ await login(21);
+ assert.equal((await db.query('select settings from named_print_templates where id=$1',[template])).rows[0].settings.logo_url,artwork);checks++;
  await login(22);
  const base={organization_id:id(1),branch_id:id(11),customer_id:customer,customer_name:'Search Client',kind:'Invoice',status:'Draft',document_date:'2026-10-03',template_id:template,items:[{description:'Typing',quantity:2,government_fee:10,service_fee:40,discount:5,workflow:[]}],discount:5,adjustment:-2,tax_percent:0};
  const save=async(x,n)=>(await db.query('select save_billing_document($1,$2) id',[JSON.stringify(x),id(n)])).rows[0].id;

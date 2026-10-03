@@ -11,11 +11,18 @@ const normalized=normalizePrintTemplate('receipt',{paper:'unsafe',font_size:999,
 assert(!documentHtml({brand:{footer_text:'Company default'},template:{footer:''}}).includes('Company default'));checks++;
 
 const artwork='data:image/png;base64,aGVsbG8=';
-const customized=documentHtml({kind:'invoice',record:{items:[{description:'Combined only',unit_price:100,quantity:1,government_fee:25,service_fee:75,show_fees:false},{description:'Requested split',unit_price:150,quantity:1,government_fee:50,service_fee:100,show_fees:true}]},template:{show_fees:false,header_image:artwork,footer_image:artwork,header_width:80,header_height:20,footer_width:60,footer_height:10}});
+const customized=documentHtml({kind:'invoice',record:{items:[{description:'Combined only',unit_price:100,quantity:1,government_fee:25,service_fee:75,show_fees:false},{description:'Requested split',unit_price:150,quantity:1,government_fee:50,service_fee:100,show_fees:true}]},template:{style:'Modern',show_fees:false,header_image:artwork,footer_image:artwork,header_width:80,header_height:20,footer_width:60,footer_height:10}});
 assert.equal((customized.match(/src="data:image\/png/g)||[]).length,2);checks++;
 assert(customized.includes('width:80%;height:20mm'));assert(customized.includes('width:60%;height:10mm'));checks+=2;
 assert(!customized.includes('Govt QAR 25'));assert(customized.includes('Govt QAR 50'));checks+=2;
 const unsafeImages=normalizePrintTemplate('invoice',{header_image:'data:image/svg+xml;base64,PHN2Zz4=',footer_image:'javascript:alert(1)',header_width:999,footer_height:-5});
 assert.equal(unsafeImages.header_image,'');assert.equal(unsafeImages.footer_image,'');assert.equal(unsafeImages.header_width,100);assert.equal(unsafeImages.footer_height,5);checks+=4;
 for(const kind of ['invoice','quotation','receipt']){const html=documentHtml({kind,template:{paper:'80mm',title:kind==='invoice'?'Invoice':kind==='quotation'?'Quotation':'Receipt'},record:{items:[],document_no:'REF'}});assert(html.includes('@page{size:auto'));assert(html.includes(kind==='invoice'?'Invoice':kind==='quotation'?'Quotation':'Receipt'));checks+=2;}
+
+for(const kind of ['invoice','quotation','receipt']){
+ const html=documentHtml({kind,record:{document_no:'DEMO',customer_name:'<script>private()</script>',document_date:'2026-10-03',items:[{service_name:'Permit',description:'Permit description',quantity:1,unit_price:1800,government_fee:500,service_fee:1300,show_fees:true}],total:1800},template:{style:'Letterhead',paper:'A4',background_image:artwork,footer_image:artwork,logo_image:artwork,show_words:true,heading_x:5,footer_height:14}});
+ assert(html.includes('page-background'));assert(html.includes('letterhead-footer'));assert(html.includes('bottom:0mm'));assert(html.includes('One Thousand Eight Hundred'));assert(html.includes('Govt QAR500.00'));assert(html.includes('Permit description'));assert(!html.includes('<script>'));assert(html.includes('&lt;script&gt;'));checks+=8;
+}
+const artworkSettings=normalizePrintTemplate('invoice',{background_image:'javascript:alert(1)',logo_image:'data:image/svg+xml;base64,AAAA',background_fit:'unsafe',heading_x:999,heading_y:-999,heading_align:'unsafe',footer_y:-50});
+assert.equal(artworkSettings.background_image,'');assert.equal(artworkSettings.logo_image,'');assert.equal(artworkSettings.background_fit,'fill');assert.equal(artworkSettings.heading_x,60);assert.equal(artworkSettings.heading_y,-60);assert.equal(artworkSettings.heading_align,'right');assert.equal(artworkSettings.footer_y,0);checks+=7;
 console.log(`PASS: ${checks} print-template assertions.`);

@@ -11,7 +11,7 @@
     "security:check": "npm run test:security && npm run test:business && npm run test:checkout && npm run test:accounting && npm run build && npm run audit:production",
     "test:business": "node scripts/business-tests.mjs && node scripts/communications-tests.mjs",
     "test:checkout": "node scripts/checkout-tests.mjs && node scripts/billing-tests.mjs",
-    "test:accounting": "node scripts/accounting-tests.mjs && node scripts/print-tests.mjs"
+    "test:accounting": "node scripts/accounting-tests.mjs && node scripts/print-tests.mjs && node scripts/sales-ui-tests.cjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.117.2",
