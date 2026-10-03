@@ -2,6 +2,7 @@ import './globals.css';
 import './checkout.css';
 import './business.css';
 import './finance.css';
+import './compact.css';
 
 export const metadata = {
   title: 'Document Tracker',

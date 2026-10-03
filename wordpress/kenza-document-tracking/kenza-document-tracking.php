@@ -2,12 +2,12 @@
 /**
  * Plugin Name: Document Tracking Connector
  * Description: White-label WordPress customer document tracking. Use shortcode [kenza_tracking].
- * Version: 2.6.2
+ * Version: 2.7.0
  * Author: Document Operations Platform
  */
 if (!defined('ABSPATH')) exit;
 
-define('KENZA_TRACK_VERSION', '2.6.2');
+define('KENZA_TRACK_VERSION', '2.7.0');
 define('KENZA_TRACK_OPTION', 'kenza_tracking_api_base');
 define('KENZA_TRACK_ORG_OPTION', 'kenza_tracking_org_slug');
 define('KENZA_TRACK_COMPANY_OPTION', 'kenza_tracking_company_name');
@@ -211,7 +211,10 @@ function kenza_tracking_ajax_lookup() {
                 'document_stages' => $safe_stages,
             ];
         }
+        $is_service = ($case['record_type'] ?? '') === 'service';
         $safe_cases[] = [
+            'record_type' => $is_service ? 'service' : 'attestation',
+            'customer_result' => $is_service ? sanitize_textarea_field((string)($case['customer_result'] ?? '')) : '',
             'tracking_reference' => sanitize_text_field((string)($case['tracking_reference'] ?? '')),
             'customer_name' => sanitize_text_field((string)($case['customer_name'] ?? 'Customer')),
             'submission_date' => sanitize_text_field((string)($case['submission_date'] ?? '')),

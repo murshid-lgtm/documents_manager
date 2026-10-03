@@ -59,10 +59,14 @@ export async function GET(request){
     if(!token&&!reference&&mobile.length!==8)return apiJson({ok:false,error:'Enter a tracking number or a valid customer mobile number.',code:'INVALID_INPUT'},400);
     if(suppliedMobile&&mobile.length!==8)return apiJson({ok:false,error:'Enter a valid customer mobile number.',code:'INVALID_INPUT'},400);
 
-    let records=[],organization=null;
+    let records=[],serviceRecords=[],organization=null;
     if(token){
       const {data,error}=await supabase.from('cases').select(caseSelect).eq('public_tracking_token',token).maybeSingle();
       if(error)throw error;
+      if(!data){
+        const job=await supabase.from('service_jobs').select('organization_id,job_no,title,status,stages,customer_name,customer_result,created_at').eq('public_tracking_token',token).maybeSingle();if(job.error)throw job.error;
+        if(job.data){const org=await supabase.from('organizations').select('id,name,slug').eq('id',job.data.organization_id).eq('status','Active').maybeSingle();if(org.error)throw org.error;organization=org.data;if(organization&&(!organizationSlug||organization.slug===organizationSlug))serviceRecords=[job.data]}
+      }
       if(data){
         const {data:org,error:orgError}=await supabase.from('organizations').select('id,name,slug').eq('id',data.organization_id).eq('status','Active').maybeSingle();
         if(orgError)throw orgError;
@@ -79,8 +83,14 @@ export async function GET(request){
       for(const result of results){if(result.error)throw result.error}
       records=[...new Map(results.flatMap((result,i)=>(result.data||[]).filter(c=>i===0||cleanMobile(c.mobile)===mobile)).map(c=>[c.tracking_reference,c])).values()];
     }
+    if(!token&&organization){
+      const jobSelect='organization_id,job_no,title,status,stages,customer_name,customer_result,created_at';
+      if(reference){const jobs=await supabase.from('service_jobs').select(jobSelect).eq('organization_id',organization.id).eq('job_no',reference).limit(20);if(jobs.error)throw jobs.error;serviceRecords.push(...(jobs.data||[]));const invoices=await supabase.from('sales_documents').select('id').eq('organization_id',organization.id).eq('document_no',reference).eq('kind','Invoice').limit(1);if(invoices.error)throw invoices.error;if(invoices.data?.[0]){const jobs=await supabase.from('service_jobs').select(jobSelect).eq('organization_id',organization.id).eq('invoice_id',invoices.data[0].id).limit(100);if(jobs.error)throw jobs.error;serviceRecords.push(...(jobs.data||[]))}}
+      if(mobile.length===8){const invoices=await supabase.from('sales_documents').select('id,customer_mobile').eq('organization_id',organization.id).eq('kind','Invoice').eq('customer_mobile_search',mobile).order('created_at',{ascending:false}).limit(1000);if(invoices.error)throw invoices.error;const ids=(invoices.data||[]).filter(x=>cleanMobile(x.customer_mobile)===mobile).map(x=>x.id);if(ids.length){const jobs=await supabase.from('service_jobs').select(jobSelect).eq('organization_id',organization.id).in('invoice_id',ids).order('created_at',{ascending:false}).limit(100);if(jobs.error)throw jobs.error;serviceRecords.push(...(jobs.data||[]))}}
+    }
+    const safeServices=[...new Map(serviceRecords.map(j=>[j.job_no,j])).values()].map(j=>({record_type:'service',tracking_reference:j.job_no,customer_name:j.customer_name,submission_date:j.created_at,overall_status:j.status,customer_result:j.customer_result,documents:[{id:j.job_no,document_name:j.title,document_status:j.status,quantity:1,document_stages:(j.stages||[]).map((x,i)=>({id:j.job_no+'-'+i,stage_name:x.name,status:x.status,stage_order:i}))}]}));
     const branding=organization?await brandingFor(organization.id,organization):null;
-    return apiJson({ok:true,cases:records.map(allowedCase),branding});
+    return apiJson({ok:true,cases:[...records.map(allowedCase),...safeServices],branding});
   }catch(error){
     return apiError(error,{code:'TRACKING_LOOKUP_FAILED',message:'Unable to retrieve tracking information right now.'});
   }

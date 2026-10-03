@@ -58,5 +58,37 @@ try{
  await denied('select record_sales_payment($1,$2)',[JSON.stringify({document_id:draft,amount:1}),id(510)]);
  await login(24);assert.equal((await db.query('select * from search_business_customers($1,$2)',[id(1),'Search'])).rows.length,0);checks++;
  assert.equal((await db.query('select * from named_print_templates where organization_id=$1',[id(1)])).rows.length,0);checks++;
+
+ await login(21);
+ const cmd=async(action,input,n)=>(await db.query('select finance_command($1,$2,$3) id',[action,JSON.stringify({organization_id:id(1),branch_id:id(11),...input}),id(n)])).rows[0].id;
+ const cc=await cmd('account',{name:'Company credit card',payment_type:'Credit card',amount:100,date:'2026-10-03'},700);
+ assert.equal((await db.query('select kind from finance_accounts where id=$1',[cc])).rows[0].kind,'Liability');checks++;
+ assert.equal(Number((await db.query('select sum(l.credit-l.debit) n from finance_lines l where account_id=$1',[cc])).rows[0].n),100);checks++;
+ const bank=await cmd('account',{name:'Main bank',payment_type:'Bank',amount:0,date:'2026-10-03'},701);
+ const atomicInput={...base,status:'Issued',template_id:null,items:[{description:'Combined price',quantity:1,unit_price:150,government_fee:100,service_fee:50,show_fees:false,workflow:[]}],discount:0,adjustment:0,payment:{amount:150,account_id:bank,method:'Bank transfer',date:'2026-10-03'}};
+ const atomic=async(n=702)=>(await db.query('select save_billing_with_payment($1,$2) id',[JSON.stringify(atomicInput),id(n)])).rows[0].id;
+ const inv=await atomic();assert.equal(await atomic(),inv);checks++;
+ const receipts=(await db.query('select * from sales_payments where document_id=$1',[inv])).rows;assert.equal(receipts.length,1);assert.ok(receipts[0].receipt_no);assert.equal(receipts[0].account_id,bank);checks+=3;
+ assert.equal(Number((await db.query('select paid_total from sales_documents where id=$1',[inv])).rows[0].paid_total),150);checks++;
+ assert.equal((await db.query('select count(*) n from service_jobs where invoice_id=$1',[inv])).rows[0].n,1);checks++;
+ const cost=(await db.query('select * from invoice_costs where invoice_id=$1',[inv])).rows[0];assert.equal(cost.status,'Unpaid');assert.equal(Number(cost.amount),100);checks+=2;
+ const payCost=async(c,n,date)=>(await db.query('select invoice_cost_command($1,$2,$3) id',['cost_pay',JSON.stringify({organization_id:id(1),branch_id:id(11),cost_id:c,account_id:cc,paid_on:date}),id(n)])).rows[0].id;
+ assert.equal(await payCost(cost.id,703,'2026-10-03'),cost.id);assert.equal(await payCost(cost.id,704,'2026-10-03'),cost.id);checks+=2;
+ assert.equal((await db.query("select count(*) n from finance_journals where source='Invoice expense' and source_id=$1",[cost.id])).rows[0].n,1);checks++;
+ assert.equal((await db.query('select status from invoice_costs where id=$1',[cost.id])).rows[0].status,'Paid');checks++;
+ const later=(await db.query('select invoice_cost_command($1,$2,$3) id',['cost',JSON.stringify({organization_id:id(1),branch_id:id(11),invoice_id:inv,description:'Later government fee',amount:25,date:'2026-10-03'}),id(705)])).rows[0].id;
+ await denied('select invoice_cost_command($1,$2,$3)',['cost_pay',JSON.stringify({organization_id:id(1),branch_id:id(11),cost_id:later,account_id:cc,paid_on:'2026-10-02'}),id(706)]);
+ await payCost(later,707,'2026-10-04');
+ assert.equal((await db.query('select paid_on::text from invoice_costs where id=$1',[later])).rows[0].paid_on,'2026-10-04');checks++;
+ assert.equal(Number((await db.query("select sum(l.debit) n from finance_lines l join finance_journals j on j.id=l.journal_id join finance_accounts a on a.id=l.account_id where a.code='5200' and j.entry_date='2026-10-04'",[])).rows[0].n),25);checks++;
+ assert.equal((await db.query("select count(*) n from finance_journals j where exists(select 1 from finance_lines l where l.journal_id=j.id group by l.journal_id having sum(debit)<>sum(credit))")).rows[0].n,0);checks++;
+ const ar=(await db.query('select customer_receivables($1,$2) d',[id(1),customer])).rows[0].d;assert.equal(Number(ar.balance),Number(ar.total)-Number(ar.paid));checks++;
+ const badBefore=(await db.query('select count(*) n from sales_documents')).rows[0].n;
+ await denied('select save_billing_with_payment($1,$2)',[JSON.stringify({...atomicInput,payment:{amount:999,account_id:bank,method:'Bank transfer'}}),id(708)]);
+ assert.equal((await db.query('select count(*) n from sales_documents')).rows[0].n,badBefore);checks++;
+ await login(23);await denied('select invoice_cost_command($1,$2,$3)',['cost_pay',JSON.stringify({organization_id:id(1),branch_id:id(11),cost_id:later,account_id:cc}),id(709)]);
+ assert.equal((await db.query('select * from invoice_costs where invoice_id=$1',[inv])).rows.length,0);checks++;
+ await login(24);assert.equal((await db.query('select customer_receivables($1,$2) d',[id(1),customer])).rows[0].d.balance,0);checks++;
+ await db.exec('reset role;set role anon');await denied('select save_billing_with_payment($1,$2)',[JSON.stringify(atomicInput),id(710)]);await denied('select invoice_cost_command($1,$2,$3)',['cost','{}',id(711)]);
  console.log(`PASS: ${checks} billing workspace assertions.`);
 }finally{await db.close()}

@@ -87,10 +87,12 @@
     const docs = c.documents || [];
     const progress = overallProgress(c);
     const status = c.overall_status || 'Received';
-    const current = journeyIndex(status);
+    const isService = c.record_type === 'service';
+    const resultJourney = isService ? ['Received','Active','Awaiting approval','Completed'] : journey;
+    const current = isService ? Math.max(0, resultJourney.indexOf(status)) : journeyIndex(status);
     const completed = docs.filter(d => docProgress(d) === 100 || normStatus(d.document_status) === 'completed').length;
 
-    const journeyHtml = journey.map((s,i) => `
+    const journeyHtml = resultJourney.map((s,i) => `
       <div class="kt3-step ${i<current?'is-done':i===current?'is-current':''}">
         <span>${i<current?'✓':i+1}</span>
         <div><strong>${esc(s)}</strong>${i===current?'<small>Current stage</small>':''}</div>
@@ -115,7 +117,7 @@
     const notice = ['Ready for Delivery','Delivered'].includes(status) ? `
       <div class="kt3-notice"><span>✓</span><div><strong>${status==='Delivered'?'Delivery completed':'Ready for delivery'}</strong><small>${status==='Delivered'?'Your document journey is complete.':`Your documents are ready. Please contact ${esc(companyName)} for collection or delivery.`}</small></div></div>` : '';
 
-    return `<section class="kt3-result kt-enter" data-kt-result data-reference="${esc(c.tracking_reference)}">
+    return `<section class="kt3-result kt-enter" data-kt-result data-reference="${esc(c.tracking_reference)}" data-record-type="${isService ? 'service' : 'attestation'}">
       <div class="kt3-top">
         <div class="kt3-person">
           <small>TRACKING REFERENCE</small>
@@ -129,20 +131,21 @@
       </div>
 
       ${notice}
+      ${isService && c.customer_result ? `<div class="kt3-notice kt-service-result"><span>✓</span><div><strong>Service result</strong><small style="white-space:pre-wrap">${esc(c.customer_result)}</small></div></div>` : ''}
 
       <div class="kt3-layout">
         <aside class="kt3-sidebar">
-          <div class="kt3-side-title"><small>CASE JOURNEY</small><strong>Progress</strong></div>
+          <div class="kt3-side-title"><small>${isService ? 'SERVICE JOURNEY' : 'CASE JOURNEY'}</small><strong>Progress</strong></div>
           <div class="kt3-steps">${journeyHtml}</div>
           <div class="kt3-facts">
             <div><small>Submitted</small><strong>${fmtDate(c.submission_date)}</strong></div>
-            <div><small>Documents completed</small><strong>${completed} / ${docs.length}</strong></div>
+            <div><small>${isService ? 'Services completed' : 'Documents completed'}</small><strong>${completed} / ${docs.length}</strong></div>
           </div>
         </aside>
 
         <main class="kt3-main">
           <div class="kt3-main-head">
-            <div><small>DOCUMENT STATUS</small><h3>Your documents</h3><p>Open a document to see each attestation stage.</p></div>
+            <div><small>${isService ? 'SERVICE STATUS' : 'DOCUMENT STATUS'}</small><h3>${isService ? 'Your service' : 'Your documents'}</h3><p>${isService ? 'Follow the service stages and your result.' : 'Open a document to see each attestation stage.'}</p></div>
             <span>${docs.length}</span>
           </div>
           <div class="kt3-docs">${docsHtml || '<div class="kt-v2-no-docs">Document details are being prepared.</div>'}</div>
@@ -158,10 +161,10 @@
 
   function matchesHtml(list){
     const statusTone=status=>({delivered:'done',completed:'done','ready for delivery':'ready','under process':'processing',waiting:'waiting',cancelled:'cancelled'})[normStatus(status)]||'received';
-    return `<section class="kt26-matches" aria-label="Matching cases"><header class="kt26-matches-head"><div><span class="kt26-eyebrow">YOUR DOCUMENTS</span><h3>Choose a case</h3><p>Select a tracking reference to view document progress.</p></div><span class="kt26-count">${list.length} results</span></header><div class="kt26-match-grid">${list.map((c,index)=>{
+    return `<section class="kt26-matches" aria-label="Matching cases"><header class="kt26-matches-head"><div><span class="kt26-eyebrow">YOUR DOCUMENTS</span><h3>Choose a record</h3><p>Select a tracking reference to view progress.</p></div><span class="kt26-count">${list.length} results</span></header><div class="kt26-match-grid">${list.map((c,index)=>{
       const docs=c.documents||[],status=c.overall_status||'Received',progress=overallProgress(c);
-      return `<button type="button" class="kt26-match" data-kt-match="${index}" aria-label="View tracking ${esc(c.tracking_reference)}"><span class="kt26-match-top"><span class="kt26-reference">#${esc(c.tracking_reference)}</span><span class="kt26-status ${statusTone(status)}">${esc(status)}</span></span><span class="kt26-customer">${esc(c.customer_name||'Customer')}</span><span class="kt26-facts"><span>${docs.length} ${docs.length===1?'document':'documents'}</span><span>Submitted ${fmtDate(c.submission_date)}</span></span><span class="kt26-progress"><span><i style="width:${progress}%"></i></span><small>${progress}% completed</small></span><span class="kt26-open">View progress <span aria-hidden="true">↗</span></span></button>`;
-    }).join('')}</div><footer class="kt26-matches-foot">Each case has its own document journey and status.</footer></section>`;
+      return `<button type="button" class="kt26-match" data-kt-match="${index}" aria-label="View tracking ${esc(c.tracking_reference)}"><span class="kt26-match-top"><span class="kt26-reference">#${esc(c.tracking_reference)}</span><span class="kt26-status ${statusTone(status)}">${esc(status)}</span></span><span class="kt26-customer">${esc(c.customer_name||'Customer')}</span><span class="kt26-facts"><span>${docs.length} ${c.record_type==='service'?(docs.length===1?'service':'services'):(docs.length===1?'document':'documents')}</span><span>Submitted ${fmtDate(c.submission_date)}</span></span><span class="kt26-progress"><span><i style="width:${progress}%"></i></span><small>${progress}% completed</small></span><span class="kt26-open">View progress <span aria-hidden="true">↗</span></span></button>`;
+    }).join('')}</div><footer class="kt26-matches-foot">Each record has its own journey and status.</footer></section>`;
   }
 
   async function lookup(root, reference, token='') {
@@ -206,6 +209,8 @@
     if (!result) return;
 
     const reference = result.dataset.reference || '';
+    const isService = result.dataset.recordType === 'service';
+    const serviceResult = result.querySelector('.kt-service-result small')?.textContent || '';
     const customer = result.querySelector('.kt3-person h2')?.textContent?.trim() || 'Customer';
     const status = result.querySelector('.kt3-overall > div:last-child strong')?.textContent?.trim() || '';
     const progress = result.querySelector('.kt3-percent strong')?.textContent?.trim() || '0';
@@ -240,7 +245,7 @@
         <header class="kt-print-header">
           <div>
             <span>${esc(companyName.toUpperCase())}</span>
-            <h1>Document Tracking Report</h1>
+            <h1>${isService ? 'Service' : 'Document'} Tracking Report</h1>
           </div>
           <div class="kt-print-status"><small>STATUS</small><strong>${esc(status)}</strong></div>
         </header>
@@ -261,6 +266,7 @@
           <h2>Your Documents</h2>
         </div>
 
+        ${serviceResult ? `<section class="kt-print-doc"><strong>Service result</strong><p style="white-space:pre-wrap">${esc(serviceResult)}</p></section>` : ''}
         <div class="kt-print-docs">${docRows}</div>
 
         <footer class="kt-print-footer">

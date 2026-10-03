@@ -22,8 +22,8 @@ try{
  const result=(await db.query('select checkout_sale($1,$2) id',[JSON.stringify(request),id(301)])).rows[0].id;
  assert.equal((await db.query('select checkout_sale($1,$2) id',[JSON.stringify(request),id(301)])).rows[0].id,result);checks++;
  const saved=(await db.query('select * from sales_documents where id=$1',[result])).rows[0];assert.equal(Number(saved.total),160);assert.equal(Number(saved.paid_total),160);checks+=2;
- assert.equal((await db.query('select count(*) n from service_jobs where invoice_id=$1',[result])).rows[0].n,1);checks++;
- assert.equal((await db.query('select stages from service_jobs where invoice_id=$1',[result])).rows[0].stages[0].status,'Pending');checks++;
+ assert.equal((await db.query('select count(*) n from service_jobs where invoice_id=$1',[result])).rows[0].n,2);checks++;
+ assert.equal((await db.query('select stages from service_jobs where invoice_id=$1 and jsonb_array_length(stages)>0',[result])).rows[0].stages[0].status,'Pending');checks++;
  assert.equal((await db.query('select count(*) n from sales_payments where document_id=$1',[result])).rows[0].n,1);checks++;
  assert.equal((await db.query('select count(*) n from crm_customers')).rows[0].n,1);checks++;
  const changed={...request,paid:110,items:[{service_id:service,quantity:1,government_fee:10,service_fee:100,remember:true}]};
@@ -67,6 +67,19 @@ try{
  const inv=(await db.query('select checkout_sale($1,$2) id',[JSON.stringify(numbered),id(315)])).rows[0].id;assert.equal((await db.query('select document_no from sales_documents where id=$1',[inv])).rows[0].document_no,'MANUAL-2026-001');checks++;
  await denied('select checkout_sale($1,$2)',[JSON.stringify(numbered),id(316)]);
  await denied("update sales_documents set document_no='changed' where id=$1",[inv]);
+
+ await login(21);
+ await denied('select quick_add_service($1,$2)',[JSON.stringify({...newService,name:'Typed quick work'}),id(321)]);
+ const thermal=(await db.query("insert into named_print_templates(organization_id,kind,name,settings) values($1,'receipt','Thermal for any bill',$2) returning id",[id(1),JSON.stringify({paper:'80mm'})])).rows[0].id;
+ await db.query('select finance_command($1,$2,$3)',['setup',JSON.stringify({organization_id:id(1),branch_id:id(11)}),id(322)]);
+ const bank=(await db.query("select id,payment_type from finance_accounts where organization_id=$1 and code='1010'",[id(1)])).rows[0];assert.equal(bank.payment_type,'Bank');checks++;
+ const posRequest={...simple,customer_name:'POS client',pos_mode:true,paid:35,account_id:bank.id,template_id:thermal,items:[{service_id:service,quantity:1,government_fee:999,service_fee:35,remember:true}]};
+ const pos=(await db.query('select checkout_sale($1,$2) id',[JSON.stringify(posRequest),id(323)])).rows[0].id;
+ const posDoc=(await db.query('select * from sales_documents where id=$1',[pos])).rows[0];assert.equal(Number(posDoc.total),35);assert.equal(Number(posDoc.items[0].government_fee),0);assert.equal(posDoc.template_id,thermal);checks+=3;
+ const remembered=(await db.query('select * from checkout_prices where service_id=$1',[service])).rows[0];assert.equal(Number(remembered.pos_rate),35);assert.equal(Number(remembered.government_fee),10);assert.equal(Number(remembered.service_fee),100);checks+=3;
+ assert.equal((await db.query('select count(*) n from invoice_costs where invoice_id=$1',[pos])).rows[0].n,0);checks++;
+ const receipt=(await db.query('select * from sales_payments where document_id=$1',[pos])).rows[0];assert.equal(receipt.account_id,bank.id);assert.ok(receipt.receipt_no);checks+=2;
+ assert.equal((await db.query('select checkout_sale($1,$2) id',[JSON.stringify(posRequest),id(323)])).rows[0].id,pos);checks++;
  await system();await db.query('update profiles set branch_id=null where id=$1',[id(25)]);await login(25);await denied('select checkout_sale($1,$2)',[JSON.stringify(simple),id(317)]);
  await db.exec('reset role;set role anon');await denied('select checkout_sale($1,$2)',[JSON.stringify(request),id(307)]);
  console.log(`PASS: ${checks} connected checkout assertions.`);
