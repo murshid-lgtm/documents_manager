@@ -3,6 +3,7 @@ import './checkout.css';
 import './business.css';
 import './finance.css';
 import './compact.css';
+import './workspace.css';
 import ActionFeedback from '../components/ActionFeedback';
 import PdfPreviewModal from '../components/PdfPreviewModal';
 
