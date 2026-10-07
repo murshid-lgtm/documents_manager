@@ -1,0 +1,121 @@
+/* Complete the workspace theme at nested dialog boundaries. */
+.app-shell { font-size:14px; line-height:1.5; }
+.app-shell .sidebar .nav { font-size:15px!important; min-height:42px!important; height:42px!important; padding:9px 18px!important; gap:14px; }
+.app-shell .sidebar .nav.active { background:transparent!important; color:var(--ws-ink)!important; }
+.app-shell .sidebar .nav.active .nav-icon { color:var(--ws-green)!important; }
+.app-shell .nav.active:before { top:7px; bottom:7px; width:5px; }
+.app-shell .nav-group-toggle>span { font-size:12px!important; font-weight:500; letter-spacing:.03em; }
+.app-shell .sidebar .nav-icon { width:22px!important; height:22px!important; }
+.app-shell .sidebar .nav-icon svg { width:20px; height:20px; }
+.app-shell .sidebar .nav:hover { background:#e7eee9!important; }
+.app-shell .nav-group-items { animation:workspace-submenu .24s var(--ws-ease); }
+.app-shell .workspace-page { animation:none; }
+.app-shell :is(.business-card p,.business-card small,.small-text,.muted,.empty,.business-empty) { font-size:13px!important; }
+.app-shell :is(.business-table,.finance-table,.compact-record-table,.ops-table) { font-size:14px!important; }
+.app-shell td { font-size:14px!important; }
+.app-shell th { font-size:12px!important; }
+.app-shell :is(.case-card,.document-card) :is(p,small) { font-size:12px!important; }
+
+/* Every modal family, including overlays that do not use the shared Modal. */
+:is(.modal-backdrop,.business-overlay,.notification-backdrop,.pdf-preview-overlay,.delete-review-backdrop,.import-progress-backdrop) { background:#18312585!important; backdrop-filter:blur(7px); }
+:is(.app-shell .modal,.app-shell .business-dialog,.batch-setup-modal,.batch-print-modal,.qr-legacy-dialog,.legacy-label-dialog,.delete-review-modal,.import-progress-modal,.pdf-preview-modal) { color:var(--ws-ink)!important; background:var(--ws-card)!important; border:1px solid var(--ws-line)!important; border-radius:24px!important; box-shadow:0 24px 80px #102b2440!important; font-family:var(--ws-font)!important; animation:workspace-modal-slide .3s var(--ws-ease)!important; }
+.app-shell :is(.modal-head,.business-dialog>header,.batch-modal-head,.legacy-label-head,.quick-edit-head,.delete-review-head) { background:var(--ws-card)!important; color:var(--ws-ink)!important; border-bottom:1px solid var(--ws-line)!important; }
+.app-shell :is(.modal-head,.business-dialog>header,.batch-modal-head,.legacy-label-head,.quick-edit-head,.delete-review-head) :is(h2,h3,strong) { color:var(--ws-ink)!important; font-size:21px!important; }
+.app-shell :is(.modal-head,.business-dialog>header,.quick-edit-head,.delete-review-head) :is(p,small,span) { color:var(--ws-muted)!important; font-size:13px!important; }
+.app-shell :is(.business-dialog,.modal) :is(label,input,select,textarea) { font-size:14px!important; }
+.app-shell :is(.business-dialog,.modal) :is(input,select,textarea) { min-height:38px!important; }
+.app-shell :is(.business-dialog footer,.modal-actions,.billing-actions,.bulk-dialog>footer) { background:var(--ws-card)!important; border-color:var(--ws-line)!important; }
+.app-shell :is(.business-close,.batch-modal-close,.legacy-label-close,.icon-btn) { background:var(--ws-panel)!important; color:var(--ws-forest)!important; border:1px solid var(--ws-line)!important; border-radius:50%!important; box-shadow:none!important; }
+.app-shell :is(.business-grid,.case-grid,.doc-list,.finance-summary,.ops-kanban,.calendar-grid) { border-color:var(--ws-line)!important; }
+
+/* Quick view: explicitly override the old dark-hero descendant colours. */
+.app-shell .modal.quick-modal-v323 .quick-hero { background:var(--ws-card)!important; padding:24px 28px 20px!important; border-bottom:1px solid var(--ws-line)!important; min-height:0!important; }
+.app-shell .modal.quick-modal-v323 .quick-context-label { color:var(--ws-green)!important; font-size:12px!important; letter-spacing:.1em; }
+.app-shell .modal.quick-modal-v323 .quick-ref { color:var(--ws-ink)!important; font-size:26px!important; line-height:1.2!important; margin:6px 0!important; }
+.app-shell .modal.quick-modal-v323 .quick-hero h2 { color:var(--ws-ink)!important; font-size:24px!important; line-height:1.3!important; margin:5px 0 12px!important; }
+.app-shell .modal.quick-modal-v323 .quick-identity-chips { justify-content:flex-start!important; gap:8px!important; flex-wrap:wrap!important; }
+.app-shell .modal.quick-modal-v323 .quick-identity-chips>span { color:var(--ws-muted)!important; background:var(--ws-panel)!important; border:1px solid var(--ws-line)!important; font-size:13px!important; border-radius:999px!important; padding:7px 11px!important; }
+.app-shell .modal.quick-modal-v323 .quick-identity-chips>span svg { color:var(--ws-green)!important; }
+.app-shell .modal.quick-modal-v323 .quick-identity-chips>.quick-location-chip { background:var(--ws-soft)!important; color:var(--ws-forest)!important; }
+.app-shell .modal.quick-modal-v323 .quick-status-select { background:var(--ws-panel)!important; color:var(--ws-forest)!important; border-color:var(--ws-line)!important; border-radius:999px!important; font-size:13px!important; }
+.app-shell .modal.quick-modal-v323 :is(.quick-body,.quick-stats,.quick-side) { background:var(--ws-panel)!important; border-color:var(--ws-line)!important; }
+.app-shell .modal.quick-modal-v323 .quick-ops-dock { background:var(--ws-card)!important; border-color:var(--ws-line)!important; }
+.app-shell .modal.quick-modal-v323 .quick-ops-dock>button:not(.danger) { background:var(--ws-panel)!important; border:1px solid var(--ws-line)!important; color:var(--ws-forest)!important; border-radius:14px!important; box-shadow:none!important; }
+.app-shell .modal.quick-modal-v323 .quick-ops-dock>button:hover:not(.danger) { background:var(--ws-soft)!important; }
+.app-shell .modal.quick-modal-v323 .quick-ops-dock :is(strong,.quick-dock-title>span) { font-size:14px!important; color:var(--ws-ink)!important; }
+.app-shell .modal.quick-modal-v323 .quick-ops-dock small { font-size:12px!important; color:var(--ws-muted)!important; }
+.app-shell .modal.quick-modal-v323 .quick-ops-dock svg { color:var(--ws-green)!important; }
+.app-shell .modal.quick-modal-v323 :is(.quick-stats>div,.quick-side-section,.quick-docs .doc-row,.stage-node) { background:var(--ws-card)!important; border-color:var(--ws-line)!important; box-shadow:var(--ws-shadow)!important; }
+.app-shell .modal.quick-modal-v323 .quick-stats span { font-size:12px!important; color:var(--ws-muted)!important; }
+.app-shell .modal.quick-modal-v323 .quick-stats strong { font-size:21px!important; color:var(--ws-ink)!important; }
+.app-shell .modal.quick-modal-v323 .quick-stats strong.due { color:#b83333!important; }
+.app-shell .modal.quick-modal-v323 :is(.section-head h3,.quick-side-heading h3) { color:var(--ws-ink)!important; font-size:19px!important; }
+.app-shell .modal.quick-modal-v323 :is(.section-head p,.quick-side dt,.quick-side dd,.timeline-item span,.timeline-item small) { font-size:13px!important; color:var(--ws-muted)!important; }
+.app-shell .modal.quick-modal-v323 .timeline-item strong { font-size:14px!important; color:var(--ws-ink)!important; }
+.app-shell .modal.quick-modal-v323 :is(.quick-side-heading>span,.doc-icon,.stage-number) { background:var(--ws-soft)!important; color:var(--ws-green)!important; }
+.app-shell .modal.quick-modal-v323 .quick-progress em { background:var(--ws-green)!important; }
+.app-shell .modal.quick-modal-v323 .quick-progress b { color:var(--ws-green)!important; }
+.app-shell .modal.quick-modal-v323 .stage-add { border-color:#bad4c4!important; background:var(--ws-soft)!important; color:var(--ws-green)!important; }
+.app-shell .modal.quick-modal-v323 .quick-corner-close { border-radius:50%!important; width:36px!important; height:36px!important; }
+
+/* Notification drawer shares the calm surfaces and typography of the app. */
+.app-shell .notification-center { width:min(550px,100vw)!important; background:var(--ws-panel)!important; color:var(--ws-ink)!important; border:1px solid var(--ws-line)!important; border-radius:26px 0 0 26px!important; animation:workspace-drawer-slide .32s var(--ws-ease)!important; }
+.app-shell .notification-head { background:var(--ws-card)!important; padding:24px!important; border-color:var(--ws-line)!important; }
+.app-shell .notification-head h2 { color:var(--ws-ink)!important; font-size:24px!important; }
+.app-shell .notification-head :is(span,p) { color:var(--ws-muted)!important; font-size:13px!important; }
+.app-shell .notification-head>button { border:1px solid var(--ws-line)!important; background:var(--ws-panel)!important; color:var(--ws-forest)!important; border-radius:50%!important; width:36px!important; height:36px!important; }
+.app-shell .notification-tabs { margin:16px!important; }
+.app-shell .notification-actions { padding:0 20px 14px!important; background:transparent!important; border-color:var(--ws-line)!important; gap:10px; }
+.app-shell .notification-actions button { background:var(--ws-card)!important; color:var(--ws-forest)!important; border:1px solid var(--ws-line)!important; border-radius:999px!important; font-size:13px!important; padding:8px 12px!important; }
+.app-shell :is(.notification-group-shell,.notification-item) { background:var(--ws-card)!important; border-color:var(--ws-line)!important; border-radius:16px!important; box-shadow:none!important; }
+.app-shell .notification-item.unread { background:#eaf5ee!important; }
+.app-shell .notification-copy strong { color:var(--ws-ink)!important; font-size:14px!important; }
+.app-shell .notification-copy :is(span,small,time) { color:var(--ws-muted)!important; font-size:12px!important; }
+.app-shell .notification-type { background:var(--ws-soft)!important; color:var(--ws-green)!important; border-radius:50%!important; }
+.app-shell .notification-item em { background:var(--ws-green)!important; }
+.app-shell .notification-more { color:var(--ws-muted)!important; background:var(--ws-panel)!important; }
+.app-shell .notification-slide-actions button:not(.delete) { background:var(--ws-green)!important; }
+.app-shell :is(.audit-filters,.audit-footer,.notification-group-details) { background:var(--ws-panel)!important; border-color:var(--ws-line)!important; color:var(--ws-muted)!important; }
+.app-shell .notification-empty { color:var(--ws-muted)!important; font-size:14px!important; }
+
+/* PDF viewer is mounted outside AppShell; printed document CSS stays isolated. */
+.pdf-preview-modal { background:var(--ws-panel)!important; font-family:var(--ws-font)!important; }
+.pdf-preview-modal>header { padding:16px 20px!important; border-color:var(--ws-line)!important; background:var(--ws-card)!important; }
+.pdf-preview-modal>header strong { color:var(--ws-ink)!important; font-size:17px!important; }
+.pdf-preview-modal>header small { color:var(--ws-muted)!important; font-size:13px!important; }
+.pdf-preview-modal button { background:var(--ws-card)!important; border-color:#c8d3ca!important; color:var(--ws-forest)!important; border-radius:999px!important; height:38px!important; min-width:38px!important; font-family:var(--ws-font)!important; font-size:14px!important; }
+.pdf-preview-modal button.primary { background:linear-gradient(165deg,var(--ws-green),var(--ws-forest))!important; color:#fff!important; padding:0 18px!important; font-size:14px!important; }
+.pdf-preview-modal button:focus-visible { outline:2px solid var(--ws-green); outline-offset:3px; }
+.pdf-preview-area { background:#e4eae5!important; padding:24px!important; }
+.pdf-preview-sheet { box-shadow:0 12px 40px #102b2420!important; }
+.pdf-preview-loading { color:var(--ws-forest)!important; }
+.pdf-preview-loading strong { font-size:18px!important; }
+.pdf-preview-loading small { color:var(--ws-muted)!important; font-size:14px!important; }
+.pdf-spinner { border-color:#d2e4d8!important; border-top-color:var(--ws-green)!important; }
+.pdf-loading-paper { border-radius:10px; box-shadow:var(--ws-shadow)!important; }
+.pdf-loading-paper i { background:linear-gradient(90deg,#e3ece6,#f6faf7,#e3ece6)!important; background-size:200% 100%!important; }
+.pdf-preview-error { color:var(--ws-ink); }
+.pdf-preview-modal.is-fullscreen { border-radius:0!important; }
+.app-shell :is(.print-preview-label,.print-template-header,.print-studio-toolbar,.legacy-label-toolbar,.batch-print-head) { background:var(--ws-card)!important; color:var(--ws-ink)!important; border-color:var(--ws-line)!important; }
+.app-shell :is(.print-preview-paper,.print-studio-preview,.legacy-label-preview,.batch-print-preview) { background:#e4eae5!important; border-color:var(--ws-line)!important; }
+.app-shell :is(.print-preview-label,.print-template-header) :is(strong,small) { color:var(--ws-ink)!important; }
+@keyframes workspace-modal-slide { from { opacity:.5; transform:translateY(18px) scale(.99); } to { opacity:1; transform:none; } }
+@keyframes workspace-drawer-slide { from { opacity:.5; transform:translateX(40px); } to { opacity:1; transform:none; } }
+@keyframes workspace-submenu { from { opacity:.5; transform:translateY(-5px); } to { opacity:1; transform:none; } }
+@media(max-width:700px) {
+ .app-shell .modal.quick-modal-v323 .quick-hero { padding:18px 16px!important; }
+ .app-shell .modal.quick-modal-v323 .quick-ref { font-size:23px!important; }
+ .app-shell .modal.quick-modal-v323 .quick-hero h2 { font-size:21px!important; }
+ .app-shell .modal.quick-modal-v323 .quick-identity-chips>span { font-size:12px!important; padding:6px 9px!important; }
+ .app-shell .notification-center { border-radius:0!important; }
+ .pdf-preview-modal { border-radius:0!important; }
+ .pdf-preview-modal>header { padding:12px!important; }
+ .pdf-preview-modal nav { width:100%; gap:6px!important; }
+ .pdf-preview-area { padding:12px!important; }
+ .app-shell :is(.primary,.secondary,.icon-action,.workspace-round-button) { min-height:44px!important; }
+ .app-shell :is(.icon-action,.workspace-round-button) { width:44px!important; height:44px!important; }
+ .app-shell .workspace-search input { font-size:12px!important; }
+}
+@media(prefers-reduced-motion:reduce) {
+ :is(.app-shell .modal,.app-shell .business-dialog,.notification-center,.pdf-preview-modal,.nav-group-items,.batch-setup-modal,.batch-print-modal,.qr-legacy-dialog,.legacy-label-dialog,.delete-review-modal,.import-progress-modal) { animation:none!important; }
+}
