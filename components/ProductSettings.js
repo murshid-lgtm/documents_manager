@@ -55,14 +55,15 @@ function LoginPreview({settings,organization,mobile}){
   </div></div>
 }
 
-export default function ProductSettings({session,profile,currentOrganization,onBrandChange,notify}){
+export default function ProductSettings({session,profile,currentOrganization,onBrandChange,notify,initialTab}){
   const platform=Boolean(profile?.is_platform_super_admin);
   const [settingsSearch,setSettingsSearch]=useState('');
   const settingsNames={branding:'Company & branding',billing:'Numbering & billing',print:'Print templates',branches:'Branches',staff:'Users & roles',modules:'Module access',communications:'Communications',plan:'Subscription',companies:'Companies'};
-  const [tab,setTab]=useState(()=>{try{return sessionStorage.getItem('workspace-settings-tab')||'branding'}catch{return 'branding'}}),[organizations,setOrganizations]=useState([]),[organizationId,setOrganizationId]=useState(profile?.organization_id||''),[settings,setSettings]=useState(emptySettings),[branches,setBranches]=useState([]),[staff,setStaff]=useState([]),[busy,setBusy]=useState(false),[uploading,setUploading]=useState(''),[previewMobile,setPreviewMobile]=useState(false),[newOrg,setNewOrg]=useState(emptyOrganization),[newBranch,setNewBranch]=useState(''),[invite,setInvite]=useState({email:'',full_name:'',role:'staff',branch_id:'',password:'',staff_modules:null});
+  const [tab,setTab]=useState(()=>{if(initialTab)return initialTab;try{return sessionStorage.getItem('workspace-settings-tab')||'branding'}catch{return 'branding'}}),[organizations,setOrganizations]=useState([]),[organizationId,setOrganizationId]=useState(profile?.organization_id||''),[settings,setSettings]=useState(emptySettings),[branches,setBranches]=useState([]),[staff,setStaff]=useState([]),[busy,setBusy]=useState(false),[uploading,setUploading]=useState(''),[previewMobile,setPreviewMobile]=useState(false),[newOrg,setNewOrg]=useState(emptyOrganization),[newBranch,setNewBranch]=useState(''),[invite,setInvite]=useState({email:'',full_name:'',role:'staff',branch_id:'',password:'',staff_modules:null});
   const selectedOrganization=useMemo(()=>organizations.find(x=>x.id===organizationId)||currentOrganization,[organizations,organizationId,currentOrganization]);
   const setField=(field,value)=>setSettings(s=>({...s,[field]:value}));
 
+  useEffect(()=>{if(initialTab)setTab(initialTab)},[initialTab]);
   useEffect(()=>{loadOrganizations()},[]);
   useEffect(()=>{if(organizationId){try{localStorage.setItem('platform_selected_organization',organizationId)}catch{}loadWorkspace(organizationId)}},[organizationId]);
   async function loadOrganizations(){const {data,error}=await supabase.from('organizations').select('*').order('name');if(error)return notify(userError(error));const rows=data||[];let remembered='';try{remembered=localStorage.getItem('platform_selected_organization')||''}catch{}setOrganizations(rows);setOrganizationId(prev=>prev||profile?.organization_id||(rows.some(x=>x.id===remembered)?remembered:'')||rows[0]?.id||'');if(platform&&!rows.length)setTab('companies')}
