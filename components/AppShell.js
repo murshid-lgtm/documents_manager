@@ -4222,11 +4222,11 @@ function QuickView({c,branches=[],session,favorite=false,onToggleFavorite,onDeta
   const currentLocation=documentLocations.length>1?'Mixed locations':documentLocations[0]||c.physical_location||c.branches?.name||'Unassigned';
 
   return <div className="modal-backdrop" onMouseDown={onClose}>
-    <div ref={dialogRef} className="modal quick-modal quick-modal-v323" role="dialog" aria-modal="true" aria-label="Attestation quick view" onMouseDown={e=>e.stopPropagation()}>
+    <div ref={dialogRef} className="modal quick-modal quick-modal-v323 quick-workspace-redesign" role="dialog" aria-modal="true" aria-label="Attestation quick view" onMouseDown={e=>e.stopPropagation()}>
       <button className="quick-corner-close" onClick={onClose} aria-label="Close quick view"><Icon name="close" size={15}/></button>
       <div className="quick-hero">
         <div>
-          <div className="quick-context-label">Attestation workspace</div>
+          <div className="quick-context-label"><Icon name="file" size={14}/> ATTESTATION <span> / </span> CUSTOMER WORKSPACE</div>
           <div className="quick-ref">#{c.tracking_reference}</div>
           <h2>{c.customer_name}</h2>
           <div className="quick-identity-chips">
@@ -4242,7 +4242,7 @@ function QuickView({c,branches=[],session,favorite=false,onToggleFavorite,onDeta
       </div>
 
       <div className="quick-function-bar quick-ops-dock">
-        <div className="quick-dock-title"><span>Quick actions</span><small>Manage this attestation</small></div>
+        <div className="quick-dock-title"><span>Actions</span></div>
         <button onClick={onDeliver}><Icon name="package" size={16}/><span><strong>Delivery</strong><small>To customer</small></span></button>
         <button onClick={onCustody}><Icon name="handover" size={16}/><span><strong>Handover</strong><small>Internal custody</small></span></button>
         <button onClick={onPayment}><Icon name="wallet" size={16}/><span><strong>Payment</strong><small>Record collection</small></span></button>
@@ -4260,15 +4260,13 @@ function QuickView({c,branches=[],session,favorite=false,onToggleFavorite,onDeta
         <div><span>Total</span><strong>{fmtMoney(c.total_amount)}</strong></div>
         <div><span>Paid</span><strong>{fmtMoney(m.paid)}</strong></div>
         <div><span>Balance</span><strong className={m.balance>0?'due':''}>{fmtMoney(m.balance)}</strong></div>
-        <div><span>Documents</span><strong>{quickDocuments.length}</strong></div>
-        <div><span>Active stages</span><strong>{activeStages}</strong></div>
-        <div><span>Promise</span><strong>{fmtDate(c.promise_date)}</strong></div>
+        <div className="quick-workflow-stat"><span>Workflow progress</span><strong>{workflowPercent}% <small>{completedStages} / {quickStages.length} stages</small></strong><progress max="100" value={workflowPercent} aria-label="Completed attestation stages"/></div>
       </div>
 
       <div className="quick-body">
         <section>
           <div className="section-head">
-            <div><h3>Documents & Attestation</h3><p>Each document is an independent workflow.</p></div>
+            <div><div className="quick-section-eyebrow">JOB ORDER</div><h3>Documents & attestations <span className="quick-count">{quickDocuments.length}</span></h3><p>{activeStages} active stages · Promise {fmtDate(c.promise_date)}</p></div>
             <div className="quick-section-tools">
               <div className="quick-progress" title={`${completedStages} of ${quickStages.length} stages completed`}>
                 <span><b>{workflowPercent}%</b> complete</span>
@@ -4286,6 +4284,7 @@ function QuickView({c,branches=[],session,favorite=false,onToggleFavorite,onDeta
 
         <aside className="quick-side">
           <div className="quick-side-section">
+            <div className="quick-section-eyebrow">CUSTOMER & INTAKE</div>
             <div className="quick-side-heading"><span><Icon name="info" size={15}/></span><h3>Attestation details</h3></div>
             <dl>
               <dt>Submission</dt><dd>{fmtDate(c.submission_date)}</dd>
