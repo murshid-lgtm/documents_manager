@@ -105,7 +105,7 @@ export default function ProductSettings({session,profile,currentOrganization,onB
 
   return <section className="product-settings">
     <div className="product-settings-hero"><div><span>WHITE-LABEL CONTROL CENTER</span><h2>{platform?'Platform administration':'Company administration'}</h2><p>Manage company identity, login experience, branches, staff and the features available across web and mobile.</p></div>{platform&&<select value={organizationId} onChange={e=>setOrganizationId(e.target.value)}>{organizations.map(o=><option key={o.id} value={o.id}>{o.name} · {o.status}</option>)}</select>}</div>
-    <div className="settings-search-bar"><span aria-hidden="true">⌕</span><input aria-label="Search settings groups" placeholder="Search settings…" value={settingsSearch} onChange={e=>setSettingsSearch(e.target.value)}/>{settingsSearch&&<button type="button" title="Clear search" aria-label="Clear settings search" onClick={()=>setSettingsSearch('')}>×</button>}</div><div className="product-settings-tabs">{['branding','billing','print','branches','staff','modules','communications','plan',...(platform?['companies']:[])].filter(x=>settingsNames[x].toLowerCase().includes(settingsSearch.toLowerCase())).map(x=><button key={x} className={tab===x?'active':''} onClick={()=>setTab(x)}>{settingsNames[x]}</button>)}</div>
+    <div className="settings-navigation"><div className="settings-search-bar"><span aria-hidden="true">⌕</span><input aria-label="Search settings groups" placeholder="Search settings…" value={settingsSearch} onChange={e=>setSettingsSearch(e.target.value)}/>{settingsSearch&&<button type="button" title="Clear search" aria-label="Clear settings search" onClick={()=>setSettingsSearch('')}>×</button>}</div><div className="product-settings-tabs">{['branding','billing','print','branches','staff','modules','communications','plan',...(platform?['companies']:[])].filter(x=>settingsNames[x].toLowerCase().includes(settingsSearch.toLowerCase())).map(x=><button key={x} className={tab===x?'active':''} onClick={()=>setTab(x)}>{settingsNames[x]}</button>)}</div></div><div className="settings-content">
     {busy&&<div className="settings-loading">Saving or loading company settings…</div>}
     {tab==='billing'&&organizationId&&<BillingSettings key={organizationId} orgId={organizationId} notify={notify}/>}
     {tab==='print'&&organizationId&&<PrintSettings key={organizationId} orgId={organizationId} brand={settings} organization={selectedOrganization} notify={notify}/>}
@@ -126,7 +126,7 @@ export default function ProductSettings({session,profile,currentOrganization,onB
     {tab==='communications'&&<CommunicationsSettings organizationId={organizationId} notify={notify} companyName={selectedOrganization?.name}/>}
     {tab==='plan'&&<ResalePlan organizationId={organizationId} platform={platform} moduleLabels={MODULE_LABELS} notify={notify}/>}
     {tab==='companies'&&platform&&<CompaniesCard organizations={organizations} organizationId={organizationId} setOrganizationId={setOrganizationId} selectedOrganization={selectedOrganization} newOrg={newOrg} setNewOrg={setNewOrg} createOrganization={createOrganization} updateOrganization={updateOrganization} notify={notify}/>} 
-  </section>
+  </div></section>
 }
 
 function EditorTitle({number,title,text}){return <div className="branding-editor-title"><span>{number}</span><div><h4>{title}</h4><p>{text}</p></div></div>}
