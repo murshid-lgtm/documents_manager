@@ -1,6 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig={
   reactStrictMode:true,
+  serverExternalPackages:['@sparticuz/chromium','puppeteer-core'],
+  outputFileTracingIncludes:{'/api/documents/pdf':['./node_modules/@sparticuz/chromium/bin/**/*']},
   poweredByHeader:false,
   productionBrowserSourceMaps:false,
   async headers(){

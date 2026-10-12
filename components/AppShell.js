@@ -6,6 +6,8 @@ import * as XLSX from 'xlsx';
 import QRCode from 'qrcode';
 import jsQR from 'jsqr';
 import WorkspaceDashboard from './WorkspaceDashboard';
+import WorkspaceLoader from './WorkspaceLoader';
+import StatusChip,{StatusIcon} from './StatusChip';
 
 import WorkspaceMotion from './WorkspaceMotion';
 import ProductSettings from './ProductSettings';
@@ -822,7 +824,7 @@ ${company}`;
     crm:'Customers, leads and follow-ups in one workspace.',sales:'Quotations, invoices and sales collections.',services:'Service jobs, approvals and renewals.',profile:'Your identity and access in this workspace.',settings:'Manage branding, branches, staff, access and product configuration.'
   ,help:'Guidance for a smoother working day.'}[view]||'Live overview of attestation cases, workload and receivables.';
 
-  if(!brandReady)return <main className="workspace-startup" role="status"><span className="pdf-spinner"/><p>Opening your workspace…</p><i/></main>;
+  if(!brandReady)return <WorkspaceLoader/>;
   return <div className={`app-shell ${sidebarCollapsed?'sidebar-collapsed':''} ${mobileMenu?'mobile-sidebar-open':''}`} onClick={e=>{const menu=e.target.closest('.sidebar-menu-popover');if(menu&&e.target.closest('button'))menu.closest('details')?.removeAttribute('open');if(e.target.closest('.sidebar .nav'))setMobileMenu(false)}}>
     <aside ref={sidebarPanelRef} className="sidebar" role={mobileMenu?'dialog':undefined} aria-modal={mobileMenu||undefined} aria-label="Workspace navigation">
       <div className={`brand ${brandSettings?.logo_url&&brandSettings?.sidebar_logo_visible!==false?'brand-logo-mode':''} ${brandSettings?.logo_url&&brandSettings?.sidebar_logo_visible===false?'brand-logo-hidden':''}`} style={{'--sidebar-logo-size':`${Number(brandSettings?.sidebar_logo_size||100)}%`,'--sidebar-logo-align':brandSettings?.sidebar_logo_alignment||'center','--sidebar-logo-background':brandSettings?.sidebar_logo_background||'#FFFFFF','--sidebar-logo-radius':`${Number(brandSettings?.sidebar_logo_radius??14)}px`,'--sidebar-logo-width':`${Number(brandSettings?.sidebar_logo_container_width||190)}px`,'--sidebar-logo-height':`${Number(brandSettings?.sidebar_logo_container_height||64)}px`}}>{brandSettings?.logo_url?(brandSettings?.sidebar_logo_visible!==false?<div className="sidebar-logo-container"><img className="sidebar-brand-logo" src={brandSettings.logo_url} alt={brandSettings?.company_name||'Company logo'}/></div>:null):<><div className="brand-mark small">{(brandSettings?.short_name||brandSettings?.company_name||'D').slice(0,1).toUpperCase()}</div><div><strong>{brandSettings?.product_name||'Workspace'}</strong><span>{brandSettings?.company_name||'Operations command center'}</span></div></>}<button className="sidebar-toggle" onClick={()=>{if(window.innerWidth<=700)setMobileMenu(false);else toggleSidebar()}} title={mobileMenu?'Close navigation':sidebarCollapsed?'Expand sidebar':'Collapse sidebar'} aria-label={mobileMenu?'Close navigation':sidebarCollapsed?'Expand sidebar':'Collapse sidebar'}><Icon name={mobileMenu?'chevron-left':sidebarCollapsed?'chevron-right':'chevron-left'} size={17}/></button></div>
@@ -902,7 +904,7 @@ ${company}`;
     </nav>
 
     {mobileMenu&&<button className="mobile-sidebar-scrim" aria-label="Close navigation" onClick={()=>setMobileMenu(false)}/>}
-    {loading&&cases.length===0&&<div className="app-loading-stage"><div className="loading-brand"><div>{(brandSettings?.short_name||brandSettings?.company_name||'D').slice(0,1).toUpperCase()}</div><strong>{brandSettings?.product_name||'Workspace'}</strong><span>Preparing your operations workspace</span><i/></div></div>}
+    {loading&&cases.length===0&&<div className="app-loading-stage"><WorkspaceLoader contained name={brandSettings?.product_name||'Document Tracker'} initial={(brandSettings?.short_name||brandSettings?.company_name||'D').slice(0,1).toUpperCase()}/></div>}
     {globalScan&&<DeliveryQrScanner cases={cases} onClose={()=>setGlobalScan(false)} onAction={openScannedAction} notify={setMessage} title="Scan Case QR"/>}
 
     {showNew&&<Modal className="new-case-modal invoice-case-modal" onClose={()=>!saving&&setShowNew(false)} title="New attestation" subtitle="Create the complete transaction like an invoice — customer, documents, attestation and payment in one workspace."><form onSubmit={createCase} className="invoice-case-workspace">
@@ -1063,7 +1065,7 @@ function NotificationCenter({userId,rows,cases,loading,lastRead,isAdmin,onClose,
 function Nav({active,disabled,icon,children,onClick}){const label=String(Array.isArray(children)?children[0]:children||'').trim();return <button className={`nav ${active?'active':''} ${disabled?'disabled':''}`} disabled={disabled} onClick={onClick} title={label} aria-label={label} data-label={label}><i className="nav-icon"><Icon name={icon} size={17}/></i><span>{children}</span>{active&&<em className="nav-active-dot"/>}</button>}
 function Field({label,wide,children}){return <label className={wide?'wide':''}><span>{label}</span>{children}</label>}
 function Modal({title,subtitle,onClose,children,className=''}){return <div className="modal-backdrop" onMouseDown={onClose}><div className={`modal ${className}`} onMouseDown={e=>e.stopPropagation()}><div className="modal-head"><div><h2>{title}</h2><p className="muted">{subtitle}</p></div><button className="icon-btn" onClick={onClose} aria-label="Close"><Icon name="close" size={18}/></button></div>{children}</div></div>}
-function StatusPill({status}){return <span className={`status-pill ${slug(status)}`}><i></i>{status}</span>}
+function StatusPill({status}){return <span className={`status-pill ${slug(status)}`}><StatusIcon status={status}/>{status}</span>}
 function moneyParts(c){const paid=Number(c.advance_paid||0)+Number(c.second_payment||0)-Number(c.discount_return||0);const balance=Number(c.balance_payment??Math.max(0,Number(c.total_amount||0)-paid));return{paid,balance}}
 
 function Dashboard({companyName='Your Organization',stats,cases,onOpen,onCases,onScan,onDeliveries,onPayments,onCustody,orgId,onSales,onServices,onCRM,branchName=null}){
@@ -1218,6 +1220,10 @@ function DocRow({c,d,updateStage,updateStageDate,reorderStages,addStage,renameSt
     <div className="doc-title"><div className="doc-icon"><Icon name="file" size={15}/></div><div><strong>{d.document_name}{(d.occurrence_no||1)>1?` #${d.occurrence_no}`:''}</strong><span>{d.holder_name?`${d.holder_name} · `:''}Qty {d.quantity||1} · {d.document_status}{d.direct_to_delhi?' · DD':''}</span>{d.physical_location&&<span className="doc-current-location"><Icon name="home" size={11}/> Current: {d.physical_location}</span>}</div><button className="trash" onClick={onDelete} aria-label="Remove document" title="Remove document"><Icon name="trash" size={15}/></button></div>
     <StageEditor c={c} d={d} updateStage={updateStage} updateStageDate={updateStageDate} reorderStages={reorderStages} addStage={addStage} renameStage={renameStage} deleteStage={deleteStage} compact={compact}/>
   </div>
+}
+function QuickDocumentCard(props){
+ const {c,d,onDelete}=props;
+ return <details className="quick-document-card"><summary><span className="doc-icon"><Icon name="file" size={19}/></span><span className="quick-document-name"><strong>{d.document_name}{(d.occurrence_no||1)>1?` #${d.occurrence_no}`:''}</strong><small>{d.holder_name||c.customer_name} · Qty {d.quantity||1}</small></span><span className="quick-document-chips">{(d.document_stages||[]).map(st=><StatusChip key={st.id} status={st.status}>{st.stage_name}</StatusChip>)}</span><span className="quick-accordion-arrow"><Icon name="chevron-down" size={19}/></span></summary><div className="quick-document-content"><div className="quick-document-meta"><StatusChip status={d.document_status}/><span><Icon name="home" size={15}/>{d.physical_location||c.physical_location||c.branches?.name||'Submitted branch'}</span><button type="button" className="danger icon-action" onClick={onDelete} aria-label="Remove document" title="Remove document"><Icon name="trash" size={15}/></button></div><StageEditor {...props} compact={false}/></div></details>
 }
 function StageEditor({c,d,updateStage,updateStageDate,reorderStages,addStage,renameStage,deleteStage,compact=false}){
   const stages=d.document_stages||[];
@@ -3983,7 +3989,7 @@ function LabelPreviewModal({c,onClose,notify,onAddToSheet}){
 }
 function QuickView({c,branches=[],session,favorite=false,onToggleFavorite,onDetailedShare,onClose,refreshCase,notify,updateStatus,updateStage,updateStageDate,reorderStages,onAddDoc,deleteDocument,addStage,renameStage,deleteStage,onAppointment,onDeliver,onCustody,onPayment,onDeleted}){
   const dialogRef=useRef(null);
-  useEffect(()=>{const previous=document.activeElement;dialogRef.current?.querySelector('button')?.focus();const key=e=>{if(e.key==='Escape'){e.preventDefault();onClose()}if(e.key==='Tab'){const fields=[...dialogRef.current.querySelectorAll('button:not(:disabled),input:not(:disabled),select:not(:disabled),summary,[tabindex="0"]')].filter(x=>x.getClientRects().length);if(e.shiftKey&&document.activeElement===fields[0]){e.preventDefault();fields.at(-1)?.focus()}else if(!e.shiftKey&&document.activeElement===fields.at(-1)){e.preventDefault();fields[0]?.focus()}}};document.addEventListener('keydown',key);return()=>{document.removeEventListener('keydown',key);if(previous?.isConnected)previous.focus()}},[c.id]);
+  useEffect(()=>{const previous=document.activeElement,previousOverflow=document.body.style.overflow;document.body.style.overflow='hidden';dialogRef.current?.querySelector('button')?.focus();const key=e=>{if(e.key==='Escape'){e.preventDefault();onClose()}if(e.key==='Tab'){const fields=[...dialogRef.current.querySelectorAll('button:not(:disabled),input:not(:disabled),select:not(:disabled),summary,[tabindex="0"]')].filter(x=>x.getClientRects().length);if(e.shiftKey&&document.activeElement===fields[0]){e.preventDefault();fields.at(-1)?.focus()}else if(!e.shiftKey&&document.activeElement===fields.at(-1)){e.preventDefault();fields[0]?.focus()}}};document.addEventListener('keydown',key);return()=>{document.body.style.overflow=previousOverflow;document.removeEventListener('keydown',key);if(previous?.isConnected)previous.focus()}},[c.id]);
   const [deletingCase,setDeletingCase]=useState(false);
   const [deleteReview,setDeleteReview]=useState(null);
   const [deleteChecking,setDeleteChecking]=useState(false);
@@ -4248,10 +4254,7 @@ function QuickView({c,branches=[],session,favorite=false,onToggleFavorite,onDeta
           <div className="quick-ref">#{c.tracking_reference}</div>
           <h2>{c.customer_name}</h2>
           <div className="quick-identity-chips">
-            <span><Icon name="phone" size={13}/>{c.mobile||'No mobile'}</span>
-            <span><Icon name="home" size={13}/>{c.branches?.name||'No branch'}</span>
-            <span><Icon name="file" size={13}/>Bill {c.bill_no||'—'}</span>
-            <span className="quick-location-chip"><Icon name="handover" size={13}/>Current: {currentLocation}</span>
+            <StatusIcon status={c.overall_status} size={22}/>
             <select aria-label="Case status" className={`quick-status-select quick-inline-status ${slug(c.overall_status)}`} value={c.overall_status} onChange={e=>updateStatus(c,e.target.value)}>
               {CASE_STATUSES.map(s=><option key={s}>{s}</option>)}
             </select>
@@ -4294,17 +4297,20 @@ function QuickView({c,branches=[],session,favorite=false,onToggleFavorite,onDeta
           </div>
           <div className="doc-list quick-docs">
             {c.documents?.length
-              ? c.documents.map(d=><DocRow key={d.id} c={c} d={d} updateStage={updateStage} updateStageDate={updateStageDate} reorderStages={reorderStages} addStage={addStage} renameStage={renameStage} deleteStage={deleteStage} compact onDelete={()=>deleteDocument(c,d)}/>)
+              ? c.documents.map(d=><QuickDocumentCard key={d.id} c={c} d={d} updateStage={updateStage} updateStageDate={updateStageDate} reorderStages={reorderStages} addStage={addStage} renameStage={renameStage} deleteStage={deleteStage} onDelete={()=>deleteDocument(c,d)}/>)
               : <Empty text="No documents added"/>}
           </div>
           {c.invoice_id&&<details className="invoice-preview-fold attestation-financials"><summary>Invoice journals, expenses & liabilities</summary><AttestationAccounting invoiceId={c.invoice_id} orgId={c.organization_id||activePrintContext.orgId} notify={notify}/></details>}
         </section>
 
         <aside className="quick-side">
-          <div className="quick-side-section">
+          <button type="button" className="quick-mobile-number" onClick={callCustomer} title="Call customer"><span><Icon name="phone" size={25}/></span><strong>{c.mobile||'No mobile'}</strong></button>
+          <details className="quick-side-section quick-details-fold">
+            <summary><Icon name="info" size={18}/> Details <Icon name="chevron-down" size={18}/></summary>
             <div className="quick-section-eyebrow">CUSTOMER & INTAKE</div>
             <div className="quick-side-heading"><span><Icon name="info" size={15}/></span><h3>Attestation details</h3></div>
             <dl>
+              <dt>Bill number</dt><dd>{c.bill_no||'—'}</dd>
               <dt>Submission</dt><dd>{fmtDate(c.submission_date)}</dd>
               <dt>Submitted branch</dt><dd>{c.branches?.name||'—'}</dd>
               <dt>Current location</dt><dd><span className={`quick-location-value ${documentLocations.length>1?'mixed':''}`}>{currentLocation}</span></dd>
@@ -4312,7 +4318,7 @@ function QuickView({c,branches=[],session,favorite=false,onToggleFavorite,onDeta
               <dt>Internal invoice</dt><dd>{c.internal_invoice_no||'—'}</dd>
               <dt>Milestone</dt><dd>{c.current_milestone||'—'}{c.current_milestone_date?` · ${fmtDate(c.current_milestone_date)}`:''}</dd><dt>Intake</dt><dd>{c.intake_source||'Branch'}{c.direct_to_delhi?' · DD':''}</dd><dt>Organization</dt><dd>{c.account_name||'—'}</dd><dt>Notes</dt><dd>{c.notes||'—'}</dd>
             </dl>
-          </div>
+          </details>
           <div className="quick-side-section quick-activity-section">
             <div className="quick-side-heading"><span><Icon name="activity" size={15}/></span><div><h3>Activity</h3><small>{historyRows.length} chronological events</small></div></div>
             <div className="timeline activity-scroll">
