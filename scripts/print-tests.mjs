@@ -21,10 +21,14 @@ for(const kind of ['invoice','quotation','receipt']){const html=documentHtml({ki
 
 for(const kind of ['invoice','quotation','receipt']){
  const html=documentHtml({kind,record:{document_no:'DEMO',customer_name:'<script>private()</script>',document_date:'2026-10-03',items:[{service_name:'Permit',description:'Permit description',quantity:1,unit_price:1800,government_fee:500,service_fee:1300,show_fees:true}],total:1800},template:{style:'Letterhead',paper:'A4',background_image:artwork,footer_image:artwork,logo_image:artwork,show_words:true,heading_x:5,footer_height:14}});
- assert(html.includes('page-background'));assert(html.includes('letterhead-footer'));assert(html.includes('bottom:0mm'));assert(html.includes('One Thousand Eight Hundred'));assert(html.includes('Govt QAR500.00'));assert(html.includes('Permit description'));assert(!html.includes('<script>'));assert(html.includes('&lt;script&gt;'));checks+=8;
+ if(kind==='receipt'){assert(html.includes('print-background'));assert(html.includes('receipt-footer'));assert(html.includes('Amount received'));assert(html.includes('One Thousand Eight Hundred'));assert(!html.includes('Sub Total'));assert(!html.includes('Item &amp; Description'));assert(!html.includes('Balance Due'));assert(html.includes('&lt;script&gt;'));checks+=8;}else{assert(html.includes('page-background'));assert(html.includes('letterhead-footer'));assert(html.includes('bottom:0mm'));assert(html.includes('One Thousand Eight Hundred'));assert(html.includes('Govt QAR500.00'));assert(html.includes('Permit description'));assert(!html.includes('<script>'));assert(html.includes('&lt;script&gt;'));checks+=8;}
 }
 const artworkSettings=normalizePrintTemplate('invoice',{background_image:'javascript:alert(1)',logo_image:'data:image/svg+xml;base64,AAAA',background_fit:'unsafe',heading_x:999,heading_y:-999,heading_align:'unsafe',footer_y:-50});
 assert.equal(artworkSettings.background_image,'');assert.equal(artworkSettings.logo_image,'');assert.equal(artworkSettings.background_fit,'fill');assert.equal(artworkSettings.heading_x,60);assert.equal(artworkSettings.heading_y,-60);assert.equal(artworkSettings.heading_align,'right');assert.equal(artworkSettings.footer_y,0);checks+=7;
 const intrinsic=normalizePrintTemplate('invoice',{footer_size_mode:'actual',footer_pixel_width:2480,footer_pixel_height:156});assert.ok(Math.abs(intrinsic.footer_height-210*156/2480)<.01);checks++;
 const repeated=documentHtml({kind:'invoice',record:{items:[],total:0},brand:{},currency:'QAR',template:{header_image:'data:image/png;base64,AAAA',header_height:14,footer_image:'data:image/png;base64,AAAA'}});assert.ok(repeated.includes('margin:22mm 0'));checks++;assert.ok(repeated.includes('.header-art{position:fixed!important'));checks++;
-console.log(`PASS: ${checks} print-template assertions.`);
+
+
+const receipt=documentHtml({kind:'receipt',record:{document_no:'RCT-10',invoice_no:'INV-10',amount:45.5,method:'Bank transfer',reference:'BANK-123',customer_name:'Sample'},template:{paper:'A4',style:'Letterhead',title:'Invoice'}});for(const text of ['Payment receipt','RCT-10','INV-10','BANK-123','45.50','Bank transfer'])assert(receipt.includes(text));assert(!receipt.includes('Sub Total'));assert(!receipt.includes('Balance Due'));
+
+checks+=8;console.log(`PASS: ${checks} print-template assertions, including payment-specific receipts.`);
