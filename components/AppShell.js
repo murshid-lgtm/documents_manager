@@ -1090,6 +1090,8 @@ function PanelHead({title,subtitle,action}){return <div className="panel-head"><
 function Empty({text}){return <div className="empty"><div>⌁</div><strong>{text}</strong></div>}
 
 function CasesView({preferenceKey,cases,allCases=[],recentCaseIds=[],favoriteCaseIds=new Set(),toggleFavorite,clearRecent,clearFavorites,shareDetailed,loading,query,setQuery,searchBy,setSearchBy,statusFilter,setStatusFilter,branchFilter,setBranchFilter,documentFilter,setDocumentFilter,quantityFilter,setQuantityFilter,mobileFilter,setMobileFilter,balanceFilter,setBalanceFilter,accountFilter,setAccountFilter,intakeFilter,setIntakeFilter,ddFilter,setDdFilter,branches,expanded,toggleExpanded,selected,toggleSelected,updateCaseStatus,updateStage,updateStageDate,reorderStages,quick,addDoc,deleteDocument,addStage,renameStage,deleteStage,bulkStatus,appointment,bulkAppointment,batchSelected}){
+  const recentMenuRef=useRef(null);
+  useEffect(()=>{const outside=e=>{const menu=recentMenuRef.current;if(menu?.open&&!menu.contains(e.target))menu.removeAttribute('open')};const escape=e=>{if(e.key==='Escape'&&recentMenuRef.current?.open){recentMenuRef.current.removeAttribute('open');recentMenuRef.current.querySelector('summary')?.focus()}};document.addEventListener('pointerdown',outside);document.addEventListener('focusin',outside);document.addEventListener('keydown',escape);return()=>{document.removeEventListener('pointerdown',outside);document.removeEventListener('focusin',outside);document.removeEventListener('keydown',escape)}},[]);
   const [visible,setVisible]=useState(200);
   const [filtersOpen,setFiltersOpen]=useState(false);
   const [bulkNext,setBulkNext]=useState('');
@@ -1100,8 +1102,7 @@ function CasesView({preferenceKey,cases,allCases=[],recentCaseIds=[],favoriteCas
   useEffect(()=>setVisible(200),[query,searchBy,statusFilter,branchFilter,documentFilter,quantityFilter,mobileFilter,balanceFilter,accountFilter,intakeFilter,ddFilter]);
   const displayCases=useMemo(()=>favoritesOnly?cases.filter(c=>favoriteCaseIds.has(c.id)):cases,[cases,favoritesOnly,favoriteCaseIds]);
   const shown=useMemo(()=>displayCases.slice(0,visible),[displayCases,visible]);
-  const pinned=useMemo(()=>allCases.filter(c=>favoriteCaseIds.has(c.id)).slice(0,8),[allCases,favoriteCaseIds]);
-  const recent=useMemo(()=>recentCaseIds.map(id=>allCases.find(c=>c.id===id)).filter(Boolean).slice(0,8),[allCases,recentCaseIds]);
+  const recent=useMemo(()=>recentCaseIds.map(id=>allCases.find(c=>c.id===id)).filter(Boolean).slice(0,12),[allCases,recentCaseIds]);
   const resultKey=`${searchBy}|${query}|${shown.map(c=>c.id).join('|')}`;
   const selectVisible=()=>shown.forEach(c=>{if(!selected.has(c.id))toggleSelected(c.id)});
   const clearSelected=()=>[...selected].forEach(id=>toggleSelected(id));
@@ -1112,6 +1113,8 @@ function CasesView({preferenceKey,cases,allCases=[],recentCaseIds=[],favoriteCas
       <button className="legacy-toolbar-btn" onClick={clearSelected} disabled={!selected.size}>Clear</button>
       <button className={`legacy-toolbar-btn toolbar-icon-btn ${filtersOpen?'active':''}`} onClick={()=>setFiltersOpen(v=>!v)} title="Advanced filters" aria-label="Advanced filters"><Icon name="filter" size={17}/></button>
       <button className={`legacy-toolbar-btn toolbar-icon-btn favorites-filter ${favoritesOnly?'active':''}`} onClick={()=>setFavoritesOnly(v=>!v)} title={favoritesOnly?'Show all cases':'Favorites only'} aria-label={favoritesOnly?'Show all cases':'Favorites only'}><Icon name="bookmark" size={17}/></button>
+      {favoritesOnly&&<button type="button" className="legacy-toolbar-btn toolbar-icon-btn" onClick={clearFavorites} title="Clear favorites" aria-label="Clear favorites"><Icon name="trash" size={17}/></button>}
+      <details ref={recentMenuRef} className="case-recent-menu"><summary className="legacy-toolbar-btn toolbar-icon-btn" title="Recently viewed attestations" aria-label="Recently viewed attestations"><Icon name="history" size={18}/></summary><div className="case-recent-popover"><header><strong>Recently viewed</strong><button type="button" disabled={!recent.length} onClick={clearRecent}>Clear</button></header>{recent.length?<div className="case-recent-list">{recent.map(c=><button key={c.id} onClick={()=>{recentMenuRef.current?.removeAttribute('open');quick(c)}}><span><b>#{c.tracking_reference}</b><strong>{c.customer_name}</strong></span><StatusPill status={c.overall_status}/></button>)}</div>:<p>No recently viewed attestations.</p>}</div></details>
     </section>
     {filtersOpen&&<section className="legacy-filter-row advanced-grid">
       <label><span>Status</span><select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}><option>All</option>{CASE_STATUSES.map(s=><option key={s}>{s}</option>)}</select></label>
@@ -1125,7 +1128,6 @@ function CasesView({preferenceKey,cases,allCases=[],recentCaseIds=[],favoriteCas
       <label><span>Delhi Direct</span><select value={ddFilter} onChange={e=>setDdFilter(e.target.value)}><option>All</option><option>DD only</option><option>Non-DD</option></select></label>
       <button className="legacy-toolbar-btn filter-reset" onClick={()=>{setStatusFilter('All');setBranchFilter('All');setDocumentFilter('All');setQuantityFilter('All');setMobileFilter('All');setBalanceFilter('All');setAccountFilter('All');setIntakeFilter('All');setDdFilter('All')}}>Reset filters</button>
     </section>}
-    {!query&&!favoritesOnly&&(pinned.length>0||recent.length>0)&&<section className="case-access-shelves">{pinned.length>0&&<div><header><span><Icon name="bookmark" size={14}/> Favorites</span><div className="case-shelf-meta"><small>{pinned.length} saved</small><button type="button" className="case-shelf-clear" onClick={clearFavorites}>Clear</button></div></header><div className="case-shelf-items">{pinned.map(c=><button key={c.id} onClick={()=>quick(c)}><strong>#{c.tracking_reference}</strong><span>{c.customer_name}</span><StatusPill status={c.overall_status}/></button>)}</div></div>}{recent.length>0&&<div><header><span><Icon name="clock" size={14}/> Recently viewed</span><div className="case-shelf-meta"><small>Your latest cases</small><button type="button" className="case-shelf-clear" onClick={clearRecent}>Clear</button></div></header><div className="case-shelf-items">{recent.map(c=><button key={c.id} onClick={()=>quick(c)}><strong>#{c.tracking_reference}</strong><span>{c.customer_name}</span><StatusPill status={c.overall_status}/></button>)}</div></div>}</section>}
     <div className="legacy-count-row"><span><strong>{displayCases.length.toLocaleString()}</strong> {favoritesOnly?'favorite':'matching'} cases</span><div className="cases-view-tools"><span>{viewMode==='cards'?'Card workspace':'Compact table'}</span><div className="cases-view-toggle" role="group" aria-label="Cases view"><button type="button" className={viewMode==='cards'?'active':''} onClick={()=>changeViewMode('cards')} title="Card view" aria-label="Card view"><Icon name="grid" size={16}/></button><button type="button" className={viewMode==='table'?'active':''} onClick={()=>changeViewMode('table')} title="Table view" aria-label="Table view"><Icon name="list" size={17}/></button></div></div></div>
     {selected.size>0&&<div className="bulkbar legacy-bulk"><strong>{selected.size} selected</strong><button className="secondary" onClick={batchSelected}>＋ Create Batch</button><button className="secondary" onClick={bulkAppointment}>Assign appointment</button><span>Bulk overall status</span><select value={bulkNext} onChange={e=>setBulkNext(e.target.value)}><option value="">Choose status…</option>{CASE_STATUSES.map(s=><option key={s}>{s}</option>)}</select><button className="primary" disabled={!bulkNext} onClick={async()=>{await bulkStatus(bulkNext);setBulkNext('')}}>Update status</button></div>}
     {loading?<Empty text="Loading cases…"/>:shown.length===0?<Empty text={favoritesOnly?'No favorite cases yet':'No matching cases'}/>:<>{viewMode==='table'?<div className="cases-table-shell" key={`table-${resultKey}`}><table className="cases-table"><thead><tr><th className="case-table-check"><span className="sr-only">Select</span></th><th>Tracking / Bill</th><th>Customer</th><th>Mobile</th><th>Branch</th><th>Documents</th><th>Balance</th><th>Status</th><th className="case-table-actions-head">Actions</th></tr></thead><tbody>{shown.map(c=>{const money=moneyParts(c);const docs=c.documents||[];return <tr key={c.id} className={selected.has(c.id)?'selected':''}><td className="case-table-check"><input type="checkbox" checked={selected.has(c.id)} onChange={()=>toggleSelected(c.id)} aria-label={`Select case ${c.tracking_reference}`}/></td><td><button type="button" className="case-table-track" onClick={()=>quick(c)}>#{c.tracking_reference}</button><small>{c.bill_no||'No bill number'}</small></td><td><strong>{c.customer_name||'Unnamed customer'}</strong><small>{c.intake_type||'Branch intake'}</small></td><td><a className="case-table-mobile" href={c.mobile?`tel:${String(c.mobile).replace(/\s/g,'')}`:undefined}>{c.mobile||'—'}</a></td><td><strong>{c.branches?.name||'—'}</strong></td><td><strong>{docs.length}</strong><small>{docs.reduce((n,d)=>n+Number(d.quantity||1),0)} item(s)</small></td><td><strong className={money.balance>0?'due':''}>{fmtMoney(money.balance)}</strong></td><td><StatusPill status={c.overall_status}/></td><td><div className="case-table-actions"><button type="button" onClick={()=>quick(c)} title="Quick view"><Icon name="eye" size={15}/></button><button type="button" onClick={()=>appointment(c)} title="Appointment"><Icon name="calendar" size={15}/></button><button type="button" className={favoriteCaseIds.has(c.id)?'active':''} onClick={()=>toggleFavorite?.(c.id)} title={favoriteCaseIds.has(c.id)?'Remove favorite':'Add favorite'}><Icon name="bookmark" size={15}/></button></div></td></tr>})}</tbody></table></div>:<div className="legacy-case-grid" key={resultKey}>{shown.map(c=><CaseCard key={c.id} c={c} favorite={favoriteCaseIds.has(c.id)} toggleFavorite={()=>toggleFavorite?.(c.id)} shareDetailed={shareDetailed} open={expanded.has(c.id)} toggle={()=>toggleExpanded(c.id)} checked={selected.has(c.id)} select={()=>toggleSelected(c.id)} selectionMode={selected.size>0} updateCaseStatus={updateCaseStatus} updateStage={updateStage} updateStageDate={updateStageDate} reorderStages={reorderStages} quick={quick} addDoc={addDoc} deleteDocument={deleteDocument} addStage={addStage} renameStage={renameStage} deleteStage={deleteStage} appointment={appointment}/>)}</div>}{visible<displayCases.length&&<div className="show-more-wrap"><button className="secondary" onClick={()=>setVisible(v=>v+200)}>Show 200 more</button><span>{(displayCases.length-visible).toLocaleString()} remaining</span></div>}</>}
@@ -1133,6 +1135,7 @@ function CasesView({preferenceKey,cases,allCases=[],recentCaseIds=[],favoriteCas
 }
 function Icon({name,size=16,className=''}){
   const common={width:size,height:size,viewBox:'0 0 24 24',fill:'none',stroke:'currentColor',strokeWidth:1.9,strokeLinecap:'round',strokeLinejoin:'round','aria-hidden':'true',className};
+  if(name==='history')return <svg {...common}><path d="M3 11a9 9 0 1 1 3 7M3 4v7h7M12 7v5l3 2"/></svg>;
   if(name==='calendar')return <svg {...common}><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/><path d="M8 14h3M8 17h5"/></svg>;
   if(name==='eye')return <svg {...common}><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.6"/></svg>;
   if(name==='grid')return <svg {...common}><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>;
@@ -4255,10 +4258,8 @@ function QuickView({c,branches=[],session,favorite=false,onToggleFavorite,onDeta
         <div>
           <div className="quick-context-label"><Icon name="file" size={14}/> ATTESTATION <span> / </span> CUSTOMER WORKSPACE</div>
           <div className="quick-ref">#{c.tracking_reference}</div>
-          <h2>{c.customer_name}</h2>
-          <button type="button" className="quick-mobile-number" onClick={callCustomer} title="Call customer"><span><Icon name="phone" size={25}/></span><strong>{c.mobile||'No mobile'}</strong></button>
+          <div className="quick-person-line"><h2>{c.customer_name}</h2><span className="quick-person-divider">/</span><button type="button" className="quick-mobile-number" onClick={callCustomer} title="Call customer"><Icon name="phone" size={19}/><strong>{c.mobile||'No mobile'}</strong></button></div>
           <div className="quick-identity-chips">
-            <StatusIcon status={c.overall_status} size={22}/>
             <select aria-label="Case status" className={`quick-status-select quick-inline-status ${slug(c.overall_status)}`} value={c.overall_status} onChange={e=>updateStatus(c,e.target.value)}>
               {CASE_STATUSES.map(s=><option key={s}>{s}</option>)}
             </select>
@@ -4286,9 +4287,10 @@ function QuickView({c,branches=[],session,favorite=false,onToggleFavorite,onDeta
         <div><span>Total</span><strong>{fmtMoney(c.total_amount)}</strong></div>
         <div><span>Paid</span><strong>{fmtMoney(m.paid)}</strong></div>
         <div><span>Balance</span><strong className={m.balance>0?'due':''}>{fmtMoney(m.balance)}</strong></div>
-        <div className="quick-workflow-stat"><span>Workflow progress</span><strong>{workflowPercent}% <small>{completedStages} / {quickStages.length} stages</small></strong><progress max="100" value={workflowPercent} aria-label="Completed attestation stages"/></div>
+
       </div>
 
+      <section className="quick-overall-progress" aria-label="Overall attestation progress"><div><span>Overall progress</span><strong>{workflowPercent}% <small>{completedStages} / {quickStages.length} stages</small></strong></div><div className="quick-overall-track" role="progressbar" aria-label="Completed attestation stages" aria-valuemin={0} aria-valuemax={100} aria-valuenow={workflowPercent}><i style={{'--workflow-progress':`${workflowPercent}%`}} key={c.id}/></div></section>
       <div className="quick-body">
         <section>
           <div className="section-head">
@@ -4324,7 +4326,7 @@ function QuickView({c,branches=[],session,favorite=false,onToggleFavorite,onDeta
             </dl>
           </details>
           <details className="quick-side-section quick-activity-section quick-activity-fold">
-            <summary><Icon name="activity" size={18}/><span>Activity <small>{historyRows.length} events</small></span><Icon name="chevron-down" size={18}/></summary>
+            <summary><span className="quick-fold-icon"><Icon name="clock" size={18}/></span><span>Activity <small>{historyRows.length} events</small></span><span className="quick-fold-chevron"><Icon name="chevron-down" size={18}/></span></summary>
             <div className="quick-side-heading"><span><Icon name="activity" size={15}/></span><div><h3>Activity</h3><small>{historyRows.length} chronological events</small></div></div>
             <div className="timeline activity-scroll">
               {activityLoading?<p className="muted small-text">Loading complete timeline…</p>:historyRows.length
