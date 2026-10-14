@@ -7,12 +7,16 @@ export default function WorkspaceMotion({view}){
   if(window.matchMedia('(prefers-reduced-motion: reduce)').matches)return;
   const page=document.querySelector('.workspace-page');
   const animation=page?.animate?.([{opacity:.55,transform:'translateX(16px)'},{opacity:1,transform:'translateX(0)'}],{duration:320,easing:'cubic-bezier(.22,1,.36,1)'});
-  return()=>animation?.cancel();
+  const cards=[...document.querySelectorAll('.saas-dashboard .premium-stats>*,.saas-dashboard .premium-panel,.saas-dashboard .dashboard-quick-actions>button,.legacy-case-grid>article')].slice(0,12);
+  const entrances=cards.map((el,i)=>el.animate?.([{opacity:.35,transform:'translateY(10px)'},{opacity:1,transform:'translateY(0)'}],{duration:380,delay:Math.min(i*35,220),easing:'cubic-bezier(.22,1,.36,1)'}));
+  return()=>{animation?.cancel();entrances.forEach(a=>a?.cancel())};
  },[view]);
  useEffect(()=>{
   let pending=0;const animations=new Set();
   const clicked=e=>{
    const button=e.target.closest?.('button');
+   const quickTabs=button?.closest('.quick-tabs');
+   if(quickTabs&&!button.disabled&&!button.classList.contains('active')&&!window.matchMedia('(prefers-reduced-motion: reduce)').matches){cancelAnimationFrame(pending);pending=requestAnimationFrame(()=>{const panel=quickTabs.closest('.quick-modal')?.querySelector('.quick-finance-panel,.quick-body:not([hidden])');const a=panel?.animate?.([{opacity:.45,transform:'translateX(14px)'},{opacity:1,transform:'translateX(0)'}],{duration:300,easing:'cubic-bezier(.22,1,.36,1)'});if(a){animations.add(a);a.onfinish=()=>animations.delete(a)}});return}
    const tabs=button?.closest('.business-tabs,.finance-tabs,.settings-tabs,.notification-tabs,.view-toggle,.tabs');
    if(!tabs||button.disabled||button.classList.contains('active')||window.matchMedia('(prefers-reduced-motion: reduce)').matches)return;
    cancelAnimationFrame(pending);
