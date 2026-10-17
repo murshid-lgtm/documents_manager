@@ -5,6 +5,8 @@ import './finance.css';
 import './compact.css';
 import './workspace.css';
 import './workspace-refinements.css';
+import './workspace-upgrade.css';
+import {AppearanceProvider} from '../components/ThemeStudio';
 import ActionFeedback from '../components/ActionFeedback';
 import PdfPreviewModal from '../components/PdfPreviewModal';
 
@@ -21,7 +23,7 @@ export const viewport={width:'device-width',initialScale:1,viewportFit:'cover',t
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
-      <body>{children}<PdfPreviewModal/><ActionFeedback/></body>
+      <body><AppearanceProvider/>{children}<PdfPreviewModal/><ActionFeedback/></body>
     </html>
   );
 }
