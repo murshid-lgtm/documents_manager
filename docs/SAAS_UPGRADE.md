@@ -27,3 +27,9 @@ Verification: production build, existing sales UI and print template checks, exi
 9. Production monitoring, recovery/restore verification, access review and account/session controls.
 
 Provider accounts, commercial pricing and customer notification policies must be configured before enabling paid subscriptions or automatic external sending. Existing operational and accounting records remain the source of truth.
+
+## Mobile navigation follow-up
+
+Replaced the mobile desktop-sidebar fallback with a body-level mobile menu. Module search, permission-filtered tiles, profile/logout sheet, create sheet, mobile top bar, bottom navigation and quick-create button now have dedicated touch layouts. The app behind the menu is inert while it is open; browser Back and Escape dismiss it. Sales/customer tables use stacked mobile record cards. Desktop navigation retains its existing layout.
+
+Verified with a real React interaction fixture covering taps on every module, search, create actions, profile/logout callbacks, notifications, scan, browser Back, Escape, permissions, desktop resize, light/dark and narrow-screen overflow. This fixture uses synthetic data and performs no production transactions.

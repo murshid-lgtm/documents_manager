@@ -12,7 +12,8 @@
     "test:business": "node scripts/business-tests.mjs && node scripts/communications-tests.mjs",
     "test:checkout": "node scripts/checkout-tests.mjs && node scripts/billing-tests.mjs",
     "test:accounting": "node scripts/accounting-tests.mjs && node scripts/print-tests.mjs && node scripts/sales-ui-tests.cjs",
-    "test:operations": "node scripts/workspace-operations-tests.mjs && node scripts/workspace-dates-tests.mjs"
+    "test:operations": "node scripts/workspace-operations-tests.mjs && node scripts/workspace-dates-tests.mjs",
+    "test:mobile": "node scripts/mobile-navigation-tests.cjs"
   },
   "dependencies": {
     "@sparticuz/chromium": "153.0.0",
