@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import {workspaceDay,shiftDay,daysBetween,appointmentConflicts} from '../lib/workspaceDates.js';
+assert.equal(workspaceDay('Asia/Qatar',new Date('2026-10-18T22:00:00Z')),'2026-10-19');
+assert.equal(workspaceDay('America/New_York',new Date('2026-10-18T01:00:00Z')),'2026-10-17');
+assert.equal(shiftDay('2026-12-31',1),'2027-01-01');assert.equal(shiftDay('2028-03-01',-1),'2028-02-29');assert.equal(daysBetween('2026-10-01','2026-10-31'),30);
+const existing=[{id:'a',appointment_date:'2026-10-18',appointment_time:'10:00:00',assigned_to:'User',status:'Scheduled',duration_minutes:60}];
+assert.equal(appointmentConflicts(existing,{id:'b',appointment_date:'2026-10-18',appointment_time:'10:30',assigned_to:'user',status:'Scheduled'}).length,1);
+assert.equal(appointmentConflicts(existing,{id:'b',appointment_date:'2026-10-18',appointment_time:'11:00',assigned_to:'User',status:'Scheduled'}).length,0);
+assert.equal(appointmentConflicts(existing,{...existing[0]}).length,0);
+assert.equal(appointmentConflicts(existing,{id:'b',appointment_date:'2026-10-18',appointment_time:'10:30',assigned_to:'other',status:'Scheduled'}).length,0);
+console.log('PASS: timezone boundaries, leap-year navigation and appointment interval comparisons.');

@@ -9,6 +9,8 @@ import './workspace-upgrade.css';
 import './theme-system.css';
 import './theme-dark-surfaces.css';
 import './theme-finishing.css';
+import './saas-workspace.css';
+import './mobile-workspace.css';
 import {AppearanceProvider} from '../components/ThemeStudio';
 import ActionFeedback from '../components/ActionFeedback';
 import PdfPreviewModal from '../components/PdfPreviewModal';
