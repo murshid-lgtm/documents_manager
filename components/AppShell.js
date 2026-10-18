@@ -1,4 +1,5 @@
 'use client';
+import DialogPortal from './DialogPortal';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {notifyAction} from '../lib/actionFeedback';
 import { supabase } from '../lib/supabase';
@@ -16,6 +17,7 @@ import {AppearanceToggle} from './ThemeStudio';
 import dynamic from 'next/dynamic';
 import PwaExperience from './PwaExperience';
 import MobileWorkspace from './MobileWorkspace';
+import MobileCaseChrome from './MobileCaseChrome';
 import {workspaceDay} from '../lib/workspaceDates';
 import WorkQueue from './WorkQueue';
 import CollectionsCenter from './CollectionsCenter';
@@ -1088,11 +1090,11 @@ function NotificationCenter({userId,rows,cases,loading,lastRead,isAdmin,onClose,
   const iconFor=cat=>cat==='payments'?'wallet':cat==='deliveries'?'package':cat==='custody'?'handover':cat==='appointments'?'calendar':cat==='courier'?'truck':cat==='warning'?'alert':'file';
   const openRow=row=>{const c=caseMap.get(row.case_id);if(c)onOpenCase(c)};
   const renderGroup=g=>{const cat=auditCategory(g),isUnread=!lastRead||new Date(g.created_at)>new Date(lastRead),isOpen=expanded===g.groupKey,isRevealed=revealed===g.groupKey,caseCount=new Set(g.items.map(i=>i.case_id).filter(Boolean)).size,transferLabel=notificationTransferLabel(g),actionLabel=notificationActionLabel(g);return <div className={`notification-group-shell ${isRevealed?'actions-open':''}`} key={g.groupKey} ><div className="notification-swipe-header" onPointerDown={e=>{suppressClick.current=false;swipeStart.current={x:e.clientX,y:e.clientY}}} onPointerCancel={()=>{swipeStart.current=null}} onPointerUp={e=>{if(swipeStart.current&&Math.abs(e.clientY-swipeStart.current.y)<30){const distance=e.clientX-swipeStart.current.x;if(Math.abs(distance)>35)suppressClick.current=true;if(distance<-35)setRevealed(g.groupKey);if(distance>35)setRevealed('')}swipeStart.current=null}}><div className="notification-slide-actions">{tab==='archived'?<button title="Restore notification" aria-label="Restore notification" onClick={()=>restoreGroup(g.groupKey)}><Icon name="restore" size={18}/></button>:<button title="Archive notification" aria-label="Archive notification" onClick={()=>archiveGroup(g.groupKey)}><Icon name="archive" size={18}/></button>}<button className="delete" title="Delete from view" aria-label="Delete from view" onClick={()=>dismissGroup(g.groupKey)}><Icon name="trash" size={18}/></button></div><button className={`notification-item notification-group-primary ${cat} ${isUnread?'unread':''}`} onClick={()=>{if(suppressClick.current){suppressClick.current=false;return}g.groupCount>1?setExpanded(isOpen?'':g.groupKey):openRow(g)}}><i className="notification-type"><Icon name={iconFor(cat)} size={16}/></i><div className="notification-copy"><div><strong>{transferLabel?`${actionLabel} · ${transferLabel}`:actionLabel}{g.groupCount>1&&<b className="notification-group-count">{g.groupCount}</b>}</strong><time>{auditTime(g.created_at)}</time></div><span>{g.groupCount>1?`${caseCount} case${caseCount===1?'':'s'} · Tap to view every update`:(caseMap.get(g.case_id)?`#${caseMap.get(g.case_id).tracking_reference} · ${caseMap.get(g.case_id).customer_name||'Customer'}`:'System activity')}</span>{g.groupCount===1&&(g.old_value||g.new_value)&&<small>{g.old_value&&<del>{g.old_value}</del>}{g.old_value&&g.new_value&&<b>→</b>}{g.new_value&&<ins>{g.new_value}</ins>}</small>}</div>{g.groupCount>1?<Icon name={isOpen?'chevron-up':'chevron-down'} size={15}/>:isUnread&&<em/>}</button><button className="notification-more" aria-expanded={isRevealed} onClick={()=>setRevealed(isRevealed?'':g.groupKey)} aria-label={isRevealed?'Close notification actions':'Show notification actions'} title={isRevealed?'Close actions':'Slide for actions'}><Icon name={isRevealed?'chevron-right':'chevron-left'} size={16}/></button></div>{isOpen&&<div className="notification-group-children">{g.items.map(item=>{const c=caseMap.get(item.case_id);return <button key={item.id} onClick={()=>openRow(item)} disabled={!c}><i/><div><strong>{c?`#${c.tracking_reference} · ${c.customer_name||'Customer'}`:'System activity'}</strong><span>{notificationActionLabel(item)}{item.metadata?.document_name?` · ${item.metadata.document_name}`:''}</span>{(item.old_value||item.new_value)&&<small>{item.old_value||'—'} → {item.new_value||'—'}</small>}</div><time>{auditTime(item.created_at)}</time></button>})}</div>}</div>};
-  return <div className="notification-backdrop" onMouseDown={onClose}><aside ref={panelRef} className="notification-center" role="dialog" aria-modal="true" aria-label="Notifications" onKeyDown={panelKeys} onMouseDown={e=>e.stopPropagation()}><header className="notification-head"><div><span>WORKSPACE ACTIVITY</span><h2>Notifications</h2><p>{unread?`${unread} unread update${unread===1?'':'s'}`:'You are all caught up'}</p></div><button onClick={onClose} aria-label="Close"><Icon name="close" size={18}/></button></header><div className="notification-tabs"><button className={tab==='notifications'?'active':''} onClick={()=>setTab('notifications')}><Icon name="bell" size={15}/> Notifications {unread>0&&<b>{unread}</b>}</button><button className={tab==='activity'?'active':''} onClick={()=>setTab('activity')}><Icon name="clock" size={15}/> Activity Log</button><button className={tab==='archived'?'active':''} onClick={()=>setTab('archived')}><Icon name="archive" size={15}/> Archived {archivedGroups.length>0&&<b>{archivedGroups.length}</b>}</button></div><div className="notification-actions"><button onClick={onMarkAllRead} disabled={!unread}><Icon name="check" size={14}/> Mark all read</button><button onClick={onRefresh} disabled={loading}>↻ Refresh</button>{tab==='activity'&&<ExportMenu title="Activity Audit" rows={exportRows}/>}</div>{tab==='activity'&&<div className="audit-filters"><div><Icon name="search" size={14}/><input placeholder="Search action, case, customer or value…" value={query} onChange={e=>setQuery(e.target.value)}/></div><select value={category} onChange={e=>setCategory(e.target.value)}><option value="all">All modules</option><option value="cases">Cases</option><option value="payments">Payments</option><option value="deliveries">Deliveries</option><option value="custody">Custody</option><option value="appointments">Appointments</option><option value="courier">Courier</option><option value="warning">Deleted / cancelled</option></select>{isAdmin&&<select value={actor} onChange={e=>setActor(e.target.value)}><option value="all">All users</option>{actors.map(x=><option key={x}>{x}</option>)}</select>}<input type="date" value={date} onChange={e=>setDate(e.target.value)}/>{(query||category!=='all'||actor!=='all'||date)&&<button onClick={()=>{setQuery('');setCategory('all');setActor('all');setDate('')}}>Clear</button>}</div>}<div className="notification-list">{loading&&!rows.length?<div className="notification-empty"><span className="notification-spinner"/><strong>Loading activity…</strong></div>:shown.length?(tab==='activity'?shown.map(r=>{const c=caseMap.get(r.case_id),cat=auditCategory(r),isUnread=!lastRead||new Date(r.created_at)>new Date(lastRead);return <button className={`notification-item ${cat} ${isUnread?'unread':''}`} key={r.id} onClick={()=>c&&onOpenCase(c)} disabled={!c}><i className="notification-type"><Icon name={iconFor(cat)} size={16}/></i><div className="notification-copy"><div><strong>{r.action||'Case updated'}</strong><time>{auditTime(r.created_at)}</time></div><span>{c?`#${c.tracking_reference} · ${c.customer_name||'Customer'}`:'System activity'}{r.profiles?.full_name?` · ${r.profiles.full_name}`:''}</span>{(r.old_value||r.new_value)&&<small>{r.old_value&&<del>{r.old_value}</del>}{r.old_value&&r.new_value&&<b>→</b>}{r.new_value&&<ins>{r.new_value}</ins>}</small>}</div>{isUnread&&<em/>}</button>}):shown.map(renderGroup)):<div className="notification-empty"><Icon name="check" size={24}/><strong>{tab==='archived'?'No archived notifications':'No activity found'}</strong><span>{tab==='archived'?'Swipe a notification and choose Archive to keep it here.':'Try changing the filters or refresh the activity feed.'}</span></div>}</div>{tab==='activity'&&<footer className="audit-footer"><span>Showing {shown.length.toLocaleString()} of {rows.length.toLocaleString()} loaded records</span><small>{isAdmin?'Administrator audit view':'Your permitted activity view'}</small></footer>}</aside></div>
+  return <DialogPortal><div className="notification-backdrop" onMouseDown={onClose}><aside ref={panelRef} className="notification-center" role="dialog" aria-modal="true" aria-label="Notifications" onKeyDown={panelKeys} onMouseDown={e=>e.stopPropagation()}><header className="notification-head"><div><span>WORKSPACE ACTIVITY</span><h2>Notifications</h2><p>{unread?`${unread} unread update${unread===1?'':'s'}`:'You are all caught up'}</p></div><button onClick={onClose} aria-label="Close"><Icon name="close" size={18}/></button></header><div className="notification-tabs"><button className={tab==='notifications'?'active':''} onClick={()=>setTab('notifications')}><Icon name="bell" size={15}/> Notifications {unread>0&&<b>{unread}</b>}</button><button className={tab==='activity'?'active':''} onClick={()=>setTab('activity')}><Icon name="clock" size={15}/> Activity Log</button><button className={tab==='archived'?'active':''} onClick={()=>setTab('archived')}><Icon name="archive" size={15}/> Archived {archivedGroups.length>0&&<b>{archivedGroups.length}</b>}</button></div><div className="notification-actions"><button onClick={onMarkAllRead} disabled={!unread}><Icon name="check" size={14}/> Mark all read</button><button onClick={onRefresh} disabled={loading}>↻ Refresh</button>{tab==='activity'&&<ExportMenu title="Activity Audit" rows={exportRows}/>}</div>{tab==='activity'&&<div className="audit-filters"><div><Icon name="search" size={14}/><input placeholder="Search action, case, customer or value…" value={query} onChange={e=>setQuery(e.target.value)}/></div><select value={category} onChange={e=>setCategory(e.target.value)}><option value="all">All modules</option><option value="cases">Cases</option><option value="payments">Payments</option><option value="deliveries">Deliveries</option><option value="custody">Custody</option><option value="appointments">Appointments</option><option value="courier">Courier</option><option value="warning">Deleted / cancelled</option></select>{isAdmin&&<select value={actor} onChange={e=>setActor(e.target.value)}><option value="all">All users</option>{actors.map(x=><option key={x}>{x}</option>)}</select>}<input type="date" value={date} onChange={e=>setDate(e.target.value)}/>{(query||category!=='all'||actor!=='all'||date)&&<button onClick={()=>{setQuery('');setCategory('all');setActor('all');setDate('')}}>Clear</button>}</div>}<div className="notification-list">{loading&&!rows.length?<div className="notification-empty"><span className="notification-spinner"/><strong>Loading activity…</strong></div>:shown.length?(tab==='activity'?shown.map(r=>{const c=caseMap.get(r.case_id),cat=auditCategory(r),isUnread=!lastRead||new Date(r.created_at)>new Date(lastRead);return <button className={`notification-item ${cat} ${isUnread?'unread':''}`} key={r.id} onClick={()=>c&&onOpenCase(c)} disabled={!c}><i className="notification-type"><Icon name={iconFor(cat)} size={16}/></i><div className="notification-copy"><div><strong>{r.action||'Case updated'}</strong><time>{auditTime(r.created_at)}</time></div><span>{c?`#${c.tracking_reference} · ${c.customer_name||'Customer'}`:'System activity'}{r.profiles?.full_name?` · ${r.profiles.full_name}`:''}</span>{(r.old_value||r.new_value)&&<small>{r.old_value&&<del>{r.old_value}</del>}{r.old_value&&r.new_value&&<b>→</b>}{r.new_value&&<ins>{r.new_value}</ins>}</small>}</div>{isUnread&&<em/>}</button>}):shown.map(renderGroup)):<div className="notification-empty"><Icon name="check" size={24}/><strong>{tab==='archived'?'No archived notifications':'No activity found'}</strong><span>{tab==='archived'?'Swipe a notification and choose Archive to keep it here.':'Try changing the filters or refresh the activity feed.'}</span></div>}</div>{tab==='activity'&&<footer className="audit-footer"><span>Showing {shown.length.toLocaleString()} of {rows.length.toLocaleString()} loaded records</span><small>{isAdmin?'Administrator audit view':'Your permitted activity view'}</small></footer>}</aside></div></DialogPortal>
 }
 function Nav({active,disabled,icon,children,onClick}){const label=String(Array.isArray(children)?children[0]:children||'').trim();return <button className={`nav ${active?'active':''} ${disabled?'disabled':''}`} disabled={disabled} onClick={onClick} title={label} aria-label={label} data-label={label}><i className="nav-icon"><Icon name={icon} size={17}/></i><span>{children}</span>{active&&<em className="nav-active-dot"/>}</button>}
 function Field({label,wide,children}){return <label className={wide?'wide':''}><span>{label}</span>{children}</label>}
-function Modal({title,subtitle,onClose,children,className=''}){return <div className="modal-backdrop" onMouseDown={onClose}><div className={`modal ${className}`} onMouseDown={e=>e.stopPropagation()}><div className="modal-head"><div><h2>{title}</h2><p className="muted">{subtitle}</p></div><button className="icon-btn" onClick={onClose} aria-label="Close"><Icon name="close" size={18}/></button></div>{children}</div></div>}
+function Modal({title,subtitle,onClose,children,className=''}){return <DialogPortal><div className="modal-backdrop" onMouseDown={onClose}><div className={`modal ${className}`} onMouseDown={e=>e.stopPropagation()}><div className="modal-head"><div><h2>{title}</h2><p className="muted">{subtitle}</p></div><button className="icon-btn" onClick={onClose} aria-label="Close"><Icon name="close" size={18}/></button></div>{children}</div></div></DialogPortal>}
 function StatusPill({status}){return <span className={`status-pill ${slug(status)}`}>{status}</span>}
 function moneyParts(c){const paid=Number(c.advance_paid||0)+Number(c.second_payment||0)-Number(c.discount_return||0);const balance=Number(c.balance_payment??Math.max(0,Number(c.total_amount||0)-paid));return{paid,balance}}
 
@@ -1923,7 +1925,7 @@ function BatchReportsView({session,cases,notify,seedIds,clearSeed,setModuleExpor
       </div>
     </div>
 
-    {edit&&<div className="modal-backdrop" onMouseDown={()=>setEdit(null)}>
+    {edit&&<DialogPortal><div className="modal-backdrop" onMouseDown={()=>setEdit(null)}>
       <div className="batch-setup-modal" onMouseDown={e=>e.stopPropagation()}>
         <div className="batch-setup-head">
           <div><h2>{edit.id?'Edit Batch Report':'New Batch Report'}</h2><p>Search cases and build the batch selection before saving.</p></div>
@@ -1953,9 +1955,9 @@ function BatchReportsView({session,cases,notify,seedIds,clearSeed,setModuleExpor
           <div className="batch-setup-actions wide"><button type="button" className="secondary" onClick={()=>setEdit(null)}>Cancel</button><button className="primary" disabled={busy}>{busy?'Saving…':edit.id?'Save Batch':'Create Batch'}</button></div>
         </form>
       </div>
-    </div>}
+    </div></DialogPortal>}
 
-    {view&&<div className="modal-backdrop batch-print-backdrop" onMouseDown={()=>setView(null)}>
+    {view&&<DialogPortal><div className="modal-backdrop batch-print-backdrop" onMouseDown={()=>setView(null)}>
       <div className="batch-print-modal parity-print-modal" onMouseDown={e=>e.stopPropagation()}>
         <div className="batch-print-head">
           <div><h2>{view.report_name||'Batch Report'}</h2><p>Rows are editable before printing.</p></div>
@@ -1986,7 +1988,7 @@ function BatchReportsView({session,cases,notify,seedIds,clearSeed,setModuleExpor
           </div>
         </div>
       </div>
-    </div>}
+    </div></DialogPortal>}
   </section>
 }
 
@@ -3453,7 +3455,7 @@ function DeliveryQrScanner({cases,onClose,onOpenCase,onAction,notify,title='Scan
     }catch{setResult('Could not read that image.')}
   }
 
-  return <div className="modal-backdrop qr-legacy-backdrop" onMouseDown={()=>{stopCamera();onClose()}}>
+  return <DialogPortal><div className="modal-backdrop qr-legacy-backdrop" onMouseDown={()=>{stopCamera();onClose()}}>
     <div className="qr-legacy-dialog" onMouseDown={e=>e.stopPropagation()}>
       <div className="qr-legacy-head">
         <div><h2>{title}</h2><p>Scan an envelope label, then choose the operational action.</p></div>
@@ -3481,7 +3483,7 @@ function DeliveryQrScanner({cases,onClose,onOpenCase,onAction,notify,title='Scan
         {found&&<div className="qr-action-sheet"><div className="qr-action-case"><span>CASE FOUND</span><strong>#{found.tracking_reference}</strong><h3>{found.customer_name||'Customer'}</h3><small>{found.documents?.length||0} documents · {found.overall_status}</small></div><div className="qr-action-grid"><button onClick={()=>choose('case')}><i><Icon name="file" size={19}/></i><strong>Open Case</strong><span>View full details</span></button><button onClick={()=>choose('delivery')}><i><Icon name="package" size={19}/></i><strong>Delivery</strong><span>Give documents to customer</span></button><button onClick={()=>choose('handover')}><i><Icon name="handover" size={19}/></i><strong>Handover</strong><span>Internal custody transfer</span></button><button onClick={()=>choose('payment')}><i><Icon name="wallet" size={19}/></i><strong>Payment</strong><span>Record a collection</span></button></div><button className="qr-scan-again" onClick={()=>{setFound(null);setResult('');setManual('');startCamera()}}>Scan another case</button></div>}
       </div>
     </div>
-  </div>
+  </div></DialogPortal>
 }
 
 function DeliveriesView({session,cases,notify,reload,seedCase,clearSeed,onQrAction,setModuleExport,onActionClose}){
@@ -3953,7 +3955,7 @@ function LabelSheetManager({cases,onClose,notify,onChange}){
   function remove(id){persist(items.filter(x=>x.id!==id))}
   function clearAll(){if(!items.length)return;if(confirm('Clear all labels from the saved label sheet?')){persist([]);notify?.('Label sheet cleared.')}}
   async function printSheet(){if(!items.length)return notify?.('Label sheet is empty.');const hydrated=items.map(i=>cases.find(c=>c.id===i.id)||i);await printCaseLabels(hydrated)}
-  return <div className="modal-backdrop" onMouseDown={onClose}>
+  return <DialogPortal><div className="modal-backdrop" onMouseDown={onClose}>
     <div className="modal label-sheet-manager" onMouseDown={e=>e.stopPropagation()}>
       <div className="label-sheet-manager-head"><div><h2>Label Sheet</h2><p>Manage labels saved for the next A4 print sheet.</p></div><button className="icon-btn" onClick={onClose}><Icon name="close" size={18}/></button></div>
       <div className="label-sheet-manager-toolbar"><div><strong>{items.length}</strong><span> saved label{items.length===1?'':'s'}</span></div><div><button className="secondary" disabled={!items.length} onClick={clearAll}>Clear Sheet</button><button className="primary" disabled={!items.length} onClick={printSheet}>Print Sheet</button></div></div>
@@ -3961,7 +3963,7 @@ function LabelSheetManager({cases,onClose,notify,onChange}){
         {items.length?items.map((i,idx)=><div className="label-sheet-row" key={i.id}><span className="label-sheet-index">{idx+1}</span><div><strong>#{i.tracking_reference}</strong><span>{i.customer_name||'Unnamed customer'} · {i.mobile||'No mobile'}</span></div><button className="secondary tiny" onClick={()=>remove(i.id)}>Remove</button></div>):<div className="label-sheet-empty">No labels saved. Use “Add to Label Sheet” from a case label preview.</div>}
       </div>
     </div>
-  </div>
+  </div></DialogPortal>
 }
 
 function LabelPreviewModal({c,onClose,notify,onAddToSheet}){
@@ -3985,7 +3987,7 @@ function LabelPreviewModal({c,onClose,notify,onAddToSheet}){
     notify?.(`Sticker size set to ${next.width} × ${next.height} mm.`);
   }
 
-  return <div className="modal-backdrop delivery-label-backdrop" onMouseDown={onClose}>
+  return <DialogPortal><div className="modal-backdrop delivery-label-backdrop" onMouseDown={onClose}>
     <div className="legacy-label-dialog" onMouseDown={e=>e.stopPropagation()}>
       <div className="legacy-label-head">
         <div><h2>Envelope Label</h2><p>Print or save the A4 label as PDF.</p></div>
@@ -4019,12 +4021,12 @@ function LabelPreviewModal({c,onClose,notify,onAddToSheet}){
         </div>
       </div>
     </div>
-  </div>
+  </div></DialogPortal>
 }
 function QuickView({initialTab='workflow',c,branches=[],session,favorite=false,onToggleFavorite,onDetailedShare,onClose,refreshCase,notify,updateStatus,updateStage,updateStageDate,reorderStages,onAddDoc,deleteDocument,addStage,renameStage,deleteStage,onAppointment,onDeliver,onCustody,onPayment,onDeleted}){
   const dialogRef=useRef(null);
   const [quickTab,setQuickTab]=useState(initialTab);
-  useEffect(()=>{const previous=document.activeElement,previousOverflow=document.body.style.overflow;document.body.style.overflow='hidden';dialogRef.current?.querySelector('button')?.focus();const key=e=>{if(e.key==='Escape'){e.preventDefault();onClose()}if(e.key==='Tab'){const fields=[...dialogRef.current.querySelectorAll('button:not(:disabled),input:not(:disabled),select:not(:disabled),summary,[tabindex="0"]')].filter(x=>x.getClientRects().length);if(e.shiftKey&&document.activeElement===fields[0]){e.preventDefault();fields.at(-1)?.focus()}else if(!e.shiftKey&&document.activeElement===fields.at(-1)){e.preventDefault();fields[0]?.focus()}}};document.addEventListener('keydown',key);return()=>{document.body.style.overflow=previousOverflow;document.removeEventListener('keydown',key);if(previous?.isConnected)previous.focus()}},[c.id]);
+  useEffect(()=>{const media=matchMedia('(max-width:700px)'),change=()=>{if(!media.matches)setQuickTab(tab=>['workflow','financials'].includes(tab)?tab:'workflow')};media.addEventListener('change',change);return()=>media.removeEventListener('change',change)},[]);
   const [deletingCase,setDeletingCase]=useState(false);
   const [deleteReview,setDeleteReview]=useState(null);
   const [deleteChecking,setDeleteChecking]=useState(false);
@@ -4280,8 +4282,9 @@ function QuickView({initialTab='workflow',c,branches=[],session,favorite=false,o
   const documentLocations=[...new Set(quickDocuments.map(d=>d.physical_location).filter(Boolean))];
   const currentLocation=documentLocations.length>1?'Mixed locations':documentLocations[0]||c.physical_location||c.branches?.name||'Unassigned';
 
-  return <div className="modal-backdrop" onMouseDown={onClose}>
-    <div ref={dialogRef} className="modal quick-modal quick-modal-v323 quick-workspace-redesign quick-workspace-v2" role="dialog" aria-modal="true" aria-label="Attestation quick view" onMouseDown={e=>e.stopPropagation()}>
+  return <DialogPortal><div className="modal-backdrop" onMouseDown={onClose}>
+    <div ref={dialogRef} className="modal quick-modal quick-modal-v323 quick-workspace-redesign quick-workspace-v2" data-quick-tab={quickTab} role="dialog" aria-modal="true" aria-label="Attestation quick view" onMouseDown={e=>e.stopPropagation()}>
+      <MobileCaseChrome record={c} tab={quickTab} onTab={setQuickTab} onClose={onClose} onStatus={status=>updateStatus(c,status)} onDeliver={()=>onDeliver(quickTab)} onCustody={()=>onCustody(quickTab)} onAppointment={()=>onAppointment(quickTab)} onAddDocument={onAddDoc} onEdit={()=>{setForm({...c});setEditError('');setEdit(true)}} onLabel={()=>setLabelOpen(true)} onCall={callCustomer} onWhatsApp={whatsappCustomer} onShare={shareCase} onFavorite={onToggleFavorite} favorite={favorite} onRemove={()=>c.invoice_id?updateStatus(c,'Cancelled'):reviewCaseDeletion()} removeLabel={c.invoice_id?'Cancel attestation':'Delete attestation'} removeDisabled={deletingCase||deleteChecking||c.overall_status==='Cancelled'} progress={workflowPercent} completed={completedStages} total={quickStages.length}/>
       <button className="quick-corner-close" onClick={onClose} aria-label="Close quick view"><Icon name="close" size={15}/></button>
       <div className="quick-hero">
         <div>
@@ -4313,7 +4316,7 @@ function QuickView({initialTab='workflow',c,branches=[],session,favorite=false,o
 
 
       <section className="quick-overall-progress" aria-label="Overall attestation progress"><div><span>Overall progress</span><strong>{workflowPercent}% <small>{completedStages} / {quickStages.length} stages</small></strong></div><div className="quick-overall-track" role="progressbar" aria-label="Completed attestation stages" aria-valuemin={0} aria-valuemax={100} aria-valuenow={workflowPercent}><i style={{'--workflow-progress':`${workflowPercent}%`}} key={c.id}/></div></section>
-      <div className="quick-body" hidden={quickTab!=='workflow'}>
+      <div className="quick-body" hidden={!['workflow','details','activity'].includes(quickTab)}>
         <section>
           <div className="section-head">
             <div><div className="quick-section-eyebrow">JOB ORDER</div><h3>Documents & attestations <span className="quick-count">{quickDocuments.length}</span></h3><p>{activeStages} active stages · Promise {fmtDate(c.promise_date)}</p></div>
@@ -4347,7 +4350,7 @@ function QuickView({initialTab='workflow',c,branches=[],session,favorite=false,o
               <dt>Milestone</dt><dd>{c.current_milestone||'—'}{c.current_milestone_date?` · ${fmtDate(c.current_milestone_date)}`:''}</dd><dt>Intake</dt><dd>{c.intake_source||'Branch'}{c.direct_to_delhi?' · DD':''}</dd><dt>Organization</dt><dd>{c.account_name||'—'}</dd><dt>Notes</dt><dd>{c.notes||'—'}</dd>
             </dl>
           </details>
-          <details className="quick-side-section quick-activity-section quick-activity-fold">
+          <details className="quick-side-section quick-activity-section quick-activity-fold" open={quickTab==='activity'||undefined}>
             <summary><span className="quick-fold-icon"><Icon name="clock" size={18}/></span><span>Activity <small>{historyRows.length} events</small></span><span className="quick-fold-chevron"><Icon name="chevron-down" size={18}/></span></summary>
             <div className="quick-side-heading"><span><Icon name="activity" size={15}/></span><div><h3>Activity</h3><small>{historyRows.length} chronological events</small></div></div>
             <div className="timeline activity-scroll">
@@ -4362,11 +4365,11 @@ function QuickView({initialTab='workflow',c,branches=[],session,favorite=false,o
       {quickTab==='financials'&&<section className="quick-finance-panel"><div className="quick-finance-layout"><article className="quick-invoice-ticket"><header><span className="ticket-eyebrow">ATTESTATION · BILLING SUMMARY</span><div><h3>{c.bill_no||c.internal_invoice_no||`#${c.tracking_reference}`}</h3><span className={`ticket-payment-state ${m.balance>0?'due':'paid'}`}>{m.balance>0?'Balance due':'Paid'}</span></div><p>{fmtDate(c.submission_date||c.created_at)}</p></header><div className="ticket-customer"><small>BILLED TO</small><strong>{c.customer_name}</strong><span>{c.mobile||'—'}</span></div><div className="ticket-items"><div className="ticket-line-heading"><span>Required services</span><span>Qty</span></div>{quickDocuments.map(d=><div className="ticket-line" key={d.id}><span><strong>{d.document_name}</strong><small>{(d.document_stages||[]).sort((a,b)=>a.stage_order-b.stage_order).map(st=>st.stage_name).join(' · ')||d.document_status}</small></span><b>{d.quantity||1}</b></div>)}</div><dl className="ticket-totals"><div><dt>Total</dt><dd>{fmtMoney(c.total_amount)}</dd></div><div><dt>Paid</dt><dd>{fmtMoney(m.paid)}</dd></div><div className="ticket-balance"><dt>Balance due</dt><dd>{fmtMoney(m.balance)}</dd></div></dl><footer><Icon name="file" size={15}/><span>Tracking #{c.tracking_reference}<small>Billing summary · official documents available alongside</small></span></footer></article><div className="quick-finance-tools"><header><h3>Financial documents</h3><p>Manage payments and preview your documents.</p></header><div className="quick-finance-actions">        <button onClick={()=>onPayment(quickTab)}><Icon name="wallet" size={16}/><span><strong>Payment</strong><small>Record collection</small></span></button>{c.invoice_id&&<button onClick={async()=>{const {data,error}=await supabase.from('sales_documents').select('*').eq('id',c.invoice_id).single();if(error)return notify(userError(error));printConfiguredDocument({orgId:c.organization_id||activePrintContext.orgId,brand:activePrintContext.brand,currency:activePrintContext.currency,record:data,notify})}}><Icon name="file" size={16}/><span><strong>Invoice</strong><small>Billing & receipt</small></span></button>}
         <button onClick={()=>printConfiguredDocument({orgId:c.organization_id||activePrintContext.orgId,brand:activePrintContext.brand,currency:activePrintContext.currency,kind:'report',record:{title:'Attestation job order',document_no:`JOB-${c.tracking_reference}`,customer_name:c.customer_name,customer_mobile:c.mobile,tracking_reference:c.tracking_reference,reference_no:c.bill_no,columns:['Document / holder','Qty','Required attestations','Status'],table:(c.documents||[]).map(d=>[`${d.document_name} · ${d.holder_name||c.customer_name}`,d.quantity||1,(d.document_stages||[]).sort((a,b)=>a.stage_order-b.stage_order).map(x=>x.stage_name).join(' → '),d.document_status])},notify})}><Icon name="print" size={16}/><span><strong>Job order</strong><small>Required attestations</small></span></button>
 </div><QuickReceipts c={c} notify={notify}/>{c.invoice_id&&<AttestationAccounting invoiceId={c.invoice_id} orgId={c.organization_id||activePrintContext.orgId} notify={notify}/>}</div></div></section>}
-      {edit&&<div className="quick-edit-layer" onMouseDown={()=>setEdit(false)}>
-        <div className="quick-edit-panel" onMouseDown={e=>e.stopPropagation()}>
+      {edit&&<DialogPortal contextClass="quick-modal quick-workspace-v2"><div className="quick-edit-layer" onMouseDown={()=>setEdit(false)}>
+        <div className="quick-edit-panel" role="dialog" aria-modal="true" aria-label="Edit attestation" onMouseDown={e=>e.stopPropagation()}>
           <div className="quick-edit-head">
             <div><h3>Edit Case</h3><p>Update customer, dates, finance and overall case status.</p></div>
-            <button type="button" className="icon-btn" onClick={()=>setEdit(false)}><Icon name="close" size={17}/></button>
+            <button type="button" className="icon-btn" aria-label="Close edit attestation" disabled={editSaving} onClick={()=>setEdit(false)}><Icon name="close" size={17}/></button>
           </div>
           <form className="quick-edit-form" onSubmit={saveCase}>
             <Field label="Tracking"><input required value={form.tracking_reference||''} onChange={e=>setForm({...form,tracking_reference:e.target.value})}/></Field>
@@ -4398,10 +4401,10 @@ function QuickView({initialTab='workflow',c,branches=[],session,favorite=false,o
             </div>
           </form>
         </div>
-      </div>}
+      </div></DialogPortal>}
       {labelOpen&&<LabelPreviewModal c={c} onClose={()=>setLabelOpen(false)} notify={notify}/>}
-      {deleteReview&&<div className="delete-review-backdrop" onMouseDown={()=>!deletingCase&&setDeleteReview(null)}>
-        <div className="delete-review-modal" onMouseDown={e=>e.stopPropagation()}>
+      {deleteReview&&<DialogPortal contextClass="quick-modal quick-workspace-v2"><div className="delete-review-backdrop" onMouseDown={()=>!deletingCase&&setDeleteReview(null)}>
+        <div className="delete-review-modal" role="dialog" aria-modal="true" aria-label="Review deletion" onMouseDown={e=>e.stopPropagation()}>
           <div className="delete-review-head">
             <div><span className="delete-review-kicker">DELETE SAFETY CHECK</span><h3>Case #{c.tracking_reference}</h3><p>{deleteReview.blockers?.length?'Deletion is blocked. Nothing has been deleted.':'No protected operational links were found.'}</p></div>
             <button className="secondary" onClick={()=>setDeleteReview(null)} disabled={deletingCase}>Close</button>
@@ -4420,9 +4423,9 @@ function QuickView({initialTab='workflow',c,branches=[],session,favorite=false,o
             <div className="delete-review-foot"><button className="secondary" onClick={()=>setDeleteReview(null)} disabled={deletingCase}>Cancel</button><button className="danger" onClick={deleteCase} disabled={deletingCase}>{deletingCase?'Deleting…':'Permanently Delete Case'}</button></div>
           </>}
         </div>
-      </div>}
+      </div></DialogPortal>}
     </div>
-  </div>
+  </div></DialogPortal>
 }
 
 function AttestationPaymentFields({orgId,branch,form,setForm}){const {accounts,error}=usePaymentAccounts(orgId,branch);return <PaymentAccountPicker accounts={accounts} error={error} required value={form.payment_account_id} onChange={(id,method)=>setForm(f=>({...f,payment_account_id:id,payment_method:method}))}/> }

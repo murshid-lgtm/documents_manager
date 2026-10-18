@@ -33,3 +33,9 @@ Provider accounts, commercial pricing and customer notification policies must be
 Replaced the mobile desktop-sidebar fallback with a body-level mobile menu. Module search, permission-filtered tiles, profile/logout sheet, create sheet, mobile top bar, bottom navigation and quick-create button now have dedicated touch layouts. The app behind the menu is inert while it is open; browser Back and Escape dismiss it. Sales/customer tables use stacked mobile record cards. Desktop navigation retains its existing layout.
 
 Verified with a real React interaction fixture covering taps on every module, search, create actions, profile/logout callbacks, notifications, scan, browser Back, Escape, permissions, desktop resize, light/dark and narrow-screen overflow. This fixture uses synthetic data and performs no production transactions.
+
+## Mobile dialogs follow-up
+
+Attestation quick view uses a full-screen phone layout with separate Workflow, Financials, Details and Activity sections. Secondary actions open a bottom sheet. Short payment and quick-add forms use sheets; longer forms, record details and PDF previews use the available screen height. Shared portal layering prevents transformed pages and desktop headers from covering dialogs. A single focus/scroll/history stack keeps nested dialogs above their parent and returns to the underlying record when dismissed. Visual viewport sizing responds to the phone keyboard.
+
+Synthetic React browser checks cover real quick view/stage components, nested customer and edit forms, bulk services, PDF controls, browser Back/Escape, restored drafts, 320–430px widths, Fern/Studio light/dark modes and retained desktop chrome. No production financial transactions are submitted by these tests.
