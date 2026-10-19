@@ -39,3 +39,13 @@ Verified with a real React interaction fixture covering taps on every module, se
 Attestation quick view uses a full-screen phone layout with separate Workflow, Financials, Details and Activity sections. Secondary actions open a bottom sheet. Short payment and quick-add forms use sheets; longer forms, record details and PDF previews use the available screen height. Shared portal layering prevents transformed pages and desktop headers from covering dialogs. A single focus/scroll/history stack keeps nested dialogs above their parent and returns to the underlying record when dismissed. Visual viewport sizing responds to the phone keyboard.
 
 Synthetic React browser checks cover real quick view/stage components, nested customer and edit forms, bulk services, PDF controls, browser Back/Escape, restored drafts, 320–430px widths, Fern/Studio light/dark modes and retained desktop chrome. No production financial transactions are submitted by these tests.
+
+## Compact records and financial corrections
+
+Mobile attestation cards have a compact header, readable phone number, quick-view action and touch shortcuts. Desktop attestation cards retain their layout. Customer, service and document searches use compact left-aligned results. Mobile select controls have explicit height/padding to prevent clipped text.
+
+Issued invoice totals, payments and receivables have compact cards and paginated drill-downs in Sales, Attestations and customer entry. Totals use all accessible canonical issued invoices, independent of the current list page. Legacy cases without invoices are not converted or double counted.
+
+Company administrators can correct receipts, expenses, liabilities, supplier bills, accounts and accounting types. Invoice edits use the invoice editor and require a correction reason. Receipts are replaced atomically; originals remain voided. Invoice deletion cancels the invoice, reverses receipts and cancels linked attestation tracking. Paid real expenses remain expenses; paid supplier bills require a refund rather than a fictitious reversal. Accounts with financial history cannot be removed. All admin corrections retain a reason, before/after history and idempotency key.
+
+The invoice Journal entries tab is removed. Expense/liability actions maintain the background ledger automatically. Reports retain the ledger and daybook. Admin correction tests cover tenant/role checks, retries, connected receipt balances, paid invoice limits, expense dates and balanced postings. UI tests cover real mobile invoice-number typing, compact lists, cards, stage status text and drill-down dialogs.

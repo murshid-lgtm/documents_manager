@@ -13,6 +13,7 @@ import './saas-workspace.css';
 import './mobile-workspace.css';
 import './mobile-navigation.css';
 import './mobile-dialogs.css';
+import './record-refinements.css';
 import {AppearanceProvider} from '../components/ThemeStudio';
 import ActionFeedback from '../components/ActionFeedback';
 import PdfPreviewModal from '../components/PdfPreviewModal';

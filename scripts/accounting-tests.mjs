@@ -52,7 +52,9 @@ try{
  assert.equal(Number(r.find(x=>x.code==='4010').closing),-20);checks++;
  await cmd('sync',{},414);await cmd('sync',{},415);
  assert.equal((await db.query("select count(*) n from finance_journals where source='Receipt'")).rows[0].n,1);checks++;
+ await login(22);
  await denied("update sales_documents set items=$2 where id=$1",[invoice,JSON.stringify([{description:'Service',quantity:1,government_fee:20,service_fee:100}])]);
+ await login(21);
  const receipt=(await db.query('select id from sales_payments where document_id=$1',[invoice])).rows[0].id;
  await db.query("select void_business_payment($1,'Customer payment correction')",[receipt]);
  r=(await db.query('select * from finance_report($1,$2,$3,$4)',[id(1),id(11),'2026-01-01','2026-12-31'])).rows;assert.equal(Number(r.find(x=>x.code==='1100').closing),100);checks++;

@@ -1,0 +1,7 @@
+'use client';
+import {useId,useState} from 'react';
+export default function NamePicker({options=[],onChange,value='',...props}){
+ const [open,setOpen]=useState(false),[active,setActive]=useState(-1),id=useId();const found=options.filter(n=>!value||n.toLowerCase().includes(value.toLowerCase())).slice(0,40);
+ function choose(name){onChange?.({target:{value:name}});setOpen(false);setActive(-1)}
+ return <div className="service-picker name-picker" onBlur={e=>{if(!e.currentTarget.contains(e.relatedTarget))setOpen(false)}}><input {...props} value={value} role="combobox" aria-expanded={open} aria-controls={id} aria-label={props['aria-label']||'Document name'} aria-activedescendant={active>=0?`${id}-${active}`:undefined} onFocus={()=>setOpen(true)} onChange={e=>{onChange?.(e);setOpen(true);setActive(-1)}} onKeyDown={e=>{if(e.key==='Escape')setOpen(false);if(e.key==='ArrowDown'){e.preventDefault();setOpen(true);setActive(n=>Math.min(found.length-1,n+1))}if(e.key==='ArrowUp'){e.preventDefault();setActive(n=>Math.max(0,n-1))}if(e.key==='Enter'&&open){e.preventDefault();if(active>=0&&found[active])choose(found[active]);else setOpen(false)}}}/>{open&&found.length>0&&<div className="business-picker-results" role="listbox" id={id}>{found.map((name,i)=><button key={name} id={`${id}-${i}`} role="option" aria-selected={active===i} type="button" onMouseDown={e=>e.preventDefault()} onClick={()=>choose(name)}><strong>{name}</strong></button>)}</div>}</div>
+}
