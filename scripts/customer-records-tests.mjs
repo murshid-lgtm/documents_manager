@@ -51,10 +51,37 @@ try{
  await denied('insert into customer_records(organization_id,customer_id,record_kind,name) values($1,$2,$3,$4)',[id(1),company,'Document','Wrong branch']);
  await login(24);assert.equal((await queue()).length,0);assert.equal((await db.query('select * from customer_records')).rows.length,0);checks+=2;
  await login(25);assert.equal((await queue()).length,4);await db.query('update customer_records set last_contacted_on=current_date where id=$1',[passport]);checks+=2;
- await login(21);await db.query('update customer_records set reminder_enabled=false where id=$1',[personalDoc]);assert.equal((await queue()).length,3);checks++;
- await db.query('update customer_records set archived=true where id=$1',[vehicle]);assert.equal((await queue()).length,2);checks++;
+ await login(21);await db.query('update customer_records set reminder_enabled=false where id=$1',[personalDoc]);assert.equal((await queue()).length,4);checks++;
+ await db.query('update customer_records set archived=true where id=$1',[vehicle]);assert.equal((await queue()).length,3);checks++;
  await db.query('update customer_records set snoozed_until=current_date+20,expires_on=current_date+1 where id=$1',[passport]);assert.equal((await queue('all','email','due')).length,1);checks++;
- await db.query('update customer_records set archived=true where id=$1',[staff]);assert.equal((await db.query('select archived from customer_records where id=$1',[passport])).rows[0].archived,true);assert.equal((await queue()).length,0);checks+=2;
+ await db.query('update customer_records set archived=true where id=$1',[staff]);assert.equal((await db.query('select archived from customer_records where id=$1',[passport])).rows[0].archived,true);assert.equal((await queue()).length,1);checks+=2;
+ // Email management stays tenant/admin scoped, and worker queues are idempotent.
+ const templateInput={name:'Expiry email',purpose:'renewal',subject:'Renew {{document_name}}',body:'Hello {{name}}',is_default:true};
+ const templateId=(await db.query('select save_workspace_email_template($1,$2) id',[id(1),JSON.stringify(templateInput)])).rows[0].id;
+ assert(templateId);checks++;
+ const second=(await db.query('select save_workspace_email_template($1,$2) id',[id(1),JSON.stringify({...templateInput,name:'Second default'})])).rows[0].id;
+ assert.equal((await db.query('select count(*) n from email_templates where is_default')).rows[0].n,1);checks++;
+ await denied('select save_workspace_email_template($1,$2)',[id(2),JSON.stringify(templateInput)]);
+ await denied('insert into email_templates(organization_id,name,purpose,subject,body) values($1,\'Bypass\',\'renewal\',\'Subject\',\'Body\')',[id(1)]);
+ await login(25);await denied('select save_workspace_email_template($1,$2)',[id(1),JSON.stringify(templateInput)]);assert.equal((await db.query('select * from email_templates')).rows.length,0);checks++;
+ await login(21);await db.exec('reset role');await db.query("insert into communication_settings(organization_id,email_enabled,document_reminders_enabled,event_types) values($1,true,true,'[\"renewal\"]')",[id(1)]);
+ await db.query('update customer_records set expires_on=current_date+6,reminder_enabled=true,archived=false,snoozed_until=null where id=$1',[personalDoc]);
+ await db.query('update crm_customers set email=$2,email_updates=true where id=$1',[personal,'personal@example.test']);
+ const queued=async()=>(await db.query('select queue_document_expiry_emails() n')).rows[0].n;
+ assert.equal(await queued(),1);assert.equal(await queued(),0);checks+=2;
+ const message=(await db.query("select id from communication_outbox where payload->>'record_id'=$1",[personalDoc])).rows[0].id;
+ assert.equal((await db.query('select communication_recipient_allowed($1) ok',[message])).rows[0].ok,true);checks++;
+ await db.query('update customer_records set expires_on=current_date+365 where id=$1',[personalDoc]);assert.equal((await db.query('select communication_recipient_allowed($1) ok',[message])).rows[0].ok,false);checks++;
+ // More than one worker batch must not be starved by already queued records.
+ await db.query("insert into customer_records(organization_id,customer_id,record_kind,name,expires_on) select $1,$2,'Document','Bulk document '||n,current_date+6 from generate_series(1,205) n",[id(1),personal]);
+ assert.equal(await queued(),200);assert.equal(await queued(),5);assert.equal(await queued(),0);checks+=3;
+ const invitation=id(780);await db.query('insert into service_requests(id,organization_id,customer_id,record_id) values($1,$2,$3,$4)',[invitation,id(1),personal,personalDoc]);
+ const lead=(await db.query('select submit_customer_service_request($1) id',[invitation])).rows[0].id;assert(lead);assert.equal((await db.query('select submit_customer_service_request($1) id',[invitation])).rows[0].id,lead);checks+=2;
+ await db.query("insert into communication_outbox(organization_id,channel,event_type,event_key,recipient,payload) values($1,'email','marketing','consent-check','personal@example.test',$2)",[id(1),JSON.stringify({customer_id:personal})]);
+ const marketing=(await db.query("select id from communication_outbox where event_key='consent-check'")).rows[0].id;assert.equal((await db.query('select communication_recipient_allowed($1) ok',[marketing])).rows[0].ok,false);checks++;
+ await db.query('update crm_customers set marketing_opt_in=true where id=$1',[personal]);assert.equal((await db.query('select communication_recipient_allowed($1) ok',[marketing])).rows[0].ok,true);checks++;
+ await db.query("insert into email_attachments(id,organization_id,name,content_base64,size_bytes,created_at) values($1,$2,'Test.pdf','JVBERi0=',5,now()-interval '8 days')",[id(790),id(1)]);await db.exec('select cleanup_email_attachments()');assert.equal((await db.query('select content_base64 from email_attachments where id=$1',[id(790)])).rows[0].content_base64,'');checks++;
+ await login(21);await denied('select content_base64 from email_attachments');await denied('select queue_document_expiry_emails()');await denied('select submit_customer_service_request($1)',[invitation]);await denied('select cleanup_email_attachments()');
  await system();await db.exec('set role anon');await denied('select * from customer_records');await denied('select * from customer_record_files');await denied('select * from customer_renewal_queue($1)',[id(1)]);
  console.log(`PASS: ${checks} customer register checks: optional personal/company data, linked staff/vehicles/documents, expiry history, consent withdrawal, channel audiences, scoped files, tenant/branch isolation and anonymous denial.`);
 }catch(e){console.error(e.message);process.exitCode=1}finally{await db.close()}

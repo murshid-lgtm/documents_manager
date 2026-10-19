@@ -9,6 +9,7 @@ import jsQR from 'jsqr';
 import WorkspaceDashboard from './WorkspaceDashboard';
 import AppointmentViews from './AppointmentViews';
 import WorkspaceLoader from './WorkspaceLoader';
+import {EmailComposerHost} from './EmailComposer';
 import StatusChip,{StatusIcon} from './StatusChip';
 
 import WorkspaceMotion from './WorkspaceMotion';
@@ -29,6 +30,8 @@ import CustomerPicker from './CustomerPicker';
 import DocumentFees from './DocumentFees';
 import PaymentAccountPicker,{usePaymentAccounts} from './PaymentAccountPicker';
 const InvoiceAccounting=dynamic(()=>import('./InvoiceAccounting'));
+const DocumentManager=dynamic(()=>import('./DocumentManager'),{loading:()=> <div className="business-empty">Loading documents…</div>});
+const EmailWorkspace=dynamic(()=>import('./EmailWorkspace'),{loading:()=> <div className="business-empty">Loading email centre…</div>});
 const BusinessWorkspace=dynamic(()=>import('./BusinessWorkspace'),{loading:()=> <div className="business-empty">Loading workspace…</div>});
 import SimpleLegacyImport from './SimpleLegacyImport';
 import {userError} from '../lib/userError';
@@ -411,7 +414,7 @@ ${company}`;
   }
   function openCase(c){if(!c)return;setQuickInitialTab('workflow');setQuickCase(c);setRecentCaseIds(prev=>{const next=[c.id,...prev.filter(id=>id!==c.id)].slice(0,12);try{localStorage.setItem(recentStorageKey,JSON.stringify(next))}catch{}return next})}
   useEffect(()=>{try{setSidebarCollapsed(localStorage.getItem('kenza_sidebar_collapsed')==='1')}catch{}},[]);
-  useEffect(()=>{const group=['dashboard','cases','documents'].includes(view)?'overview':['operations','deliveries','custody','appointments','batches','courier'].includes(view)?'operations':['crm','sales','services'].includes(view)?'customers':'finance';setNavGroups(x=>({...x,[group]:true}))},[view]);
+  useEffect(()=>{const group=['dashboard','cases','documents'].includes(view)?'overview':['operations','deliveries','custody','appointments','batches','courier'].includes(view)?'operations':['crm','sales','services','registry','email'].includes(view)?'customers':'finance';setNavGroups(x=>({...x,[group]:true}))},[view]);
   function toggleSidebar(){setSidebarCollapsed(v=>{const next=!v;try{localStorage.setItem('kenza_sidebar_collapsed',next?'1':'0')}catch{}return next})}
 
   const auditStorageKey=`kenza_audit_read_${session.user.id}`;
@@ -811,7 +814,7 @@ ${company}`;
 
   const role=accessRole(profile);
   const isAdmin=isAdminProfile(profile);
-  const moduleEnabled=requestedKey=>{const key=['accounting','collections'].includes(requestedKey)?'sales':requestedKey==='work'?'operations':requestedKey;return (!Array.isArray(planModules)||planModules.includes(key))&&(!Array.isArray(brandSettings?.enabled_modules)||brandSettings.enabled_modules.includes(key))&&(isAdmin||!Array.isArray(profile?.staff_modules)||profile.staff_modules.includes(key));};
+  const moduleEnabled=requestedKey=>{const key=['accounting','collections'].includes(requestedKey)?'sales':requestedKey==='work'?'operations':['registry','email'].includes(requestedKey)?'crm':requestedKey;return (!Array.isArray(planModules)||planModules.includes(key))&&(!Array.isArray(brandSettings?.enabled_modules)||brandSettings.enabled_modules.includes(key))&&(isAdmin||!Array.isArray(profile?.staff_modules)||profile.staff_modules.includes(key));};
   useEffect(()=>{if(!profile||['settings','profile','help'].includes(view))return;if(!moduleEnabled(view)){const next=['dashboard','cases','documents','operations','deliveries','custody','appointments','batches','courier','payments','reports','crm','sales','services'].find(moduleEnabled);setView(next||'no-access')}},[profile,brandSettings,view]);
   const isBranch=isBranchProfile(profile);
   const ownBranch=profile?.branch_id||null;
@@ -843,7 +846,7 @@ ${company}`;
       &&(ddFilter==='All'||(ddFilter==='DD only'?Boolean(c.direct_to_delhi||(c.documents||[]).some(d=>d.direct_to_delhi)):!c.direct_to_delhi&&!(c.documents||[]).some(d=>d.direct_to_delhi)));
   });return rankCaseSearchResults(matched,q,searchBy)},[cases,query,searchBy,statusFilter,branchFilter,documentFilter,quantityFilter,mobileFilter,balanceFilter,accountFilter,intakeFilter,ddFilter]);
   const stats=useMemo(()=>({total:homeCases.length,received:homeCases.filter(c=>c.overall_status==='Received').length,under:homeCases.filter(c=>c.overall_status==='Under Process').length,waiting:homeCases.filter(c=>c.overall_status==='Waiting').length,ready:homeCases.filter(c=>c.overall_status==='Ready for Delivery').length,delivered:homeCases.filter(c=>c.overall_status==='Delivered').length,docs:homeCases.reduce((n,c)=>n+(c.documents?.length||0),0),pendingStages:homeCases.reduce((n,c)=>n+(c.documents||[]).flatMap(d=>d.document_stages||[]).filter(s=>s.status==='Pending'||s.status==='Processing').length,0)}),[homeCases]);
-  const pageTitle={work:'Work queue',collections:'Collections',dashboard:'Dashboard',cases:'Attestations',documents:'Documents & Stages',import:'Excel Import',appointments:'Appointments',batches:'Batch Reports',operations:'Operations',payments:'Payments',deliveries:'Deliveries',custody:'Custody',reports:'Reports',accounting:'Accounts',courier:'Courier Shipments',crm:'CRM',sales:'Sales',services:'Services',profile:'My profile',help:'Help centre',settings:profile?.is_platform_super_admin?'Platform Management':'Company Management'}[view]||(brandSettings?.product_name||'Document Tracker');
+  const pageTitle={work:'Work queue',collections:'Collections',dashboard:'Dashboard',cases:'Attestations',documents:'Documents & Stages',import:'Excel Import',appointments:'Appointments',batches:'Batch Reports',operations:'Operations',payments:'Payments',deliveries:'Deliveries',custody:'Custody',reports:'Reports',accounting:'Accounts',courier:'Courier Shipments',registry:'Documents & reminders',email:'Email centre',crm:'CRM',sales:'Sales',services:'Services',profile:'My profile',help:'Help centre',settings:profile?.is_platform_super_admin?'Platform Management':'Company Management'}[view]||(brandSettings?.product_name||'Document Tracker');
   const pageSubtitle={
     dashboard:isBranch?`Priority view for ${ownBranchName}. All cases remain searchable.`:'Live overview of attestation cases, workload and receivables.',
     cases:'Search, filter, create and edit every field.',
@@ -857,7 +860,7 @@ ${company}`;
     custody:'Track physical document location, custody movements and handovers.',
     courier:'Create courier batches, manifests, dispatch documents and confirm agent receipts.',
     reports:'Operational, financial and case reporting.',
-    crm:'Customers, leads and follow-ups in one workspace.',sales:'Quotations, invoices and sales collections.',services:'Service jobs, approvals and renewals.',profile:'Your identity and access in this workspace.',settings:'Manage branding, branches, staff, access and product configuration.'
+    registry:'Company records, staff, vehicles and expiry reminders.',email:'Templates, senders, reminders and customer emails.',crm:'Customers, leads and follow-ups in one workspace.',sales:'Quotations, invoices and sales collections.',services:'Service jobs, approvals and renewals.',profile:'Your identity and access in this workspace.',settings:'Manage branding, branches, staff, access and product configuration.'
   ,help:'Guidance for a smoother working day.'}[view]||'Live overview of attestation cases, workload and receivables.';
 
   if(!brandReady)return <WorkspaceLoader/>;
@@ -881,6 +884,7 @@ ${company}`;
         {moduleEnabled('courier')&&<Nav active={view==='courier'} onClick={()=>setView('courier')} icon="truck">Courier Shipments</Nav>}
       </div></div>
       <div className="nav-section nav-accordion"><button className="nav-group-toggle" aria-expanded={sidebarCollapsed||Boolean(navGroups.customers)} onClick={()=>setNavGroups(x=>({...x,customers:!x.customers}))}><span>CUSTOMERS & SALES</span><Icon name={navGroups.customers?'chevron-down':'chevron-right'} size={13}/></button><div className="nav-group-items" hidden={!sidebarCollapsed&&!navGroups.customers}>
+        {moduleEnabled('registry')&&<Nav active={view==='registry'} onClick={()=>setView('registry')} icon="file">Documents & reminders</Nav>}{isAdmin&&moduleEnabled('email')&&<Nav active={view==='email'} onClick={()=>setView('email')} icon="share">Email centre</Nav>}
         {moduleEnabled('crm')&&<Nav active={view==='crm'} onClick={()=>setView('crm')} icon="user">CRM</Nav>}
         {moduleEnabled('sales')&&<Nav active={view==='sales'} onClick={()=>setView('sales')} icon="wallet">Sales</Nav>}
         {moduleEnabled('services')&&<Nav active={view==='services'} onClick={()=>setView('services')} icon="layers">Service jobs</Nav>}
@@ -909,6 +913,7 @@ ${company}`;
       {view==='cases'&&<><FinancialSnapshot orgId={profile?.organization_id||brandSettings?.organization_id} scope="attestations" branchId={branchFilter==='All'?null:branchFilter} version={cases}/><CasesView preferenceKey={`cases_view_${profile?.organization_id||'platform'}_${profile?.id||'user'}`} cases={filtered} allCases={cases} recentCaseIds={recentCaseIds} favoriteCaseIds={favoriteCaseIds} toggleFavorite={toggleFavoriteCase} clearRecent={clearRecentCases} clearFavorites={clearFavoriteCases} shareDetailed={shareDetailedTracking} loading={loading} query={query} setQuery={setQuery} searchBy={searchBy} setSearchBy={setSearchBy} statusFilter={statusFilter} setStatusFilter={setStatusFilter} branchFilter={branchFilter} setBranchFilter={setBranchFilter} documentFilter={documentFilter} setDocumentFilter={setDocumentFilter} quantityFilter={quantityFilter} setQuantityFilter={setQuantityFilter} mobileFilter={mobileFilter} setMobileFilter={setMobileFilter} balanceFilter={balanceFilter} setBalanceFilter={setBalanceFilter} accountFilter={accountFilter} setAccountFilter={setAccountFilter} intakeFilter={intakeFilter} setIntakeFilter={setIntakeFilter} ddFilter={ddFilter} setDdFilter={setDdFilter} branches={branches} expanded={expanded} toggleExpanded={toggleExpanded} selected={selected} toggleSelected={toggleSelected} updateCaseStatus={updateCaseStatus} updateStage={updateStage} updateStageDate={updateStageDate} reorderStages={reorderStages} quick={openCase} addDoc={setShowDoc} deleteDocument={deleteDocument} addStage={addStageToDocument} renameStage={renameStage} deleteStage={deleteStage} bulkStatus={bulkStatus} appointment={c=>{setAppointmentCase(c);setView('appointments')}} bulkAppointment={()=>{setAppointmentSeedIds([...selected]);setView('appointments')}} batchSelected={()=>{setBatchSeed([...selected]);setView('batches')}}/></>}
       {view==='documents'&&<DocumentsView cases={cases} query={query} setQuery={setQuery} updateStage={updateStage} updateStageDate={updateStageDate} quick={setQuickCase} setModuleExport={publishModuleExport} onOpenCase={async c=>{const row=await fetchCaseByTracking(c.tracking_reference);if(row)setQuickCase(row)}}/>}
       {view==='import'&&<SimpleLegacyImport session={session} cases={cases} branches={branches} reload={loadCases} notify={setMessage}/>}
+      {view==='registry'&&<DocumentManager orgId={brandSettings?.organization_id||profile.organization_id} notify={setMessage} canManage={isAdmin} onEmailCentre={()=>setView('email')}/>}{view==='email'&&isAdmin&&<EmailWorkspace orgId={brandSettings?.organization_id||profile.organization_id} notify={setMessage} company={currentOrganization?.name||brandSettings?.company_name}/>}
       {['crm','sales','services','accounting'].includes(view)&&<BusinessWorkspace initialRecord={businessRecord} key={view+'-'+(view==='sales'?businessIntent?.id||'default':'default')} initialAction={view==='sales'?businessIntent?.action:undefined} initialTab={view==='accounting'?'accounting':view==='sales'?businessIntent?.tab:undefined} view={view==='accounting'?'sales':view} profile={profile} organization={currentOrganization} branches={branches} brand={brandSettings} notify={setMessage} setModuleExport={publishModuleExport} onSettings={()=>{try{sessionStorage.setItem('workspace-settings-tab','print')}catch{}setView('settings')}} onOpenCase={async c=>{const row=await fetchCaseByTracking(c.tracking_reference);if(row)setQuickCase(row)}}/>}
       {view==='settings'&&isAdmin&&<ProductSettings initialTab={settingsTarget} session={session} profile={profile} currentOrganization={currentOrganization} onBrandChange={settings=>{setBrandSettings(settings);if(profile?.is_platform_super_admin&&settings?.organization_id)supabase.from('organizations').select('*').eq('id',settings.organization_id).maybeSingle().then(({data})=>{if(data)setCurrentOrganization(data)})}} notify={setMessage}/>}
       {view==='appointments'&&<AppointmentsView initialAppointmentId={appointmentTarget} onTargetOpened={()=>setAppointmentTarget(null)} timeZone={currentOrganization?.timezone||'Asia/Qatar'} onActionClose={returnToQuickCase} session={session} cases={cases} notify={setMessage} seedCase={appointmentCase} seedIds={appointmentSeedIds} clearSeed={()=>{setAppointmentCase(null);setAppointmentSeedIds([])}} setModuleExport={publishModuleExport} onOpenCase={async c=>{const row=await fetchCaseByTracking(c.tracking_reference);if(row)setQuickCase(row)}}/>}
@@ -1020,6 +1025,7 @@ ${company}`;
       <div className="modal-actions tracking-share-footer"><button type="button" className="secondary" onClick={()=>setCreatedShare(null)}>Done</button><button type="button" className="primary" onClick={()=>{setCreatedShare(null);setQuickCase(createdShare)}}>Open Case</button></div>
     </Modal>}
 
+    {isAdmin&&<EmailComposerHost orgId={brandSettings?.organization_id||profile.organization_id} notify={setMessage} company={currentOrganization?.name||brandSettings?.company_name}/>}
     {quickCase&&<QuickView canManage={isAdmin} initialTab={quickInitialTab} c={quickCase} branches={branches} session={session} favorite={favoriteCaseIds.has(quickCase.id)} onToggleFavorite={()=>toggleFavoriteCase(quickCase.id)} onDetailedShare={(options)=>shareDetailedTracking(quickCase,options)} onClose={()=>setQuickCase(null)} refreshCase={refreshCase} notify={setMessage} updateStatus={updateCaseStatus} updateStage={updateStage} updateStageDate={updateStageDate} reorderStages={reorderStages} onAddDoc={()=>setShowDoc(quickCase)} deleteDocument={deleteDocument} addStage={addStageToDocument} renameStage={renameStage} deleteStage={deleteStage} onAppointment={tab=>startQuickAction('appointments',quickCase,tab)} onDeliver={tab=>startQuickAction('deliveries',quickCase,tab)} onCustody={tab=>startQuickAction('custody',quickCase,tab)} onPayment={tab=>startQuickAction('payments',quickCase,tab)} onDeleted={(caseId)=>{setCases(prev=>prev.filter(x=>x.id!==caseId));setSelected(prev=>{const next=new Set(prev);next.delete(caseId);return next;});setQuickCase(null)}}/>}
     {duplicateReview&&<Modal className="duplicate-review-modal" onClose={()=>setDuplicateReview(null)} title="Tracking Number Already Exists" subtitle={`Tracking #${duplicateReview.tracking_reference} is already registered. Review the existing case before continuing.`}>
       <div className="duplicate-review-alert"><strong>Duplicate tracking prevented</strong><span>No new case was created. Your current New Case entries are still preserved.</span></div>

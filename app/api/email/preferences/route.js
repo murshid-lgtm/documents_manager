@@ -1,0 +1,5 @@
+import {apiJson,readJson,consumeRateLimit,requestIp} from '../../../../lib/serverSecurity';
+import {communicationAdmin} from '../../../../lib/communicationsServer';
+import {readEmailToken} from '../../../../lib/emailWorkspaceServer';
+export const dynamic='force-dynamic';export const runtime='nodejs';
+export async function POST(request){try{const body=await readJson(request,3000),value=readEmailToken(body.token,'preferences');if(!value?.org||!value.customer)return apiJson({error:'This email preferences link is invalid.'},404);const admin=communicationAdmin();if(!(await consumeRateLimit(admin,{bucket:'email-preferences',key:requestIp(request),limit:20,windowSeconds:3600})).allowed)return apiJson({error:'Please try again later.'},429);const change=body.action==='service'?{email_updates:false}:{marketing_opt_in:false};const r=await admin.from('crm_customers').update(change).eq('organization_id',value.org).eq('id',value.customer).select('id').single();if(r.error)return apiJson({error:'This customer is unavailable.'},404);return apiJson({ok:true})}catch{return apiJson({error:'Email preferences could not be updated.'},400)}}
