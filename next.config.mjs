@@ -10,6 +10,7 @@ const nextConfig={
       "default-src 'self'",
       "base-uri 'self'",
       "object-src 'none'",
+      "frame-src 'self' blob:",
       "frame-ancestors 'none'",
       "form-action 'self'",
       "script-src 'self' 'unsafe-inline'",

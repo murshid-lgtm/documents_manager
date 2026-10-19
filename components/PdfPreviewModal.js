@@ -23,7 +23,7 @@ export default function PdfPreviewModal(){
   return()=>{live=false;abort.abort();task?.destroy();if(pdfUrl.current){URL.revokeObjectURL(pdfUrl.current);pdfUrl.current=null}};
  },[doc?.id,doc?.html,doc?.paper]);
  useEffect(()=>()=>printFrame.current?.remove(),[]);
- function emailPdf(){if(!pdfBytes.current)return;let raw='';for(const b of pdfBytes.current)raw+=String.fromCharCode(b);window.dispatchEvent(new CustomEvent('workspace-email-compose',{detail:{organizationId:doc.orgId,customerId:doc.customerId,purpose:doc.emailPurpose||doc.kind,attachment:{name:documentFilename(doc.title)+'.pdf',content:btoa(raw)}}}))}
+ function emailPdf(){if(!pdfBytes.current)return;let raw='';for(const b of pdfBytes.current)raw+=String.fromCharCode(b);window.dispatchEvent(new CustomEvent('workspace-email-compose',{detail:{organizationId:doc.orgId,customerId:doc.customerId,purpose:doc.emailPurpose||doc.kind,reference:documentFilename(doc.title),attachment:{name:documentFilename(doc.title)+'.pdf',content:btoa(raw)}}}))}
  function quickPrint(){if(!pdfUrl.current)return;printFrame.current?.remove();const frame=document.createElement('iframe');printFrame.current=frame;frame.title=documentFilename(doc.title);frame.style.cssText='position:fixed;width:1px;height:1px;opacity:0;bottom:0;border:0';frame.src=pdfUrl.current;frame.onload=()=>{try{frame.contentWindow.focus();frame.contentWindow.print()}catch{setPrinting(false)}};document.body.append(frame)}
  function download(){if(!pdfUrl.current)return;const link=document.createElement('a');link.href=pdfUrl.current;link.download=documentFilename(doc.title)+'.pdf';link.click()}
  function print(){
