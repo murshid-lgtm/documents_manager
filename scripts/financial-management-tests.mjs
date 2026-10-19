@@ -6,7 +6,7 @@ async function login(n){await db.exec('reset role');const now=Math.floor(Date.no
 async function system(){await db.exec("reset role;select set_config('request.jwt.claims','{}',false)")}
 async function denied(sql,params=[]){await assert.rejects(()=>db.query(sql,params));checks++}
 try{
- await db.exec(`create role postgres superuser;set session authorization postgres;create role anon;create role authenticated;create role service_role bypassrls;alter default privileges in schema public grant execute on functions to anon,authenticated;create schema auth;create table auth.users(id uuid primary key,email text,raw_user_meta_data jsonb default '{}');create table auth.sessions(id uuid primary key,user_id uuid,not_after timestamptz);create function auth.jwt() returns jsonb language sql stable as $$select coalesce(nullif(current_setting('request.jwt.claims',true),''),'{}')::jsonb$$;create function auth.uid() returns uuid language sql stable as $$select nullif(auth.jwt()->>'sub','')::uuid$$;create function auth.role() returns text language sql stable as $$select auth.jwt()->>'role'$$;grant usage on schema public,auth to anon,authenticated,service_role;grant execute on all functions in schema auth to authenticated,service_role;`);
+ await db.exec(`create role postgres superuser;set session authorization postgres;create role anon;create role authenticated;create role service_role bypassrls;alter default privileges in schema public grant execute on functions to anon,authenticated;create schema storage;create table storage.buckets(id text primary key,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]);create table storage.objects(id uuid default gen_random_uuid(),bucket_id text,name text);alter table storage.objects enable row level security;grant usage on schema storage to authenticated;grant select,insert,delete on storage.objects to authenticated;create schema auth;create table auth.users(id uuid primary key,email text,raw_user_meta_data jsonb default '{}');create table auth.sessions(id uuid primary key,user_id uuid,not_after timestamptz);create function auth.jwt() returns jsonb language sql stable as $$select coalesce(nullif(current_setting('request.jwt.claims',true),''),'{}')::jsonb$$;create function auth.uid() returns uuid language sql stable as $$select nullif(auth.jwt()->>'sub','')::uuid$$;create function auth.role() returns text language sql stable as $$select auth.jwt()->>'role'$$;grant usage on schema public,auth to anon,authenticated,service_role;grant execute on all functions in schema auth to authenticated,service_role;`);
  await db.exec(fs.readFileSync(new URL('../supabase/V4_0_CLEAN_INSTALL.sql',import.meta.url),'utf8').replace('create extension if not exists pgcrypto;',''));
 
  await db.query("insert into organizations(id,name,slug) values($1,'A','a'),($2,'B','b')",[id(1),id(2)]);
@@ -80,5 +80,29 @@ try{
  assert.ok((await db.query('select count(*) n from financial_record_changes')).rows[0].n>=10);checks++;
  await denied('delete from financial_record_changes');
  await system();await db.exec('set role anon');await denied('select billing_financial_snapshot($1)',[id(1)]);await denied('select manage_financial_record($1,$2,$3,$4)',['invoice','delete',JSON.stringify({organization_id:id(1),id:invoice,reason:'Anonymous denial'}),id(527)]);
+ // Receipt uploads keep tenant/branch access and an immutable financial link.
+ await login(21);
+ const attachedCost=(await db.query('select invoice_cost_command($1,$2,$3) id',['cost',JSON.stringify({...base,description:'Attachment fixture',amount:15,date:'2026-10-19',paid_now:false}),id(900)])).rows[0].id;
+ const filePath=n=>`${id(1)}/cost/${attachedCost}/${id(n)}`;
+ const attach=async(n,extra={})=>db.query("insert into expense_attachments(id,organization_id,branch_id,cost_id,name,object_path,size_bytes,content_type) values($1,$2,$3,$4,'Receipt.pdf',$5,200,'application/pdf')",[id(n),extra.org||id(1),extra.branch||id(11),attachedCost,filePath(n)]);
+ await attach(901);await db.query("insert into storage.objects(bucket_id,name) values('expense-files',$1)",[filePath(901)]);checks++;
+ assert.equal((await db.query("select count(*) n from expense_attachments")).rows[0].n,1);checks++;
+ await denied("update expense_attachments set object_path='other' where id=$1",[id(901)]);
+ await denied("insert into storage.objects(bucket_id,name) values('expense-files','other-company/secret')");
+ await denied("select invoice_cost_command('category',$1,$2)",[JSON.stringify({...base,name:'Bad type',kind:'Other'}),id(902)]);
+ await db.query("select invoice_cost_command('category',$1,$2)",[JSON.stringify({...base,name:'Courier fees',kind:'Expense'}),id(903)]);checks++;
+ await login(22);assert.equal((await db.query('select count(*) n from expense_attachments')).rows[0].n,1);checks++;
+ await denied("select invoice_cost_command('category',$1,$2)",[JSON.stringify({...base,name:'Staff type',kind:'Expense'}),id(904)]);
+ await login(23);assert.equal((await db.query('select count(*) n from expense_attachments')).rows[0].n,0);assert.equal((await db.query("select count(*) n from storage.objects where bucket_id='expense-files'")).rows[0].n,0);checks+=2;await denied('insert into expense_attachments(id,organization_id,branch_id,cost_id,name,object_path,size_bytes,content_type) values($1,$2,$3,$4,\'Forbidden.pdf\',$5,20,\'application/pdf\')',[id(905),id(1),id(11),attachedCost,filePath(905)]);
+ await login(24);assert.equal((await db.query('select count(*) n from expense_attachments')).rows[0].n,0);checks++;
+ await login(21);await denied('insert into expense_attachments(id,organization_id,branch_id,cost_id,name,object_path,size_bytes,content_type) values($1,$2,$3,$4,\'Wrong tenant.pdf\',$5,20,\'application/pdf\')',[id(906),id(2),id(13),attachedCost,filePath(906)]);
+ for(const n of [907,908,909,910])await attach(n);await denied('insert into expense_attachments(id,organization_id,branch_id,cost_id,name,object_path,size_bytes,content_type) values($1,$2,$3,$4,\'Sixth.pdf\',$5,20,\'application/pdf\')',[id(911),id(1),id(11),attachedCost,filePath(911)]);
+ // Live-session access and a fixed per-user quota replace five PDF authorization calls.
+ assert.equal((await db.query('select document_render_access() data')).rows[0].data.allowed,true);checks++;
+ for(let n=0;n<29;n++)assert.equal((await db.query('select document_render_access() data')).rows[0].data.allowed,true);
+ assert.equal((await db.query('select document_render_access() data')).rows[0].data.status,429);checks++;
+ await login(22);assert.equal((await db.query('select document_render_access() data')).rows[0].data.allowed,true);checks++;
+ await db.exec('reset role');await db.query('delete from auth.sessions where user_id=$1',[id(22)]);await db.exec('set role authenticated');assert.equal((await db.query('select document_render_access() data')).rows[0].data.status,401);checks++;
+ await system();await db.exec('set role anon');await denied('select * from expense_attachments');await denied('select document_render_access()');
  console.log(`PASS: ${checks} admin financial correction checks: roles/tenants, idempotency, paid invoices, receipt replacement, connected attestations, date-correct expenses, reversals and balanced ledgers.`);
 }finally{await db.close()}

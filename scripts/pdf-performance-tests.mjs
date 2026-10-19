@@ -1,0 +1,6 @@
+import assert from 'node:assert/strict';
+import {cachedPdf,clearPdfServerCache} from '../lib/pdfCache.js';
+let renders=0;const render=async html=>{renders++;return new TextEncoder().encode(html)};const input={userId:'user-a',host:'company.example',html:'Invoice 1',paper:'A4',render};
+clearPdfServerCache();const [a,b]=await Promise.all([cachedPdf(input),cachedPdf(input)]);assert.equal(renders,1);assert.equal(a.cache,'miss');assert.equal(b.cache,'shared');assert.equal((await cachedPdf(input)).cache,'hit');a.bytes[0]=0;assert.equal(new TextDecoder().decode((await cachedPdf(input)).bytes),'Invoice 1');
+for(const changes of [{userId:'user-b'},{host:'other.example'},{html:'Invoice 2'},{paper:'A5'}])assert.equal((await cachedPdf({...input,...changes})).cache,'miss');assert.equal(renders,5);
+clearPdfServerCache();let attempts=0;const fail={...input,render:async()=>{attempts++;if(attempts===1)throw Error('Render interrupted');return new Uint8Array([1])}};await assert.rejects(()=>cachedPdf(fail));await cachedPdf(fail);assert.equal(attempts,2);console.log('PASS: PDF cache deduplicates concurrent renders, isolates users/hosts/content/paper, returns independent bytes and recovers from failures.');

@@ -1,28 +1,20 @@
 import {createClient} from '@supabase/supabase-js';
-import {apiError,apiJson,bearerToken,hasLiveSession,isSameOrigin,readJson,consumeRateLimit} from '../../../../lib/serverSecurity';
-import {checkPortal} from '../../../../lib/portalAccess';
+import {apiError,apiJson,bearerToken,isSameOrigin,readJson} from '../../../../lib/serverSecurity';
+import {portalDecision} from '../../../../lib/portalPolicy';
 import {renderPdf} from '../../../../lib/renderPdf';
-export const dynamic='force-dynamic';
-export const runtime='nodejs';
-export const maxDuration=60;
-export async function POST(request){
- try{
-  if(!isSameOrigin(request))return apiJson({error:'Request origin was not accepted.'},403);
-  const token=bearerToken(request);if(!token)return apiJson({error:'Please sign in to prepare a document.'},401);
-  const url=process.env.NEXT_PUBLIC_SUPABASE_URL||process.env.SUPABASE_URL,key=process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY||process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY||process.env.SUPABASE_PUBLISHABLE_KEY||process.env.SUPABASE_ANON_KEY,secret=process.env.SUPABASE_SERVICE_ROLE_KEY||process.env.SUPABASE_SECRET_KEY;
-  if(!url||!key||!secret)return apiJson({error:'Document preparation is temporarily unavailable.'},503);
-  const viewer=createClient(url,key,{global:{headers:{Authorization:`Bearer ${token}`}},auth:{persistSession:false,autoRefreshToken:false}});
-  const {data:{user},error}=await viewer.auth.getUser(token);
-  if(error||!user||!await hasLiveSession(viewer))return apiJson({error:'Your session has expired. Please sign in again.'},401);
-  const {data:profile,error:profileError}=await viewer.from('profiles').select('id,is_active,is_platform_super_admin,organization_id').eq('id',user.id).maybeSingle();
-  if(profileError)throw profileError;if(!profile?.is_active)return apiJson({error:'This account is unavailable.'},403);
-  const denied=await checkPortal(viewer,profile,request);if(denied)return denied;
-  const admin=createClient(url,secret,{auth:{persistSession:false,autoRefreshToken:false}});
-  const rate=await consumeRateLimit(admin,{bucket:'document-pdf',key:user.id,limit:30,windowSeconds:60});
-  if(!rate.allowed)return apiJson({error:rate.unavailable?'Document preparation is temporarily unavailable.':'Please wait a moment before preparing another PDF.'},rate.unavailable?503:429);
-  const {html,paper}=await readJson(request,3700000);
-  if(typeof html!=='string'||html.length>3600000||!['A4','A5','58mm','80mm'].includes(paper))return apiJson({error:'Invalid document layout.'},400);
-  const bytes=await renderPdf(html,paper);
-  return new Response(bytes,{headers:{'Content-Type':'application/pdf','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}});
- }catch(error){return apiError(error,{status:error.status||500,code:'PDF_RENDER_FAILED',message:'The PDF could not be prepared. Please try again.'})}
-}
+import {cachedPdf} from '../../../../lib/pdfCache';
+export const dynamic='force-dynamic';export const runtime='nodejs';export const maxDuration=60;
+export async function POST(request){const started=performance.now();try{
+ if(!isSameOrigin(request))return apiJson({error:'Request origin was not accepted.'},403);
+ const token=bearerToken(request);if(!token)return apiJson({error:'Please sign in to prepare a document.'},401);
+ const url=process.env.NEXT_PUBLIC_SUPABASE_URL||process.env.SUPABASE_URL,key=process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY||process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY||process.env.SUPABASE_PUBLISHABLE_KEY||process.env.SUPABASE_ANON_KEY;
+ if(!url||!key)return apiJson({error:'Document preparation is temporarily unavailable.'},503);
+ const viewer=createClient(url,key,{global:{headers:{Authorization:`Bearer ${token}`}},auth:{persistSession:false,autoRefreshToken:false}});
+ const access=await viewer.rpc('document_render_access');if(access.error)return apiJson({error:'Your session could not be verified. Please sign in again.'},access.status===401?401:503);
+ const profile=access.data;if(!profile?.allowed)return apiJson({error:profile?.error||'Document access denied.'},profile?.status||403);
+ const host=new URL(request.url).hostname,portal=portalDecision({host,platformOrigin:process.env.APP_ORIGIN,profile,companyDomain:profile.company_domain});if(!portal.allowed)return apiJson({error:portal.error,code:portal.code},portal.status);
+ const verified=performance.now();const {html,paper}=await readJson(request,3700000);if(typeof html!=='string'||html.length>3600000||!['A4','A5','58mm','80mm'].includes(paper))return apiJson({error:'Invalid document layout.'},400);
+ const result=await cachedPdf({userId:profile.id,host,html,paper,render:renderPdf});const finished=performance.now();
+ console.info('PDF prepared',{auth_ms:Math.round(verified-started),render_ms:Math.round(finished-verified),cache:result.cache,bytes:result.bytes.length});
+ return new Response(result.bytes,{headers:{'Content-Type':'application/pdf','Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Server-Timing':`access;dur=${Math.round(verified-started)},pdf;dur=${Math.round(finished-verified)};desc="${result.cache}"`}});
+ }catch(error){return apiError(error,{status:error.status||500,code:'PDF_RENDER_FAILED',message:'The PDF could not be prepared. Please try again.'})}}
