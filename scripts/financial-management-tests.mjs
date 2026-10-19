@@ -71,6 +71,10 @@ try{
  const automatic=(await db.query('select * from invoice_costs where invoice_id=$1 and automatic',[linked.invoice_id])).rows[0];
  await db.query('select invoice_cost_command($1,$2,$3)',['cost_pay',JSON.stringify({...base,cost_id:automatic.id,paid_on:'2026-10-03',account_id:cash}),id(525)]);
  await db.query('update documents set government_fee=25 where case_id=$1',[cid]);assert.equal(Number((await db.query('select amount from invoice_costs where id=$1',[automatic.id])).rows[0].amount),25);checks++;
+ await denied('select manage_financial_record($1,$2,$3,$4)',['cost','edit',JSON.stringify({organization_id:id(1),id:automatic.id,reason:'Unconfirmed amount edit',amount:28}),id(530)]);
+ await manage('cost','edit',automatic.id,{amount:28,actual_cost_override:true},531);let actual=(await db.query('select * from invoice_costs where id=$1',[automatic.id])).rows[0];assert.equal(Number(actual.amount),28);assert.equal(actual.amount_override,true);checks+=2;
+ await db.query("update sales_documents set customer_notes='Updated notes' where id=$1",[linked.invoice_id]);assert.equal(Number((await db.query('select amount from invoice_costs where id=$1',[automatic.id])).rows[0].amount),28);checks++;
+ assert.equal(Number((await db.query('select total from sales_documents where id=$1',[linked.invoice_id])).rows[0].total),105);checks++;
  await manage('invoice','delete',linked.invoice_id,{},526);assert.equal((await db.query('select overall_status from cases where id=$1',[cid])).rows[0].overall_status,'Cancelled');assert.equal((await db.query('select status from invoice_costs where id=$1',[automatic.id])).rows[0].status,'Paid');checks+=2;
  assert.equal((await db.query('select journal_id from finance_lines group by journal_id having sum(debit-credit)<>0')).rows.length,0);checks++;
  assert.ok((await db.query('select count(*) n from financial_record_changes')).rows[0].n>=10);checks++;

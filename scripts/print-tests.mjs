@@ -31,4 +31,5 @@ const repeated=documentHtml({kind:'invoice',record:{items:[],total:0},brand:{},c
 
 const receipt=documentHtml({kind:'receipt',record:{document_no:'RCT-10',invoice_no:'INV-10',amount:45.5,method:'Bank transfer',reference:'BANK-123',customer_name:'Sample'},template:{paper:'A4',style:'Letterhead',title:'Invoice'}});for(const text of ['Payment receipt','RCT-10','INV-10','BANK-123','45.50','Bank transfer'])assert(receipt.includes(text));assert(!receipt.includes('Sub Total'));assert(!receipt.includes('Balance Due'));
 
+const report=documentHtml({kind:'report',record:{title:'Trial balance',period:'October 2026',customer_name:'Corporate branch',columns:['Account','Type','Debit','Credit'],table:[['Cash','Asset','QAR 50.00','QAR 0.00']],totals_row:['Total','','QAR 50.00','QAR 0.00']}});for(const text of ['accounting-report','Reporting period / reference','October 2026','Corporate branch','<tfoot>','table-header-group','font-variant-numeric:tabular-nums']){assert(report.includes(text));checks++}assert(!report.includes('Balance Due'));checks++;
 checks+=8;console.log(`PASS: ${checks} print-template assertions, including payment-specific receipts.`);
