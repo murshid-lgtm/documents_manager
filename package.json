@@ -16,7 +16,7 @@
     "test:mobile": "node scripts/mobile-navigation-tests.cjs && node scripts/mobile-dialog-tests.cjs",
     "test:customers": "node scripts/customer-records-tests.mjs",
     "test:email": "node scripts/email-workspace-ui-tests.cjs",
-    "test:customer-finance": "node scripts/customer-finance-ui-tests.cjs && node scripts/pdf-performance-tests.mjs && node scripts/pdf-route-tests.cjs"
+    "test:customer-finance": "node scripts/customer-finance-ui-tests.cjs && node scripts/pdf-performance-tests.mjs && node scripts/pdf-route-tests.cjs && node scripts/workspace-performance-tests.cjs"
   },
   "dependencies": {
     "@sparticuz/chromium": "153.0.0",
