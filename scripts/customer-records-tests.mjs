@@ -84,5 +84,19 @@ try{
  await db.query("insert into email_attachments(id,organization_id,name,content_base64,size_bytes,created_at) values($1,$2,'Test.pdf','JVBERi0=',5,now()-interval '8 days')",[id(790),id(1)]);await db.exec('select cleanup_email_attachments()');assert.equal((await db.query('select content_base64 from email_attachments where id=$1',[id(790)])).rows[0].content_base64,'');checks++;
  await login(21);await denied('select content_base64 from email_attachments');await denied('select queue_document_expiry_emails()');await denied('select submit_customer_service_request($1)',[invitation]);await denied('select cleanup_email_attachments()');
  await system();await db.exec('set role anon');await denied('select * from customer_records');await denied('select * from customer_record_files');await denied('select * from customer_renewal_queue($1)',[id(1)]);
+ await system();
+ const contact=id(880),contactMessage=id(881);
+ await db.query("insert into email_contacts(id,organization_id,email,name,email_updates,marketing_opt_in) values($1,$2,'contact@example.test','External contact',true,false)",[contact,id(1)]);
+ await db.query("insert into communication_outbox(id,organization_id,channel,event_type,event_key,recipient,payload) values($1,$2,'email','general','contact-check','contact@example.test',$3)",[contactMessage,id(1),JSON.stringify({contact_id:contact,manual:true})]);
+ const allowedContact=async()=>(await db.query('select communication_recipient_allowed($1) ok',[contactMessage])).rows[0].ok;
+ assert.equal(await allowedContact(),true);checks++;
+ await db.query("update communication_outbox set event_type='marketing' where id=$1",[contactMessage]);assert.equal(await allowedContact(),false);checks++;
+ await db.query('update email_contacts set marketing_opt_in=true where id=$1',[contact]);assert.equal(await allowedContact(),true);checks++;
+ await db.query('update email_contacts set email_updates=false where id=$1',[contact]);assert.equal(await allowedContact(),false);checks++;
+ await db.query('update email_contacts set email_updates=true,organization_id=$2 where id=$1',[contact,id(2)]);assert.equal(await allowedContact(),false);checks++;
+ await login(21);assert.equal((await db.query('select id from email_contacts')).rows.length,0);checks++;await denied("insert into email_contacts(organization_id,email) values($1,'unauthorized@example.test')",[id(1)]);
+ await system();await db.query('update email_contacts set organization_id=$2 where id=$1',[contact,id(1)]);await login(21);assert.equal((await db.query('select id from email_contacts')).rows.length,1);checks++;
+ await login(25);assert.equal((await db.query('select id from email_contacts')).rows.length,0);checks++;
+ await system();await db.exec('set role anon');await denied('select * from email_contacts');
  console.log(`PASS: ${checks} customer register checks: optional personal/company data, linked staff/vehicles/documents, expiry history, consent withdrawal, channel audiences, scoped files, tenant/branch isolation and anonymous denial.`);
 }catch(e){console.error(e.message);process.exitCode=1}finally{await db.close()}

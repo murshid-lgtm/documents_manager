@@ -14,3 +14,8 @@ coverage/
 /public/pdf.worker.min.mjs
 
 /supabase/.temp/
+
+/playwright-report/
+/test-results/
+/playwright/.auth/
+/test-results-*/
