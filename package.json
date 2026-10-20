@@ -15,7 +15,7 @@
     "test:operations": "node scripts/workspace-operations-tests.mjs && node scripts/workspace-dates-tests.mjs",
     "test:mobile": "node scripts/mobile-navigation-tests.cjs && node scripts/mobile-dialog-tests.cjs",
     "test:customers": "node scripts/customer-records-tests.mjs",
-    "test:email": "node scripts/email-workspace-ui-tests.cjs",
+    "test:email": "node scripts/html-email-tests.mjs && node scripts/email-workspace-ui-tests.cjs",
     "test:customer-finance": "node scripts/customer-finance-ui-tests.cjs && node scripts/pdf-performance-tests.mjs && node scripts/pdf-route-tests.cjs && node scripts/workspace-performance-tests.cjs"
   },
   "dependencies": {
@@ -24,10 +24,12 @@
     "jsqr": "1.4.0",
     "next": "15.5.27",
     "pdfjs-dist": "4.10.38",
+    "postcss": "8.5.28",
     "puppeteer-core": "25.11.0",
     "qrcode": "1.5.4",
     "react": "19.1.1",
     "react-dom": "19.1.1",
+    "sanitize-html": "2.18.1",
     "sharp": "0.35.5",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },

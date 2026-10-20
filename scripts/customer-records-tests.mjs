@@ -59,6 +59,7 @@ try{
  const templateInput={name:'Expiry email',purpose:'renewal',subject:'Renew {{document_name}}',body:'Hello {{name}}',is_default:true};
  const templateId=(await db.query('select save_workspace_email_template($1,$2) id',[id(1),JSON.stringify(templateInput)])).rows[0].id;
  assert(templateId);checks++;
+ const htmlTemplate=(await db.query('select save_workspace_email_template($1,$2) id',[id(1),JSON.stringify({...templateInput,name:'Imported HTML',content_format:'html',body:'<p>'+('a'.repeat(20000))+'</p>',is_default:false})])).rows[0].id;assert.equal((await db.query('select content_format from email_templates where id=$1',[htmlTemplate])).rows[0].content_format,'html');checks++;await denied('select save_workspace_email_template($1,$2)',[id(1),JSON.stringify({...templateInput,content_format:'text',body:'x'.repeat(10001)})]);await denied('select save_workspace_email_template($1,$2)',[id(1),JSON.stringify({...templateInput,content_format:'html',body:'x'.repeat(100001)})]);await denied('select save_workspace_email_template($1,$2)',[id(1),JSON.stringify({...templateInput,content_format:'script'})]);
  const second=(await db.query('select save_workspace_email_template($1,$2) id',[id(1),JSON.stringify({...templateInput,name:'Second default'})])).rows[0].id;
  assert.equal((await db.query('select count(*) n from email_templates where is_default')).rows[0].n,1);checks++;
  await denied('select save_workspace_email_template($1,$2)',[id(2),JSON.stringify(templateInput)]);

@@ -9,7 +9,7 @@ import jsQR from 'jsqr';
 import WorkspaceDashboard from './WorkspaceDashboard';
 import AppointmentViews from './AppointmentViews';
 import WorkspaceLoader from './WorkspaceLoader';
-import {EmailComposerHost} from './EmailComposer';
+import EmailComposerHost from './EmailComposerHost';
 import StatusChip,{StatusIcon} from './StatusChip';
 
 import WorkspaceMotion from './WorkspaceMotion';
