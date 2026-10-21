@@ -137,5 +137,19 @@ try{
  await login(24);assert.equal((await db.query('select whatsapp_inbox_list($1) data',[id(1)])).rows[0].data.total,0);checks++;
  await system();await db.query('update profiles set staff_modules=$2 where id=$1',[id(25),['cases']]);await login(25);assert.equal((await db.query('select count(*)::int n from whatsapp_test_messages')).rows[0].n,0);checks++;
  await system();await db.exec('set role anon');for(const table of ['whatsapp_conversations','whatsapp_test_messages','whatsapp_conversation_notes','whatsapp_conversation_audit','whatsapp_conversation_reads'])await denied('select * from '+table);await denied('select whatsapp_inbox_list($1)',[id(1)]);
+ await system();
+ const makeLegacy=async(n,name,mobile,branch=11)=>db.query('insert into cases(id,organization_id,branch_id,tracking_reference,customer_name,mobile,total_amount,advance_paid) values($1,$2,$3,$4,$5,$6,100,25)',[id(n),id(1),id(branch),'LEGACY-'+n,name,mobile]);
+ await makeLegacy(970,'Personal client','+974 7131 5535');await makeLegacy(971,'New historic customer','70000011');await makeLegacy(972,'  NEW   HISTORIC CUSTOMER ','0097470000011');await makeLegacy(973,'Different family member','70000011');await makeLegacy(974,'Missing phone',null);await makeLegacy(975,'Other branch customer','70000012',12);
+ const beforeOutbox=(await db.query('select count(*)::int n from communication_outbox')).rows[0].n;
+ const finances=(await db.query('select sum(total_amount)::numeric t,sum(advance_paid)::numeric p from cases')).rows[0];
+ await login(25);await denied('select link_legacy_case_customers($1,false)',[id(1)]);await login(24);await denied('select link_legacy_case_customers($1,false)',[id(1)]);await login(21);await denied('select link_legacy_case_customers($1,false)',[id(2)]);
+ let links=(await db.query('select link_legacy_case_customers($1,true) data',[id(1)])).rows[0].data;assert.equal(links.linked_cases,5);assert.equal(links.new_customers,3);assert.equal(links.reused_customers,1);assert.equal(links.invalid_cases,1);checks+=4;
+ assert.equal((await db.query('select count(*)::int n from cases where customer_id is not null')).rows[0].n,0);checks++;
+ links=(await db.query('select link_legacy_case_customers($1,false) data',[id(1)])).rows[0].data;assert.equal(links.linked_cases,5);checks++;
+ let linkedRows=(await db.query('select id,customer_id from cases order by tracking_reference')).rows;const linkedId=n=>linkedRows.find(r=>r.id===id(n)).customer_id;assert.equal(linkedId(970),personal);assert.equal(linkedId(971),linkedId(972));assert.notEqual(linkedId(971),linkedId(973));assert.equal(linkedId(974),null);checks+=4;
+ assert.equal((await db.query('select link_legacy_case_customers($1,false) data',[id(1)])).rows[0].data.new_customers,0);checks++;
+ assert.deepEqual((await db.query('select sum(total_amount)::numeric t,sum(advance_paid)::numeric p from cases')).rows[0],finances);checks++;
+ await system();assert.equal((await db.query('select count(*)::int n from communication_outbox')).rows[0].n,beforeOutbox);assert.equal((await db.query('select count(*)::int n from crm_customers where id=$1 and (email_updates or whatsapp_opt_in or marketing_opt_in)',[linkedId(971)])).rows[0].n,0);checks+=2;
+ await db.exec('set role anon');await denied('select link_legacy_case_customers($1,false)',[id(1)]);
  console.log(`PASS: ${checks} customer register checks: optional personal/company data, linked staff/vehicles/documents, expiry history, consent withdrawal, channel audiences, scoped files, tenant/branch isolation and anonymous denial.`);
 }catch(e){console.error(e.message);process.exitCode=1}finally{await db.close()}
