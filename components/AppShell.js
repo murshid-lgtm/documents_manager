@@ -31,6 +31,7 @@ import DocumentFees from './DocumentFees';
 import PaymentAccountPicker,{usePaymentAccounts} from './PaymentAccountPicker';
 const InvoiceAccounting=dynamic(()=>import('./InvoiceAccounting'));
 const DocumentManager=dynamic(()=>import('./DocumentManager'),{loading:()=> <div className="business-empty">Loading documents…</div>});
+const WhatsAppWorkspace=dynamic(()=>import('./WhatsAppWorkspace'),{loading:()=> <div className="business-empty">Loading WhatsApp CRM…</div>});
 const EmailWorkspace=dynamic(()=>import('./EmailWorkspace'),{loading:()=> <div className="business-empty">Loading email centre…</div>});
 const BusinessWorkspace=dynamic(()=>import('./BusinessWorkspace'),{loading:()=> <div className="business-empty">Loading workspace…</div>});
 import SimpleLegacyImport from './SimpleLegacyImport';
@@ -152,6 +153,8 @@ async function clearCaseCache(cacheKey){
 export default function AppShell({session,initialProfile}){
   const [view,setView]=useState('dashboard');
   const [businessRecord,setBusinessRecord]=useState(null);
+  const [whatsappTarget,setWhatsappTarget]=useState(null);
+  useEffect(()=>{const open=e=>{setWhatsappTarget({id:e.detail?.customerId,key:crypto.randomUUID()});setView('whatsapp')};window.addEventListener('workspace-whatsapp-crm',open);return()=>window.removeEventListener('workspace-whatsapp-crm',open)},[]);
   const [appointmentTarget,setAppointmentTarget]=useState(null);
   async function openWorkspaceRecord(type,id){
     if(type==='attestation'){
@@ -814,7 +817,7 @@ ${company}`;
 
   const role=accessRole(profile);
   const isAdmin=isAdminProfile(profile);
-  const moduleEnabled=requestedKey=>{const key=['accounting','collections'].includes(requestedKey)?'sales':requestedKey==='work'?'operations':['registry','email'].includes(requestedKey)?'crm':requestedKey;return (!Array.isArray(planModules)||planModules.includes(key))&&(!Array.isArray(brandSettings?.enabled_modules)||brandSettings.enabled_modules.includes(key))&&(isAdmin||!Array.isArray(profile?.staff_modules)||profile.staff_modules.includes(key));};
+  const moduleEnabled=requestedKey=>{const key=['accounting','collections'].includes(requestedKey)?'sales':requestedKey==='work'?'operations':['registry','email','whatsapp'].includes(requestedKey)?'crm':requestedKey;return (!Array.isArray(planModules)||planModules.includes(key))&&(!Array.isArray(brandSettings?.enabled_modules)||brandSettings.enabled_modules.includes(key))&&(isAdmin||!Array.isArray(profile?.staff_modules)||profile.staff_modules.includes(key));};
   useEffect(()=>{if(!profile||['settings','profile','help'].includes(view))return;if(!moduleEnabled(view)){const next=['dashboard','cases','documents','operations','deliveries','custody','appointments','batches','courier','payments','reports','crm','sales','services'].find(moduleEnabled);setView(next||'no-access')}},[profile,brandSettings,view]);
   const isBranch=isBranchProfile(profile);
   const ownBranch=profile?.branch_id||null;
@@ -846,7 +849,7 @@ ${company}`;
       &&(ddFilter==='All'||(ddFilter==='DD only'?Boolean(c.direct_to_delhi||(c.documents||[]).some(d=>d.direct_to_delhi)):!c.direct_to_delhi&&!(c.documents||[]).some(d=>d.direct_to_delhi)));
   });return rankCaseSearchResults(matched,q,searchBy)},[cases,query,searchBy,statusFilter,branchFilter,documentFilter,quantityFilter,mobileFilter,balanceFilter,accountFilter,intakeFilter,ddFilter]);
   const stats=useMemo(()=>({total:homeCases.length,received:homeCases.filter(c=>c.overall_status==='Received').length,under:homeCases.filter(c=>c.overall_status==='Under Process').length,waiting:homeCases.filter(c=>c.overall_status==='Waiting').length,ready:homeCases.filter(c=>c.overall_status==='Ready for Delivery').length,delivered:homeCases.filter(c=>c.overall_status==='Delivered').length,docs:homeCases.reduce((n,c)=>n+(c.documents?.length||0),0),pendingStages:homeCases.reduce((n,c)=>n+(c.documents||[]).flatMap(d=>d.document_stages||[]).filter(s=>s.status==='Pending'||s.status==='Processing').length,0)}),[homeCases]);
-  const pageTitle={work:'Work queue',collections:'Collections',dashboard:'Dashboard',cases:'Attestations',documents:'Documents & Stages',import:'Excel Import',appointments:'Appointments',batches:'Batch Reports',operations:'Operations',payments:'Payments',deliveries:'Deliveries',custody:'Custody',reports:'Reports',accounting:'Accounts',courier:'Courier Shipments',registry:'Documents & reminders',email:'Email centre',crm:'CRM',sales:'Sales',services:'Services',profile:'My profile',help:'Help centre',settings:profile?.is_platform_super_admin?'Platform Management':'Company Management'}[view]||(brandSettings?.product_name||'Document Tracker');
+  const pageTitle={work:'Work queue',collections:'Collections',dashboard:'Dashboard',cases:'Attestations',documents:'Documents & Stages',import:'Excel Import',appointments:'Appointments',batches:'Batch Reports',operations:'Operations',payments:'Payments',deliveries:'Deliveries',custody:'Custody',reports:'Reports',accounting:'Accounts',courier:'Courier Shipments',registry:'Documents & reminders',email:'Email centre',whatsapp:'WhatsApp CRM',crm:'CRM',sales:'Sales',services:'Services',profile:'My profile',help:'Help centre',settings:profile?.is_platform_super_admin?'Platform Management':'Company Management'}[view]||(brandSettings?.product_name||'Document Tracker');
   const pageSubtitle={
     dashboard:isBranch?`Priority view for ${ownBranchName}. All cases remain searchable.`:'Live overview of attestation cases, workload and receivables.',
     cases:'Search, filter, create and edit every field.',
@@ -860,7 +863,7 @@ ${company}`;
     custody:'Track physical document location, custody movements and handovers.',
     courier:'Create courier batches, manifests, dispatch documents and confirm agent receipts.',
     reports:'Operational, financial and case reporting.',
-    registry:'Company records, staff, vehicles and expiry reminders.',email:'Templates, senders, reminders and customer emails.',crm:'Customers, leads and follow-ups in one workspace.',sales:'Quotations, invoices and sales collections.',services:'Service jobs, approvals and renewals.',profile:'Your identity and access in this workspace.',settings:'Manage branding, branches, staff, access and product configuration.'
+    registry:'Company records, staff, vehicles and expiry reminders.',email:'Templates, senders, reminders and customer emails.',whatsapp:'Personal messages, follow-ups and customer relationships.',crm:'Customers, leads and follow-ups in one workspace.',sales:'Quotations, invoices and sales collections.',services:'Service jobs, approvals and renewals.',profile:'Your identity and access in this workspace.',settings:'Manage branding, branches, staff, access and product configuration.'
   ,help:'Guidance for a smoother working day.'}[view]||'Live overview of attestation cases, workload and receivables.';
 
   if(!brandReady)return <WorkspaceLoader/>;
@@ -885,6 +888,7 @@ ${company}`;
       </div></div>
       <div className="nav-section nav-accordion"><button className="nav-group-toggle" aria-expanded={sidebarCollapsed||Boolean(navGroups.customers)} onClick={()=>setNavGroups(x=>({...x,customers:!x.customers}))}><span>CUSTOMERS & SALES</span><Icon name={navGroups.customers?'chevron-down':'chevron-right'} size={13}/></button><div className="nav-group-items" hidden={!sidebarCollapsed&&!navGroups.customers}>
         {moduleEnabled('registry')&&<Nav active={view==='registry'} onClick={()=>setView('registry')} icon="file">Documents & reminders</Nav>}{isAdmin&&moduleEnabled('email')&&<Nav active={view==='email'} onClick={()=>setView('email')} icon="share">Email centre</Nav>}
+        {moduleEnabled('whatsapp')&&<Nav active={view==='whatsapp'} onClick={()=>setView('whatsapp')} icon="chat">WhatsApp CRM</Nav>}
         {moduleEnabled('crm')&&<Nav active={view==='crm'} onClick={()=>setView('crm')} icon="user">CRM</Nav>}
         {moduleEnabled('sales')&&<Nav active={view==='sales'} onClick={()=>setView('sales')} icon="wallet">Sales</Nav>}
         {moduleEnabled('services')&&<Nav active={view==='services'} onClick={()=>setView('services')} icon="layers">Service jobs</Nav>}
@@ -913,6 +917,7 @@ ${company}`;
       {view==='cases'&&<><FinancialSnapshot orgId={profile?.organization_id||brandSettings?.organization_id} scope="attestations" branchId={branchFilter==='All'?null:branchFilter} version={cases}/><CasesView preferenceKey={`cases_view_${profile?.organization_id||'platform'}_${profile?.id||'user'}`} cases={filtered} allCases={cases} recentCaseIds={recentCaseIds} favoriteCaseIds={favoriteCaseIds} toggleFavorite={toggleFavoriteCase} clearRecent={clearRecentCases} clearFavorites={clearFavoriteCases} shareDetailed={shareDetailedTracking} loading={loading} query={query} setQuery={setQuery} searchBy={searchBy} setSearchBy={setSearchBy} statusFilter={statusFilter} setStatusFilter={setStatusFilter} branchFilter={branchFilter} setBranchFilter={setBranchFilter} documentFilter={documentFilter} setDocumentFilter={setDocumentFilter} quantityFilter={quantityFilter} setQuantityFilter={setQuantityFilter} mobileFilter={mobileFilter} setMobileFilter={setMobileFilter} balanceFilter={balanceFilter} setBalanceFilter={setBalanceFilter} accountFilter={accountFilter} setAccountFilter={setAccountFilter} intakeFilter={intakeFilter} setIntakeFilter={setIntakeFilter} ddFilter={ddFilter} setDdFilter={setDdFilter} branches={branches} expanded={expanded} toggleExpanded={toggleExpanded} selected={selected} toggleSelected={toggleSelected} updateCaseStatus={updateCaseStatus} updateStage={updateStage} updateStageDate={updateStageDate} reorderStages={reorderStages} quick={openCase} addDoc={setShowDoc} deleteDocument={deleteDocument} addStage={addStageToDocument} renameStage={renameStage} deleteStage={deleteStage} bulkStatus={bulkStatus} appointment={c=>{setAppointmentCase(c);setView('appointments')}} bulkAppointment={()=>{setAppointmentSeedIds([...selected]);setView('appointments')}} batchSelected={()=>{setBatchSeed([...selected]);setView('batches')}}/></>}
       {view==='documents'&&<DocumentsView cases={cases} query={query} setQuery={setQuery} updateStage={updateStage} updateStageDate={updateStageDate} quick={setQuickCase} setModuleExport={publishModuleExport} onOpenCase={async c=>{const row=await fetchCaseByTracking(c.tracking_reference);if(row)setQuickCase(row)}}/>}
       {view==='import'&&<SimpleLegacyImport session={session} cases={cases} branches={branches} reload={loadCases} notify={setMessage}/>}
+      {view==='whatsapp'&&moduleEnabled('crm')&&<WhatsAppWorkspace orgId={brandSettings?.organization_id||profile.organization_id} profile={profile} brand={brandSettings||{}} organization={currentOrganization||{}} notify={setMessage} initialCustomer={whatsappTarget} onOpen={(type,id)=>type==='customers'?setView('crm'):openWorkspaceRecord(type,id)}/>}
       {view==='registry'&&<DocumentManager orgId={brandSettings?.organization_id||profile.organization_id} notify={setMessage} canManage={isAdmin} onEmailCentre={()=>setView('email')}/>}{view==='email'&&isAdmin&&<EmailWorkspace orgId={brandSettings?.organization_id||profile.organization_id} notify={setMessage} company={currentOrganization?.name||brandSettings?.company_name}/>}
       {['crm','sales','services','accounting'].includes(view)&&<BusinessWorkspace initialRecord={businessRecord} key={view+'-'+(view==='sales'?businessIntent?.id||'default':'default')} initialAction={view==='sales'?businessIntent?.action:undefined} initialTab={view==='accounting'?'accounting':view==='sales'?businessIntent?.tab:undefined} view={view==='accounting'?'sales':view} profile={profile} organization={currentOrganization} branches={branches} brand={brandSettings} notify={setMessage} setModuleExport={publishModuleExport} onSettings={()=>{try{sessionStorage.setItem('workspace-settings-tab','print')}catch{}setView('settings')}} onOpenCase={async c=>{const row=await fetchCaseByTracking(c.tracking_reference);if(row)setQuickCase(row)}}/>}
       {view==='settings'&&isAdmin&&<ProductSettings initialTab={settingsTarget} session={session} profile={profile} currentOrganization={currentOrganization} onBrandChange={settings=>{setBrandSettings(settings);if(profile?.is_platform_super_admin&&settings?.organization_id)supabase.from('organizations').select('*').eq('id',settings.organization_id).maybeSingle().then(({data})=>{if(data)setCurrentOrganization(data)})}} notify={setMessage}/>}
@@ -1157,6 +1162,7 @@ function CasesView({preferenceKey,cases,allCases=[],recentCaseIds=[],favoriteCas
 }
 function Icon({name,size=16,className=''}){
   const common={width:size,height:size,viewBox:'0 0 24 24',fill:'none',stroke:'currentColor',strokeWidth:1.9,strokeLinecap:'round',strokeLinejoin:'round','aria-hidden':'true',className};
+  if(name==='chat')return <svg {...common}><path d="M21 11a8 8 0 0 1-8 8H6l-4 3 1-7a8 8 0 1 1 18-4Z"/><path d="M7 10h9M7 14h5"/></svg>;
   if(name==='history')return <svg {...common}><path d="M3 11a9 9 0 1 1 3 7M3 4v7h7M12 7v5l3 2"/></svg>;
   if(name==='calendar')return <svg {...common}><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/><path d="M8 14h3M8 17h5"/></svg>;
   if(name==='eye')return <svg {...common}><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.6"/></svg>;

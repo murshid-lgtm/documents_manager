@@ -17,7 +17,8 @@
     "test:customers": "node scripts/customer-records-tests.mjs",
     "test:email": "node scripts/html-email-tests.mjs && node scripts/email-design-tests.mjs && node scripts/email-send-tests.cjs && node scripts/email-assets-tests.cjs && node scripts/email-attachments-tests.mjs && node scripts/email-block-tests.mjs && node scripts/email-workspace-ui-tests.cjs && node scripts/attestation-experience-ui-tests.cjs",
     "test:customer-finance": "node scripts/customer-finance-ui-tests.cjs && node scripts/pdf-performance-tests.mjs && node scripts/pdf-route-tests.cjs && node scripts/workspace-performance-tests.cjs",
-    "test:playwright": "playwright test"
+    "test:playwright": "playwright test",
+    "test:whatsapp": "node scripts/whatsapp-crm-tests.mjs && node scripts/whatsapp-crm-ui-tests.cjs"
   },
   "dependencies": {
     "@sparticuz/chromium": "153.0.0",
