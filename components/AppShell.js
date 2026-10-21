@@ -31,7 +31,7 @@ import DocumentFees from './DocumentFees';
 import PaymentAccountPicker,{usePaymentAccounts} from './PaymentAccountPicker';
 const InvoiceAccounting=dynamic(()=>import('./InvoiceAccounting'));
 const DocumentManager=dynamic(()=>import('./DocumentManager'),{loading:()=> <div className="business-empty">Loading documents…</div>});
-const WhatsAppWorkspace=dynamic(()=>import('./WhatsAppWorkspace'),{loading:()=> <div className="business-empty">Loading WhatsApp CRM…</div>});
+const WhatsAppWorkspace=dynamic(()=>import('./SharedWhatsAppWorkspace'),{loading:()=> <div className="business-empty">Loading WhatsApp CRM…</div>});
 const EmailWorkspace=dynamic(()=>import('./EmailWorkspace'),{loading:()=> <div className="business-empty">Loading email centre…</div>});
 const BusinessWorkspace=dynamic(()=>import('./BusinessWorkspace'),{loading:()=> <div className="business-empty">Loading workspace…</div>});
 import SimpleLegacyImport from './SimpleLegacyImport';
