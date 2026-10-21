@@ -603,7 +603,7 @@ ${company}`;
     if(incomplete){setMessage(`Add at least one attestation stage for ${incomplete.document_name||'each document'}.`);setSaving(false);return}
     const total=Number(form.total_amount||0), advance=Number(form.advance_paid||0);
     const requestedTracking=String(form.tracking_reference||'').trim();
-    const existingCase=await fetchCaseByTracking(requestedTracking);
+    const existingCase=requestedTracking?await fetchCaseByTracking(requestedTracking):null;
     if(existingCase){
       setDuplicateReview(existingCase);
       setSaving(false);
@@ -944,34 +944,20 @@ ${company}`;
     {loading&&cases.length===0&&<div className="app-loading-stage"><WorkspaceLoader contained name={brandSettings?.product_name||'Document Tracker'} initial={(brandSettings?.short_name||brandSettings?.company_name||'D').slice(0,1).toUpperCase()}/></div>}
     {globalScan&&<DeliveryQrScanner cases={cases} onClose={()=>setGlobalScan(false)} onAction={openScannedAction} notify={setMessage} title="Scan Case QR"/>}
 
-    {showNew&&<Modal className="new-case-modal invoice-case-modal" onClose={()=>!saving&&setShowNew(false)} title="New attestation" subtitle="Create the complete transaction like an invoice — customer, documents, attestation and payment in one workspace."><form onSubmit={createCase} className="invoice-case-workspace">
+    {showNew&&<Modal className="new-case-modal invoice-case-modal attestation-entry-modal" onClose={()=>!saving&&setShowNew(false)} title="New attestation" subtitle="Customer details, document workflows and billing — connected in one entry."><form onSubmit={createCase} className="invoice-case-workspace">
 
-
-      <div className="invoice-customer-link"><Field label="Link an existing customer (optional)"><CustomerPicker organizationId={profile?.organization_id||brandSettings?.organization_id} value={form.customer_id} onSelect={customer=>setForm(f=>({...f,customer_id:customer.id,customer_name:customer.name,mobile:customer.mobile||'',customer_email:customer.email||'',email_updates:customer.email_updates,whatsapp_opt_in:customer.whatsapp_opt_in,...(profile?.role==='branch'?{}:{branch_id:customer.branch_id||f.branch_id})}))}/></Field></div>
-      <CustomerBalance orgId={profile?.organization_id||brandSettings?.organization_id} customerId={form.customer_id} additionalBalance={Math.max(0,Number(form.total_amount||0)-Number(form.advance_paid||0))}/>
-      <section className="invoice-customer-bar">
-        <Field label="Tracking Reference"><input autoFocus required value={form.tracking_reference} onChange={e=>setForm({...form,tracking_reference:e.target.value})} placeholder="Tracking ID"/></Field>
-        <Field label="Customer Name"><input required value={form.customer_name} onChange={e=>setForm({...form,customer_name:e.target.value})} placeholder="Customer / payer name"/></Field>
-        <Field label="Mobile"><input value={form.mobile} onChange={e=>setForm({...form,mobile:e.target.value})} placeholder="Mobile number"/></Field>
-        <Field label="Customer Email"><input type="email" value={form.customer_email||''} onChange={e=>setForm({...form,customer_email:e.target.value})} placeholder="Optional email address"/></Field>
-        <label className="business-check"><input type="checkbox" checked={form.email_updates||false} onChange={e=>setForm({...form,email_updates:e.target.checked})}/> Email updates agreed</label>
-        <label className="business-check"><input type="checkbox" checked={form.whatsapp_opt_in||false} onChange={e=>setForm({...form,whatsapp_opt_in:e.target.checked})}/> WhatsApp updates agreed</label>
-        <Field label="Invoice number"><input readOnly value="Assigned automatically"/></Field>
-        <Field label="Branch"><select required disabled={!isAdmin&&!profile?.is_platform_super_admin} value={form.branch_id} onChange={e=>setForm({...form,branch_id:e.target.value})}><option value="">Select branch</option>{branches.filter(b=>isAdmin||profile?.is_platform_super_admin||b.id===profile?.branch_id).map(b=><option key={b.id} value={b.id}>{b.name}</option>)}</select></Field>
-        <Field label="Submission Date"><input type="date" value={form.submission_date} onChange={e=>setForm({...form,submission_date:e.target.value})}/></Field>
-      </section>
 
       <div className="invoice-case-body">
-        <section className="invoice-document-panel">
-          <div className="invoice-section-head"><div><strong>Documents</strong><span>{documentCatalogNames.length} saved document names · start typing to search</span></div><button type="button" className="primary small-action" onClick={()=>addNewDoc()}>＋ Add Document</button></div>
-          <div className="invoice-doc-table-head"><span>Document</span><span>Holder</span><span>Qty</span><span>DD</span><span>Attestation</span><span></span></div>
+        <section className="invoice-document-panel"><section className="attestation-customer-section"><div className="attestation-section-label"><b>01</b><div><strong>Customer & intake</strong><span>Search an existing customer or enter their details.</span></div></div>      <div className="invoice-customer-link"><Field label="Link an existing customer (optional)"><CustomerPicker organizationId={profile?.organization_id||brandSettings?.organization_id} value={form.customer_id} onSelect={customer=>setForm(f=>({...f,customer_id:customer.id,customer_name:customer.name,mobile:customer.mobile||'',customer_email:customer.email||'',email_updates:customer.email_updates,whatsapp_opt_in:customer.whatsapp_opt_in,...(profile?.role==='branch'?{}:{branch_id:customer.branch_id||f.branch_id})}))}/></Field></div>      <CustomerBalance orgId={profile?.organization_id||brandSettings?.organization_id} customerId={form.customer_id} additionalBalance={Math.max(0,Number(form.total_amount||0)-Number(form.advance_paid||0))}/><div className="invoice-customer-bar">        <Field label="Customer Name"><input required value={form.customer_name} onChange={e=>setForm({...form,customer_name:e.target.value})} placeholder="Customer / payer name"/></Field>        <Field label="Mobile"><input value={form.mobile} onChange={e=>setForm({...form,mobile:e.target.value})} placeholder="Mobile number"/></Field>        <Field label="Customer Email"><input type="email" value={form.customer_email||''} onChange={e=>setForm({...form,customer_email:e.target.value})} placeholder="Optional email address"/></Field></div><div className="attestation-consent-row">        <label className="business-check"><input type="checkbox" checked={form.email_updates||false} onChange={e=>setForm({...form,email_updates:e.target.checked})}/> Email updates agreed</label>        <label className="business-check"><input type="checkbox" checked={form.whatsapp_opt_in||false} onChange={e=>setForm({...form,whatsapp_opt_in:e.target.checked})}/> WhatsApp updates agreed</label></div><details className="attestation-intake-details" open><summary>Reference & branch</summary><div className="attestation-intake-grid">        <Field label="Tracking Reference"><input value={form.tracking_reference} onChange={e=>setForm({...form,tracking_reference:e.target.value})} placeholder="Use invoice number if blank"/></Field>        <Field label="Branch"><select required disabled={!isAdmin&&!profile?.is_platform_super_admin} value={form.branch_id} onChange={e=>setForm({...form,branch_id:e.target.value})}><option value="">Select branch</option>{branches.filter(b=>isAdmin||profile?.is_platform_super_admin||b.id===profile?.branch_id).map(b=><option key={b.id} value={b.id}>{b.name}</option>)}</select></Field>        <Field label="Submission Date"><input type="date" value={form.submission_date} onChange={e=>setForm({...form,submission_date:e.target.value})}/></Field>        <Field label="Invoice number"><input readOnly value="Assigned automatically"/></Field></div><p>Leave tracking blank to use the invoice number. Your own tracking reference is kept when entered.</p></details></section>
+          <div className="invoice-section-head"><div><strong>02 · Documents & required attestations</strong><span>Add documents and choose the stages needed for each.</span></div><button type="button" className="primary small-action" onClick={()=>addNewDoc()}>＋ Add document</button></div>
+
           <div className="invoice-doc-lines">{newCaseDocs.map((d,idx)=><div className="invoice-doc-line" key={idx}>
-            <div className="invoice-doc-main">
+            <div className="attestation-document-caption"><b>{String(idx+1).padStart(2,'0')}</b><span>{d.document_name||'New document'}</span><small>{(d.stages||[]).length} stages</small></div><div className="invoice-doc-main">
               <NamePicker options={documentCatalogNames} className="invoice-doc-name" required value={d.document_name} onChange={e=>patchNewDoc(idx,{document_name:e.target.value})} placeholder="Search or type document name"/>
               <div className="invoice-holder-cell">
                 {!d.holder_custom?<><span className="holder-default" title={form.customer_name||'Customer name'}>{form.customer_name||'Customer name'}</span><button type="button" className="holder-name-icon" title="Use a different document holder" aria-label="Add different document holder" onClick={()=>patchNewDoc(idx,{holder_custom:true,holder_name:''})}><Icon name="plus" size={14}/><span>👤</span></button></>:<div className="holder-custom-wrap"><input autoFocus value={d.holder_name} onChange={e=>patchNewDoc(idx,{holder_name:e.target.value})} placeholder="Different holder name"/><button type="button" className="holder-name-icon active" title="Use customer name" onClick={()=>patchNewDoc(idx,{holder_custom:false,holder_name:''})}>↩</button></div>}
               </div>
-              <input className="invoice-qty" type="number" min="1" value={d.quantity} onChange={e=>patchNewDoc(idx,{quantity:e.target.value})}/>
+              <input aria-label="Document quantity" className="invoice-qty" type="number" min="1" value={d.quantity} onChange={e=>patchNewDoc(idx,{quantity:e.target.value})}/>
               <label className={`invoice-dd ${d.direct_to_delhi?'active':''}`} title="Customer sent this document directly to Delhi"><input type="checkbox" checked={d.direct_to_delhi} onChange={e=>patchNewDoc(idx,{direct_to_delhi:e.target.checked,direct_destination:e.target.checked?(d.direct_destination||'Delhi'):''})}/><span>DD</span></label>
               <div className="invoice-workflow-cell"><div className="workflow-presets invoice-presets">{NEW_CASE_WORKFLOWS.filter(p=>p.label!=='Clear').map(p=><button type="button" key={p.label} className={(d.stages||[]).join('|')===p.stages.join('|')?'active':''} onClick={()=>patchNewDoc(idx,{stages:[...p.stages]})}>{p.label}</button>)}</div><details className="invoice-stage-more"><summary>{(d.stages||[]).length} stage{(d.stages||[]).length===1?'':'s'} selected</summary><div className="invoice-stage-pop"><div className="stage-checks stage-library compact-stage-library">{STAGE_LIBRARY.map(stage=><label key={stage} className="check"><input type="checkbox" checked={(d.stages||[]).includes(stage)} onChange={e=>patchNewDoc(idx,{stages:e.target.checked?[...(d.stages||[]),stage]:(d.stages||[]).filter(s=>s!==stage)})}/><span>{stage}</span></label>)}</div><div className="custom-stage-row"><input value={d.custom_stage||''} onChange={e=>patchNewDoc(idx,{custom_stage:e.target.value})} placeholder="Custom stage…"/><button type="button" className="secondary" onClick={()=>{const val=String(d.custom_stage||'').trim();if(!val)return;patchNewDoc(idx,{custom_stage:'',stages:(d.stages||[]).some(s=>s.toLowerCase()===val.toLowerCase())?d.stages:[...(d.stages||[]),val]})}}>＋ Add</button></div></div></details></div>
               <button type="button" className="icon-btn danger-soft" disabled={newCaseDocs.length===1} onClick={()=>setNewCaseDocs(v=>v.filter((_,i)=>i!==idx))} title="Remove document"><Icon name="trash" size={15}/></button>
@@ -981,22 +967,22 @@ ${company}`;
         </section>
 
         <aside className="invoice-summary-panel">
-          <div className="invoice-summary-title"><strong>Transaction Summary</strong><span>Invoice and job order are created together. Payment is optional.</span></div>
+          <div className="invoice-summary-title"><small>03 · BILLING</small><strong>Payment summary</strong><span>Invoice and job order included.</span></div>
           <div className="invoice-summary-stats"><div><span>Documents</span><strong>{newCaseDocs.filter(d=>String(d.document_name||'').trim()).length}</strong></div><div><span>Total Qty</span><strong>{newCaseDocs.reduce((n,d)=>n+Number(d.quantity||0),0)}</strong></div></div>
-          <Field label="Total Amount"><input type="number" step="0.01" min="0" value={form.total_amount} readOnly placeholder="0.00"/></Field>
+          <div className="attestation-total"><span>Invoice total</span><strong>{fmtMoney(form.total_amount)}</strong></div>
           <Field label="Paid Now"><input type="number" step="0.01" min="0" value={form.advance_paid} onChange={e=>setForm({...form,advance_paid:e.target.value})} placeholder="0.00"/></Field>{Number(form.advance_paid)>0&&<AttestationPaymentFields orgId={profile?.is_platform_super_admin?brandSettings.organization_id:profile.organization_id} branch={form.branch_id} form={form} setForm={setForm}/>}
           <div className="invoice-balance"><span>Balance</span><strong>{fmtMoney(Math.max(0,Number(form.total_amount||0)-Number(form.advance_paid||0)))}</strong></div>
-          <details className="invoice-extra-details"><summary>More case details</summary><div className="invoice-extra-grid">
-            <Field label="Customer email"><input type="email" value={form.customer_email||''} onChange={e=>setForm({...form,customer_email:e.target.value})}/></Field>
-            <label className="wide check-line"><input type="checkbox" checked={Boolean(form.email_updates)} onChange={e=>setForm({...form,email_updates:e.target.checked})}/><span>Customer agrees to email updates</span></label>
-            <label className="wide check-line"><input type="checkbox" checked={Boolean(form.whatsapp_opt_in)} onChange={e=>setForm({...form,whatsapp_opt_in:e.target.checked})}/><span>Customer opted in to WhatsApp updates</span></label>
+          <details className="invoice-extra-details"><summary>Additional details</summary><div className="invoice-extra-grid">
+
+
+
             <Field label="Organization / B2B"><input value={form.account_name} onChange={e=>setForm({...form,account_name:e.target.value})} placeholder="Optional"/></Field>
             <Field label="Promise Date"><input type="date" value={form.promise_date} onChange={e=>setForm({...form,promise_date:e.target.value})}/></Field>
             <Field label="Intake Source"><select value={form.intake_source} onChange={e=>setForm({...form,intake_source:e.target.value})}><option>Branch</option><option>Collection</option><option>External Office</option></select></Field>
             <Field label="Internal Invoice #"><input value={form.internal_invoice_no} onChange={e=>setForm({...form,internal_invoice_no:e.target.value})}/></Field>
           </div></details>
           <details className="invoice-extra-details"><summary>Notes</summary><textarea rows="3" value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})} placeholder="Optional case notes…"/></details>
-          <div className="invoice-summary-actions"><button type="button" className="secondary" disabled={saving} onClick={()=>setShowNew(false)}>Cancel</button><button className="primary create-case-btn" disabled={saving}>{saving?'Creating…':'Create invoice & attestation'}</button></div>
+          <div className="invoice-summary-actions"><button type="button" className="secondary" disabled={saving} onClick={()=>setShowNew(false)}>Cancel</button><button className="primary create-case-btn" disabled={saving}>{saving?'Creating…':'Create attestation'}</button></div>
         </aside>
       </div>
     </form></Modal>}

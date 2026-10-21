@@ -99,5 +99,15 @@ try{
  assert.equal((await db.query('select checkout_sale($1,$2) id',[JSON.stringify(posRequest),id(323)])).rows[0].id,pos);checks++;
  await system();await db.query('update profiles set branch_id=null where id=$1',[id(25)]);await login(25);await denied('select checkout_sale($1,$2)',[JSON.stringify(simple),id(317)]);
  await db.exec('reset role;set role anon');await denied('select checkout_sale($1,$2)',[JSON.stringify(request),id(307)]);
+ await system();await db.query('insert into communication_settings(organization_id,email_enabled,event_types) values($1,true,$2) on conflict(organization_id) do update set email_enabled=true,event_types=excluded.event_types',[id(1),JSON.stringify(['case_created','invoice_issued','payment','case_status'])]);
+ await login(21);
+ const blank={...attestation,case:{...attestation.case,tracking_reference:'',tracking_family:'',customer_name:'Confirmation client',customer_email:'confirmation@example.test',email_updates:true}};
+ const single=(await db.query('select create_attestation_checkout($1,$2) id',[JSON.stringify(blank),id(890)])).rows[0].id;
+ const joined=(await db.query('select c.tracking_reference,d.document_no,c.invoice_id from cases c join sales_documents d on d.id=c.invoice_id where c.id=$1',[single])).rows[0];assert.equal(joined.tracking_reference,joined.document_no);checks++;
+ await system();const queued=(await db.query("select event_type,payload from communication_outbox where channel='email' and recipient='confirmation@example.test'")).rows;assert.equal(queued.length,1);assert.equal(queued[0].event_type,'case_created');assert.equal(queued[0].payload.invoice_no,joined.document_no);assert.equal(Number(queued[0].payload.total),350);assert.equal(Number(queued[0].payload.paid),50);assert.equal(Number(queued[0].payload.balance),300);checks+=6;
+ await login(21);assert.equal((await db.query('select create_attestation_checkout($1,$2) id',[JSON.stringify(blank),id(890)])).rows[0].id,single);checks++;
+ await db.query('select record_sales_payment($1,$2)',[JSON.stringify({document_id:joined.invoice_id,amount:10,method:'Cash'}),id(891)]);
+ await system();assert.equal((await db.query("select count(*) n from communication_outbox where channel='email' and recipient='confirmation@example.test' and event_type='payment'")).rows[0].n,1);checks++;
+ await login(21);await db.query("update cases set overall_status='Under Process' where id=$1",[single]);await system();assert.equal((await db.query("select count(*) n from communication_outbox where channel='email' and recipient='confirmation@example.test' and event_type='case_status'")).rows[0].n,1);checks++;
  console.log(`PASS: ${checks} connected checkout assertions.`);
 }finally{await db.close()}

@@ -98,5 +98,16 @@ try{
  await system();await db.query('update email_contacts set organization_id=$2 where id=$1',[contact,id(1)]);await login(21);assert.equal((await db.query('select id from email_contacts')).rows.length,1);checks++;
  await login(25);assert.equal((await db.query('select id from email_contacts')).rows.length,0);checks++;
  await system();await db.exec('set role anon');await denied('select * from email_contacts');
+ await system();
+ const enquiry=id(930);await db.query('insert into service_requests(id,organization_id,customer_id,record_id) values($1,$2,$3,$4)',[enquiry,id(1),personal,personalDoc]);
+ const details={contact_method:'WhatsApp',notes:'Please call after 5 pm'};
+ const enquiryLead=(await db.query('select submit_customer_service_enquiry($1,$2) id',[enquiry,JSON.stringify(details)])).rows[0].id;assert(enquiryLead);checks++;
+ assert.match((await db.query('select notes from crm_leads where id=$1',[enquiryLead])).rows[0].notes,/Please call after 5 pm/);checks++;
+ assert.equal((await db.query('select request_details from service_requests where id=$1',[enquiry])).rows[0].request_details.contact_method,'WhatsApp');checks++;
+ assert.equal((await db.query('select submit_customer_service_enquiry($1,$2) id',[enquiry,JSON.stringify({notes:'Retry cannot overwrite'})])).rows[0].id,enquiryLead);checks++;
+ assert.match((await db.query('select notes from crm_leads where id=$1',[enquiryLead])).rows[0].notes,/Please call after 5 pm/);checks++;
+ const unavailable=id(931);await db.query('insert into service_requests(id,organization_id,customer_id) values($1,$2,$3)',[unavailable,id(1),personal]);
+ await denied('select submit_customer_service_enquiry($1,$2)',[unavailable,JSON.stringify({service_id:id(999)})]);await denied('select submit_customer_service_enquiry($1,$2)',[unavailable,JSON.stringify({contact_method:'Invalid'})]);await denied('select submit_customer_service_enquiry($1,$2)',[unavailable,JSON.stringify({notes:'x'.repeat(3001)})]);
+ await login(21);await denied('select submit_customer_service_enquiry($1,$2)',[unavailable,'{}']);
  console.log(`PASS: ${checks} customer register checks: optional personal/company data, linked staff/vehicles/documents, expiry history, consent withdrawal, channel audiences, scoped files, tenant/branch isolation and anonymous denial.`);
 }catch(e){console.error(e.message);process.exitCode=1}finally{await db.close()}
