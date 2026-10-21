@@ -1,0 +1,9 @@
+import assert from 'node:assert/strict';
+import {emailBlock,designBlocks,emailBlocksHtml,EMAIL_BLOCK_TYPES} from '../lib/emailBlocks.js';
+import {brandedEmailBody,readEmailDesign} from '../lib/emailBranding.js';
+import {renderEmailTemplate} from '../lib/emailTemplates.js';
+let checks=0;const blocks=Object.keys(EMAIL_BLOCK_TYPES).map(type=>({...emailBlock(type,type),text:'Hello {{name}}',url:type==='image'?'https://example.test/banner.png':'{{request_link}}'}));let html=brandedEmailBody({preset:'general',blocks});assert.equal(readEmailDesign(html).blocks.length,8);assert.match(html,/width="50%"/);assert.match(html,/https:\/\/example.test\/banner.png/);checks+=3;
+let r=renderEmailTemplate({subject:'Hi {{name}}',body:html,content_format:'html'},{name:'Alice <script>',request_link:'https://example.test/request',company:'Kenza',invoice_no:'INV-42',total:100,paid:30,balance:70,currency:'QAR'});assert.match(r.html,/Alice &lt;script&gt;/);assert.doesNotMatch(r.html,/<script>/);assert.match(r.html,/INV-42/);assert.match(r.html,/href="https:\/\/example.test\/request"/);checks+=4;
+html=emailBlocksHtml([{...emailBlock('button'),url:'javascript:alert(1)',text:'Unsafe'},{...emailBlock('image'),url:'data:image/svg+xml,bad'},{...emailBlock('text'),text:'<img onerror=alert(1)>',align:'right;position:fixed',color:'red;display:none',size:99999,padding:-100}]);assert.doesNotMatch(html,/href=|src=|position:fixed|display:none/);assert.match(html,/font-size:42px/);assert.match(html,/&lt;img/);checks+=3;
+assert.throws(()=>emailBlocksHtml(Array(61).fill(emailBlock('text'))));assert.throws(()=>emailBlocksHtml([{type:'script'}]));assert(designBlocks({heading:'Hi',message:'Hello',button:'Go',link:'tracking_link',summary:true}).some(b=>b.type==='summary'));checks+=3;
+console.log(`PASS: ${checks} block designer checks: table-based layout, persisted editing state, all components, placeholders, safe URLs, escaped content and bounded styles.`);
