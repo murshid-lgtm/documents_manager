@@ -6,7 +6,7 @@ import Login from '../components/Login';
 import AppShell from '../components/AppShell';
 import {verifyWorkspaceSession} from '../lib/workspaceSession';
 
-export default function Home() {
+export default function Home({workspaceMode}={}) {
   const [session, setSession] = useState(undefined);
   const [passwordRecovery,setPasswordRecovery]=useState(false);
   const [profile,setProfile]=useState(null);
@@ -63,5 +63,5 @@ export default function Home() {
   if (session === undefined) return <WorkspaceLoader/>;
   if (passwordRecovery) return <Login resetMode onResetComplete={()=>{window.history.replaceState({},'',window.location.pathname);setPasswordRecovery(false)}} />;
   if (!session) return <Login initialNotice={loginNotice} />;
-  return <AppShell key={session.user.id} session={session} initialProfile={profile} />;
+  return <AppShell key={session.user.id} session={session} initialProfile={profile} workspaceMode={workspaceMode} />;
 }
