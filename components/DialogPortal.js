@@ -3,6 +3,40 @@ import {useLayoutEffect,useRef,useState} from 'react';
 import {createPortal} from 'react-dom';
 
 const stack=[];let background=null,originalOverflow='';
+// History traversal is asynchronous. A replacement dialog must wait for the
+// previous dialog's Back operation, otherwise that pop closes the new dialog.
+let returningHistory=false;
+const historyQueue=new Set(),historyOwners=new Map(),internalPops=new WeakSet();
+function pruneHistoryOwners(){
+ const ancestors=new Set();let id=history.state?.workspaceDialog;
+ while(id&&!ancestors.has(id)){ancestors.add(id);id=historyOwners.get(id)?.previousState?.workspaceDialog}
+ for(const [key,owner] of historyOwners)if(!owner.active&&!ancestors.has(key))historyOwners.delete(key);
+}
+function registerHistory(entry){
+ if(!entry.active)return;
+ if(returningHistory){historyQueue.add(entry);return}
+ try{entry.previousState=history.state;history.pushState({...history.state,workspaceDialog:entry.id},'');entry.ownsHistory=true;historyOwners.set(entry.id,entry)}catch{}
+}
+function releaseHistory(entry){
+ historyQueue.delete(entry);
+ if(returningHistory||!entry.ownsHistory||history.state?.workspaceDialog!==entry.id){pruneHistoryOwners();return}
+ returningHistory=true;
+ const settled=event=>{
+  internalPops.add(event);returningHistory=false;historyOwners.delete(entry.id);
+  const previous=historyOwners.get(history.state?.workspaceDialog);
+  if(previous&&!previous.active){releaseHistory(previous);return}
+  for(const next of [...historyQueue]){historyQueue.delete(next);registerHistory(next)}
+  pruneHistoryOwners();
+ };
+ window.addEventListener('popstate',settled,{once:true});
+ try{history.back()}catch{
+  window.removeEventListener('popstate',settled);returningHistory=false;
+  try{history.replaceState(entry.previousState,'')}catch{}
+  historyOwners.delete(entry.id);
+  for(const next of [...historyQueue]){historyQueue.delete(next);registerHistory(next)}
+  pruneHistoryOwners();
+ }
+}
 function sync(){
  for(const [i,entry] of stack.entries()){entry.root.inert=i!==stack.length-1;entry.root.toggleAttribute('data-dialog-top',i===stack.length-1);entry.root.setAttribute('aria-hidden',i===stack.length-1?'false':'true');entry.root.style.setProperty('--dialog-depth',String(i))}
 }
@@ -22,14 +56,13 @@ export default function DialogPortal({children,label,presentation='auto',context
   if(!stack.length){originalOverflow=document.body.style.overflow;background=[...document.querySelectorAll('.app-shell:not(.dialog-portal-scope)')].filter(el=>!el.closest('.dialog-portal-scope')).map(el=>({el,inert:el.inert,hidden:el.getAttribute('aria-hidden')}));for(const {el} of background){el.inert=true;el.setAttribute('aria-hidden','true')}document.body.style.overflow='hidden'}
   stack.push(entry);sync();
   const dialog=findDialog(element);if(dialog){dialog.setAttribute('role','dialog');dialog.setAttribute('aria-modal','true');if(!dialog.getAttribute('aria-label'))dialog.setAttribute('aria-label',label||dialog.querySelector('h2,h3')?.textContent||'Dialog')}
-  let ownsHistory=false;const previousState=history.state;
-  if(matchMedia('(max-width:700px)').matches)try{history.pushState({...previousState,workspaceDialog:id},'');ownsHistory=true}catch{}
-  const dismiss=()=>{if(stack.at(-1)!==entry)return;closeControl(findDialog(element))?.click();requestAnimationFrame(()=>{if(entry.active&&ownsHistory&&stack.at(-1)===entry&&history.state?.workspaceDialog!==id)try{history.pushState({...history.state,workspaceDialog:id},'')}catch{}})};
-  const pop=()=>{if(stack.at(-1)===entry&&history.state?.workspaceDialog!==id)dismiss()};
+  if(matchMedia('(max-width:700px)').matches)registerHistory(entry);
+  const dismiss=()=>{if(stack.at(-1)!==entry)return;closeControl(findDialog(element))?.click();requestAnimationFrame(()=>{if(entry.active&&entry.ownsHistory&&stack.at(-1)===entry&&history.state?.workspaceDialog!==id&&!returningHistory)try{history.pushState({...history.state,workspaceDialog:id},'')}catch{}})};
+  const pop=event=>{if(returningHistory||internalPops.has(event))return;if(stack.at(-1)===entry&&entry.ownsHistory&&history.state?.workspaceDialog!==id)dismiss()};
   const key=e=>{if(stack.at(-1)!==entry)return;const dialog=findDialog(element);if(!dialog)return;if(e.key==='Escape'){e.preventDefault();e.stopImmediatePropagation();dismiss()}if(e.key==='Tab'){const fields=visibleControls(dialog),first=fields[0],last=fields.at(-1);if(!fields.length){e.preventDefault();return}if(e.shiftKey&&(document.activeElement===first||!dialog.contains(document.activeElement))){e.preventDefault();last.focus()}else if(!e.shiftKey&&(document.activeElement===last||!dialog.contains(document.activeElement))){e.preventDefault();first.focus()}}};
   const resize=()=>{const viewport=window.visualViewport;element.style.setProperty('--dialog-height',`${viewport?.height||window.innerHeight}px`);element.style.setProperty('--dialog-offset',`${viewport?.offsetTop||0}px`)};resize();window.visualViewport?.addEventListener('resize',resize);window.visualViewport?.addEventListener('scroll',resize);window.addEventListener('resize',resize);window.addEventListener('popstate',pop);document.addEventListener('keydown',key,true);
   const frame=requestAnimationFrame(()=>{const dialog=findDialog(element);const control=closeControl(dialog)||visibleControls(dialog)[0];control?.focus({preventScroll:true})});
-  return()=>{entry.active=false;cancelAnimationFrame(frame);document.removeEventListener('keydown',key,true);window.removeEventListener('popstate',pop);window.removeEventListener('resize',resize);window.visualViewport?.removeEventListener('resize',resize);window.visualViewport?.removeEventListener('scroll',resize);const index=stack.indexOf(entry);if(index>=0)stack.splice(index,1);sync();if(!stack.length){document.body.style.overflow=originalOverflow;for(const {el,inert,hidden} of background||[]){el.inert=inert;if(hidden===null)el.removeAttribute('aria-hidden');else el.setAttribute('aria-hidden',hidden)}background=null}if(ownsHistory&&history.state?.workspaceDialog===id)history.back();if(previous?.isConnected&&!previous.closest('[inert]'))previous.focus({preventScroll:true})};
+  return()=>{entry.active=false;cancelAnimationFrame(frame);document.removeEventListener('keydown',key,true);window.removeEventListener('popstate',pop);window.removeEventListener('resize',resize);window.visualViewport?.removeEventListener('resize',resize);window.visualViewport?.removeEventListener('scroll',resize);const index=stack.indexOf(entry);if(index>=0)stack.splice(index,1);sync();if(!stack.length){document.body.style.overflow=originalOverflow;for(const {el,inert,hidden} of background||[]){el.inert=inert;if(hidden===null)el.removeAttribute('aria-hidden');else el.setAttribute('aria-hidden',hidden)}background=null}releaseHistory(entry);if(previous?.isConnected&&!previous.closest('[inert]'))previous.focus({preventScroll:true})};
  },[mounted]);
  if(!mounted)return children;
  return createPortal(<div ref={root} className={`app-shell dialog-portal-scope ${contextClass}`} data-mobile-presentation={presentation}>{children}</div>,document.body);
