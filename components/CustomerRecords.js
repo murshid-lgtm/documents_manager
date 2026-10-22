@@ -1,4 +1,5 @@
 'use client';
+import AppIcon from './AppIcon';
 import {useEffect,useRef,useState} from 'react';
 import {supabase} from '../lib/supabase';
 import {userError} from '../lib/userError';
@@ -8,7 +9,7 @@ import ServicePicker from './ServicePicker';
 import CustomerRecordFiles from './CustomerRecordFiles';
 export const localDay=()=>{const d=new Date();return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-')};
 export function expiryState(value){if(!value)return {label:'No expiry',tone:'neutral'};const days=Math.round((Date.parse(value+'T12:00:00')-Date.parse(localDay()+'T12:00:00'))/86400000);return days<0?{label:`Expired · ${Math.abs(days)}d`,tone:'danger'}:days===0?{label:'Expires today',tone:'warning'}:days<=30?{label:`Due in ${days}d`,tone:'warning'}:{label:`${days} days left`,tone:'good'}}
-export function RegistryIcon({name='document'}){const p={document:'M6 3h8l4 4v14H6z M14 3v5h5 M9 12h6 M9 16h6',staff:'M5 21v-2a7 7 0 0 1 14 0v2 M12 3a4 4 0 1 1 0 8 4 4 0 0 1 0-8',vehicle:'M4 17H2V9l3-6h14l3 6v8h-2 M4 9h16 M6 17h12 M5 17v4 M19 17v4 M5 13h2 M17 13h2',plus:'M12 5v14 M5 12h14',edit:'m15 4 5 5L8 21H3v-5ZM13 6l5 5',clock:'M12 8v5l3 2 M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20',archive:'M3 3h18v5H3z M5 8v13h14V8 M9 12h6',close:'M6 6l12 12 M6 18 18 6'};return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={p[name]||p.document}/></svg>}
+export function RegistryIcon({name='document'}){return <AppIcon name={name} size={18}/>}
 export default function CustomerRecords({customer,orgId,notify,canManage=false}){
  const [kind,setKind]=useState('Document'),[rows,setRows]=useState([]),[parents,setParents]=useState([]),[search,setSearch]=useState(''),[page,setPage]=useState(0),[version,setVersion]=useState(0),[busy,setBusy]=useState(false),[error,setError]=useState(''),[record,setRecord]=useState(null),[archive,setArchive]=useState(null),[showArchived,setShowArchived]=useState(false),[parentFilter,setParentFilter]=useState('');
  const company=customer.customer_type==='Company';

@@ -1,13 +1,11 @@
 'use client';
+import AppIcon from './AppIcon';
 import {useCallback,useEffect,useRef,useState} from 'react';
 import {createPortal} from 'react-dom';
 import {applyAppearance,useWorkspaceAppearance} from './ThemeStudio';
 import {mobileGroups,mobileTabs,mobileCreateActions} from '../lib/mobileNavigation';
 
-export function MobileIcon({name,size=21}){
- const paths={chat:'M21 11a8 8 0 0 1-8 8H6l-4 3 1-7a8 8 0 1 1 18-4Z',home:'m3 10 9-7 9 7M5 9v12h14V9M9 21v-7h6v7',file:'M14 3H6v18h12V7zM14 3v5h5M9 12h6M9 16h4',layers:'m12 3 9 5-9 5-9-5zM3 12l9 5 9-5M3 16l9 5 9-5',people:'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M16 4a4 4 0 0 1 0 8M22 21v-2a4 4 0 0 0-3-3.8',box:'m12 3 9 5v9l-9 5-9-5V8zM3 8l9 5 9-5M12 13v9',wallet:'M3 6h17v14H3zM3 6V4h14v2M15 11h6v5h-6z',handover:'M3 7h14l-3-3M17 7l-3 3M21 17H7l3 3M7 17l3-3',calendar:'M4 5h16v16H4zM8 3v5M16 3v5M4 10h16M8 14h3',truck:'M2 5h12v13H2zM14 10h4l4 4v4h-8M5 18h0M18 18h0',activity:'M3 12h4l2-7 4 14 2-7h6',bank:'m3 8 9-5 9 5zM5 10v8M10 10v8M14 10v8M19 10v8M3 21h18',chart:'M4 3v18h17M8 16v-5M13 16V7M18 16V4',grid:'M4 4h5v5H4zM15 4h5v5h-5zM4 15h5v5H4zM15 15h5v5h-5z',scan:'M8 3H3v5M16 3h5v5M3 16v5h5M21 16v5h-5M7 12h10',search:'m20 20-4-4',plus:'M12 5v14M5 12h14',close:'m6 6 12 12M18 6 6 18',back:'m14 6-6 6 6 6',arrow:'m9 6 6 6-6 6',bell:'M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4',settings:'M9 3h6l1 3 3 1 2 5-2 5-3 1-1 3H9l-1-3-3-1-2-5 2-5 3-1z',logout:'M9 4H4v16h5M12 12h9m-4-4 4 4-4 4',moon:'M20 15.5A8.8 8.8 0 0 1 8.5 4 9 9 0 1 0 20 15.5Z',sun:'M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5 19 19M5 19l1.5-1.5M17.5 6.5 19 5'};
- return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{name==='people'&&<circle cx="9" cy="7" r="4"/>}{name==='search'&&<circle cx="10.5" cy="10.5" r="6.5"/>}{name==='settings'&&<circle cx="12" cy="12" r="3"/>}{name==='sun'&&<circle cx="12" cy="12" r="4"/>}{name==='truck'&&<><circle cx="6" cy="19" r="2"/><circle cx="18" cy="19" r="2"/></>}<path d={paths[name]||paths.grid}/></svg>
-}
+export function MobileIcon({name,size=21}){return <AppIcon name={name} size={size}/>}
 
 // The sheet lives outside the app's stacking contexts. Browser back closes the
 // sheet before a module is opened; background controls cannot intercept touches.

@@ -1,8 +1,9 @@
 'use client';
+import AppIcon from './AppIcon';
 import {useEffect,useMemo,useState} from 'react';
 import {supabase} from '../lib/supabase';
 import {useWorkspaceAppearance} from './ThemeStudio';
-export function WorkspaceIcon({name='arrow',size=18}){const paths={arrow:'M7 17 17 7M7 7h10v10',scan:'M8 3H3v5M16 3h5v5M3 16v5h5M21 16v5h-5M7 12h10',file:'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M8 13h8M8 17h5',wallet:'M3 6h17v14H3zM3 6V4h14v2M15 11h6v5h-6z',box:'M3 7l9-4 9 4v10l-9 4-9-4zM3 7l9 4 9-4M12 11v10',people:'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M16 3a4 4 0 0 1 0 8M22 21v-2a4 4 0 0 0-3-3.8',handover:'M3 7h14l-3-3M17 7l-3 3M21 17H7l3 3M7 17l3-3',clock:'M12 8v5l3 2',check:'M5 12l4 4L19 6',plus:'M12 5v14M5 12h14'};return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{name==='clock'&&<circle cx="12" cy="12" r="9"/>}<path d={paths[name]||paths.arrow}/></svg>}
+export function WorkspaceIcon({name='arrow',size=18}){return <AppIcon name={name} size={size}/>}
 const money=(n,currency)=>`${currency} ${Number(n||0).toLocaleString('en-US',{maximumFractionDigits:2})}`;
 export function dashboardMetrics(cases,stats,now=new Date()){const days=Array.from({length:7},(_,i)=>{const date=new Date(now);date.setHours(12,0,0,0);date.setDate(date.getDate()-6+i);const key=[date.getFullYear(),String(date.getMonth()+1).padStart(2,'0'),String(date.getDate()).padStart(2,'0')].join('-');return {key,label:date.toLocaleDateString('en-GB',{weekday:'short'}),count:cases.filter(c=>String(c.submission_date||'').slice(0,10)===key).length}});const due=cases.filter(c=>Number(c.balance_payment||0)>0);return {days,due,dueTotal:due.reduce((n,c)=>n+Number(c.balance_payment||0),0),today:days.at(-1).count,completion:stats.total?Math.round(Number(stats.delivered||0)/stats.total*100):0}}
 export default function WorkspaceDashboard({welcomeName,companyName='Your company',stats,cases,onOpen,onCases,onScan,onDeliveries,onPayments,onCustody,orgId,onSales,onServices,onCRM,branchName=null,currency='QAR',enabled=()=>true}){

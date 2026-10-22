@@ -1,3 +1,4 @@
+import './automation-center.css';
 import './globals.css';
 import './checkout.css';
 import './business.css';

@@ -1,11 +1,12 @@
 'use client';
+import AppIcon from './AppIcon';
 import {useEffect,useState} from 'react';
 import {supabase} from '../lib/supabase';
 import DialogPortal from './DialogPortal';
 import {printConfiguredDocument} from '../lib/documentPrint';
 const money=(n,c)=>`${c} ${Number(n||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}`;
 const cards=[['total','Existing invoices','file'],['paid','Paid','check'],['balance','Receivables','clock']];
-function Symbol({kind}){return <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">{kind==='file'?<path d="M6 3h9l4 4v14H6zM9 12h7M9 16h5"/>:kind==='check'?<path d="m5 12 4 4L19 6"/>:<><circle cx="12" cy="12" r="9"/><path d="M12 6v6l4 2"/></>}</svg>}
+function Symbol({kind}){return <AppIcon name={kind==='file'?'file':kind==='check'?'check':'clock'} size={17}/>}
 export default function FinancialSnapshot({orgId,customerId,scope='all',branchId,additionalBalance=0,currency='QAR',version=0}){
  const [data,setData]=useState(null),[error,setError]=useState(''),[retry,setRetry]=useState(0),[open,setOpen]=useState(''),[rows,setRows]=useState([]),[page,setPage]=useState(0),[loading,setLoading]=useState(false),[detailError,setDetailError]=useState(''),[previewing,setPreviewing]=useState(false);
  useEffect(()=>{const refresh=()=>setRetry(n=>n+1);window.addEventListener('workspace-finance-changed',refresh);return()=>window.removeEventListener('workspace-finance-changed',refresh)},[]);

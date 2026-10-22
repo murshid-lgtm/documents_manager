@@ -1,4 +1,5 @@
 'use client';
+import AppIcon from './AppIcon';
 import {useEffect,useRef,useState} from 'react';
 import WhatsAppTestLab from './WhatsAppTestLab';
 import {supabase} from '../lib/supabase';
@@ -8,7 +9,7 @@ import {trackingLink} from '../lib/trackingLinks';
 import {WHATSAPP_FIELDS,WHATSAPP_STARTERS,whatsappDraft,whatsappLabels,whatsappMissing,whatsappLink,whatsappPhone} from '../lib/whatsappCrm';
 const date=v=>v?new Date(v.length===10?v+'T12:00:00':v).toLocaleDateString('en-GB'):'—';
 const initialThread={status:'Open',labels:[],assigned_to:'',follow_up_date:'',starred:false};
-function Glyph({name,size=18}){const p={chat:'M21 11a8 8 0 0 1-8 8H6l-4 3 1-7a8 8 0 1 1 18-4Z',search:'m21 21-5-5M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0',star:'m12 3 3 6 7 1-5 5 1 7-6-3-6 3 1-7-5-5 7-1Z',arrow:'m8 5 7 7-7 7',back:'m15 5-7 7 7 7',copy:'M8 8h13v13H8zM3 16V3h13',send:'m3 3 19 9-19 9 4-9-4-9Zm4 9h15',clock:'M12 7v5l3 2M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0',close:'m6 6 12 12M18 6 6 18',refresh:'M20 7V2l-4 4M20 7a9 9 0 1 0 1 8',file:'M5 3h10l4 4v14H5zM14 3v5h5M8 12h8M8 16h5'};return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={p[name]||p.chat}/></svg>}
+function Glyph({name,size=18}){return <AppIcon name={name} size={size}/>}
 export default function WhatsAppWorkspace({orgId,profile,brand={},organization={},notify,onOpen,initialCustomer,setModuleExport}){
  const [search,setSearch]=useState(''),[query,setQuery]=useState(''),[bucket,setBucket]=useState('all'),[label,setLabel]=useState(''),[page,setPage]=useState(0),[list,setList]=useState({rows:[],counts:{},labels:[],total:0}),[loading,setLoading]=useState(true),[customer,setCustomer]=useState(null),[thread,setThread]=useState(initialThread),[labelText,setLabelText]=useState(''),[activity,setActivity]=useState([]),[activityPage,setActivityPage]=useState(0),[moreActivity,setMoreActivity]=useState(false),[related,setRelated]=useState({invoices:[],cases:[],jobs:[],documents:[]}),[team,setTeam]=useState([]),[replies,setReplies]=useState([]),[version,setVersion]=useState(0),[busy,setBusy]=useState(false),[detailLoading,setDetailLoading]=useState(false),[error,setError]=useState(''),[tab,setTab]=useState('activity'),[message,setMessage]=useState(''),[context,setContext]=useState(''),[logBody,setLogBody]=useState(''),[logKind,setLogKind]=useState('Note'),[replyForm,setReplyForm]=useState(null),[deleteReply,setDeleteReply]=useState(null),[editActivity,setEditActivity]=useState(null),[deleteActivity,setDeleteActivity]=useState(null),[webMode,setWebMode]=useState(true),[country,setCountry]=useState('974');
  const [testLab,setTestLab]=useState(false);

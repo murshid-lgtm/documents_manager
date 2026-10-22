@@ -1,8 +1,9 @@
 'use client';
+import AppIcon from './AppIcon';
 import DialogPortal from './DialogPortal';
 import {useCallback,useEffect,useRef,useState} from 'react';
 import {preparePdf,documentFilename} from '../lib/preparePdf';
-function Glyph({name}){const paths={download:'M12 3v12m-5-5 5 5 5-5M4 17v4h16v-4',print:'M6 9V3h12v6M6 18H3V9h18v9h-3M6 14h12v7H6z',close:'M6 6l12 12M18 6 6 18',full:'M8 3H3v5M16 3h5v5M3 16v5h5M21 16v5h-5',plus:'M12 5v14M5 12h14',minus:'M5 12h14',email:'M3 5h18v14H3z M3 5l9 8 9-8',fast:'m13 2-9 12h7l-1 8 10-13h-7z'};return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={paths[name]}/></svg>}
+function Glyph({name}){return <AppIcon name={name==='email'?'mail':name==='full'?'scan':name} size={20}/>}
 export default function PdfPreviewModal(){
  const [doc,setDoc]=useState(null),[full,setFull]=useState(false),[scale,setScale]=useState(1),[fit,setFit]=useState(true),[viewport,setViewport]=useState(900),[pages,setPages]=useState([]),[totalPages,setTotalPages]=useState(0),[ready,setReady]=useState(false),[printing,setPrinting]=useState(false);
  const [stage,setStage]=useState('Preparing your document…');const [areaNode,setAreaNode]=useState(null),[emailOrg,setEmailOrg]=useState(null);

@@ -1,10 +1,11 @@
 'use client';
+import AppIcon from './AppIcon';
 import {useEffect,useRef,useState} from 'react';
 import DialogPortal from './DialogPortal';
 import {supabase} from '../lib/supabase';
 import {testReplyWindow,testProviderError} from '../lib/whatsappTest';
 const blank={phone_id:'',business_id:'',api_version:'v25.0',recipients:[],enabled:false};
-function Icon({name}){const d={close:'m6 6 12 12M18 6 6 18',refresh:'M20 7V2l-4 4M20 7a9 9 0 1 0 1 8',send:'m3 3 19 9-19 9 4-9-4-9Zm4 9h15',check:'m5 12 4 4L19 6',phone:'M5 3h4l2 5-3 2a14 14 0 0 0 6 6l2-3 5 2v4c0 3-5 3-10 0S2 9 3 5z',settings:'M4 7h16M4 17h16M8 3v8M16 13v8',copy:'M8 8h13v13H8zM3 16V3h13'};return <svg aria-hidden="true" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d={d[name]||d.phone}/></svg>}
+function Icon({name}){return <AppIcon name={name} size={19}/>}
 export default function WhatsAppTestLab({organizationId,notify,onClose}){
  const [cfg,setCfg]=useState(blank),[recipients,setRecipients]=useState(''),[token,setToken]=useState(''),[secret,setSecret]=useState(''),[webhook,setWebhook]=useState(null),[messages,setMessages]=useState([]),[peer,setPeer]=useState(''),[text,setText]=useState(''),[busy,setBusy]=useState(''),[error,setError]=useState(''),[tab,setTab]=useState('setup'),[loaded,setLoaded]=useState(false),[saved,setSaved]=useState(false),[dirty,setDirty]=useState(false),[updated,setUpdated]=useState(null);
  const pending=useRef(false),mounted=useRef(true),polling=useRef(false),requestId=useRef(crypto.randomUUID()),end=useRef(null),readVersion=useRef(0);

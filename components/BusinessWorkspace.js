@@ -1,4 +1,5 @@
 'use client';
+import AppIcon from './AppIcon';
 import DialogPortal from './DialogPortal';
 import {useEffect,useRef,useState} from 'react';
 import {supabase} from '../lib/supabase';
@@ -31,7 +32,7 @@ const today=()=>new Date().toISOString().slice(0,10);
 const money=(n,currency)=>`${currency||'QAR'} ${Number(n||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}`;
 const escape=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const emptyItem=()=>({description:'',quantity:1,unit_price:0,service_id:''});
-export function BusinessGlyph({name,size=20}){const paths={people:'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2 M16 3a4 4 0 0 1 0 8 M22 21v-2a4 4 0 0 0-3-3.87',sale:'M3 3h18v18H3z M7 7h10 M7 11h10 M7 15h4',job:'M4 7h16v14H4z M9 7V3h6v4 M8 12h8 M8 16h5',plus:'M12 5v14 M5 12h14',arrow:'M5 12h14 M13 6l6 6-6 6',close:'M6 6l12 12 M6 18L18 6',search:'M21 21l-5-5 M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0',print:'M6 9V3h12v6 M6 18H3V9h18v9h-3 M6 14h12v7H6z',more:'M4 5h16 M4 12h16 M4 19h16'};return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={paths[name]||paths.job}/>{name==='people'&&<circle cx="9" cy="7" r="4"/>}</svg>}
+export function BusinessGlyph({name,size=20}){return <AppIcon name={name} size={size}/>}
 function Field({label,children,wide=false}){return <label className={wide?'wide':''}>{label}{children}</label>}
 export default function BusinessWorkspace({view,profile,organization,branches,brand,notify,setModuleExport,onOpenCase,onSettings,initialTab,initialAction,initialRecord}){
  const [tab,setTab]=useState(initialTab||TABS[view][0][0]),[rows,setRows]=useState([]),[catalog,setCatalog]=useState([]),[invoices,setInvoices]=useState([]),[search,setSearch]=useState(''),[page,setPage]=useState(0),[count,setCount]=useState(null),[loading,setLoading]=useState(true),[error,setError]=useState(''),[form,setForm]=useState(null),[saving,setSaving]=useState(false),[detail,setDetail]=useState(null),[events,setEvents]=useState([]),[payments,setPayments]=useState([]),[pay,setPay]=useState(null),[paymentForm,setPaymentForm]=useState({amount:'',method:'Cash',reference:'',notes:''}),[voidForm,setVoidForm]=useState(null);
