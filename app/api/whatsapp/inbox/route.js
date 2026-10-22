@@ -20,7 +20,7 @@ export async function GET(request){try{
  viewer.from('whatsapp_conversation_notes').select('id,body,created_by,created_at').eq('conversation_id',conversation.id).order('created_at',{ascending:false}).limit(50),
  viewer.from('whatsapp_conversation_audit').select('id,action,created_by,created_at').eq('conversation_id',conversation.id).order('created_at',{ascending:false}).limit(50),
  viewer.from('profiles').select('id,full_name,role,branch_id').eq('organization_id',org).eq('is_active',true).order('full_name'),
- viewer.from('branches').select('id,name').eq('organization_id',org).order('name'),
+ viewer.from('branches').select('id,name').eq('organization_id',org).eq('is_active',true).order('name'),
  viewer.from('whatsapp_replies').select('id,name,body').eq('organization_id',org).order('name')]);
  for(const r of result)if(r?.error)throw new Error('Conversation details could not be loaded.');
  return apiJson({conversation,messages:result[0].data,records:result[1],notes:result[2].data,audit:result[3].data,team:result[4].data,branches:result[5].data,replies:result[6].data,can_send:Boolean(cfg.data?.enabled&&cfg.data.verified_at&&cfg.data.phone_id===conversation.phone_id&&cfg.data.recipients.includes(conversation.peer)),is_admin:profile.role==='admin'});

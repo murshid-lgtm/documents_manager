@@ -12,6 +12,7 @@ export default function AppIcon({name,size=20,className=''}){
    whatsapp:<><path d="m4 17-1 4 4-1a9 9 0 1 0-3-3Z" fill="currentColor" fillOpacity=".08"/><path d="m8 7 2 3-1 1c1 2 2 3 4 4l1-1 3 2c-1 3-4 2-7-1s-4-6-2-8Z" strokeWidth="1.4"/></>,
    home:<><path d="m3 10 9-7 9 7v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" fill="currentColor" fillOpacity=".08"/><path d="M9 21v-7h6v7"/></>,
    file:<><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9Z" fill="currentColor" fillOpacity=".07"/><path d="M14 3v6h6M8 13h8M8 17h5"/></>,
+   'user-add':<><circle cx="9" cy="8" r="3.5" fill="currentColor" fillOpacity=".1"/><path d="M2.5 21v-2a6.5 6.5 0 0 1 13 0v2M19 6v8M15 10h8"/></>,
    user:<><circle cx="12" cy="8" r="4" fill="currentColor" fillOpacity=".1"/><path d="M5 21v-2a7 7 0 0 1 14 0v2"/></>,
    people:<><circle cx="9" cy="8" r="3.5" fill="currentColor" fillOpacity=".1"/><path d="M2.5 21v-2a6.5 6.5 0 0 1 13 0v2M16 5a3.5 3.5 0 0 1 0 7M21.5 21v-2a6 6 0 0 0-4-5.5"/></>,
    settings:<><path d="m9 3 6 0 1 3 3 1 2 5-2 5-3 1-1 3H9l-1-3-3-1-2-5 2-5 3-1Z" fill="currentColor" fillOpacity=".07"/><circle cx="12" cy="12" r="3"/></>,
