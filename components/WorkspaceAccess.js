@@ -1,17 +1,22 @@
 'use client';
 import WorkspaceLoader from './WorkspaceLoader';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import WorkspaceBranding from './WorkspaceBranding';
+import DialogPortal from './DialogPortal';
 import { isSupabaseConfigured, supabase } from '../lib/supabase';
 import Login from './Login';
 import {verifyWorkspaceSession} from '../lib/workspaceSession';
 
-export default function WorkspaceAccess({children,loading}) {
+export default function WorkspaceAccess(props){return <WorkspaceBranding><WorkspaceAccessContent {...props}/></WorkspaceBranding>}
+function WorkspaceAccessContent({children,loading}) {
   const [session, setSession] = useState(undefined);
   const [passwordRecovery,setPasswordRecovery]=useState(false);
   const [profile,setProfile]=useState(null);
   const [accountError,setAccountError]=useState('');
   const [loginNotice,setLoginNotice]=useState('');
   const [retry,setRetry]=useState(0);
+  const [checking,setChecking]=useState(true);
+  const verifiedUser=useRef(null);
 
   useEffect(() => {
     if(!isSupabaseConfigured){setSession(null);return}
@@ -21,6 +26,7 @@ export default function WorkspaceAccess({children,loading}) {
     let alive=true,generation=0,timer;
     async function verify(){
       const run=++generation;
+      setChecking(true);
       try{
         const result=await verifyWorkspaceSession(supabase,async current=>{
           const response=await fetch('/api/auth/workspace',{headers:{authorization:`Bearer ${current.access_token}`},cache:'no-store'});
@@ -33,21 +39,23 @@ export default function WorkspaceAccess({children,loading}) {
         });
         if(!alive||run!==generation)return;
         setAccountError('');
-        if(result.status==='ready'){setProfile(result.profile);setSession(result.session);setLoginNotice('');return}
+        if(result.status==='ready'){verifiedUser.current=result.session.user.id;setProfile(result.profile);setSession(result.session);setLoginNotice('');return}
+        verifiedUser.current=null;
         setProfile(null);setSession(null);
         if(result.status==='expired'||result.status==='blocked'||result.status==='wrong-portal'){
           setLoginNotice(result.status==='wrong-portal'?result.message:result.status==='expired'?'Your session has ended. Please sign in again.':'This account cannot access a workspace. Contact your administrator.');
           await supabase.auth.signOut({scope:'local'});
         }
       }catch{
-        if(alive&&run===generation){setSession(undefined);setProfile(null);setAccountError('Your account could not be verified. Check your connection and retry.');}
-      }
+        if(alive&&run===generation)setAccountError('Your connection was interrupted. Retry to continue where you left off.');
+      }finally{if(alive&&run===generation)setChecking(false)}
     }
     function schedule(){clearTimeout(timer);timer=setTimeout(verify,0)}
     schedule();
     const { data: listener } = supabase.auth.onAuthStateChange((event, nextSession) => {
       // Supabase calls must run after this callback releases the auth lock.
-      if(event==='SIGNED_OUT'){++generation;setSession(null);setProfile(null);setAccountError('');return}
+      if(event==='SIGNED_OUT'){++generation;verifiedUser.current=null;setSession(null);setProfile(null);setAccountError('');return}
+      if(nextSession&&verifiedUser.current&&nextSession.user.id!==verifiedUser.current){verifiedUser.current=null;setSession(undefined);setProfile(null);setAccountError('')}
       if(event==='PASSWORD_RECOVERY')setPasswordRecovery(true);
       if(nextSession)schedule();
     });
@@ -58,9 +66,11 @@ export default function WorkspaceAccess({children,loading}) {
 
   if(!isSupabaseConfigured)return <main className="auth-shell"><div className="auth-card"><div className="auth-copy"><h2>Connect your database</h2><p className="muted">This deployment is ready, but its Supabase environment variables have not been added.</p></div><div className="error-box"><b>Required in Vercel</b><br/>NEXT_PUBLIC_SUPABASE_URL<br/>NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY</div><p className="muted">Add them in Project Settings → Environment Variables, then redeploy.</p></div></main>;
 
+  if(session&&!passwordRecovery)return <><div className="workspace-access-content" inert={accountError?true:undefined} aria-hidden={accountError?'true':undefined}>{children({session,profile})}</div>{accountError&&<DialogPortal label="Reconnect workspace"><div className="workspace-reconnect" role="dialog" aria-modal="true" aria-label="Reconnect workspace"><section><h2>Reconnect to continue</h2><p role="alert">{accountError}</p>{checking&&<progress aria-label="Checking your connection"/>}<button type="button" className="primary" disabled={checking} onClick={()=>setRetry(v=>v+1)}>{checking?'Reconnecting…':'Retry connection'}</button><button type="button" disabled={checking} onClick={()=>supabase.auth.signOut({scope:'local'})}>Sign out</button></section></div></DialogPortal>}</>;
+
   if(accountError)return <main className="auth-shell"><div className="auth-card"><h2>Unable to open your workspace</h2><p role="alert">{accountError}</p><button className="primary" onClick={()=>{setAccountError('');setRetry(v=>v+1)}}>Retry</button><button onClick={()=>supabase.auth.signOut({scope:'local'})}>Back to sign in</button></div></main>;
   if (session === undefined) return loading||<WorkspaceLoader/>;
   if (passwordRecovery) return <Login resetMode onResetComplete={()=>{window.history.replaceState({},'',window.location.pathname);setPasswordRecovery(false)}} />;
   if (!session) return <Login initialNotice={loginNotice} />;
-  return children({session,profile});
+  return null;
 }

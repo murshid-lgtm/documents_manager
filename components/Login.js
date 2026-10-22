@@ -2,6 +2,8 @@
 import { useEffect,useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { userError } from '../lib/userError';
+import {useWorkspaceBranding} from './WorkspaceBranding';
+import WorkspaceLoader from './WorkspaceLoader';
 
 export default function Login({resetMode=false,onResetComplete,initialNotice=''}) {
   const [email, setEmail] = useState('');
@@ -10,9 +12,9 @@ export default function Login({resetMode=false,onResetComplete,initialNotice=''}
   const [error, setError] = useState('');
   const [mode,setMode]=useState(resetMode?'reset':'signin');
   const [notice,setNotice]=useState(initialNotice);
-  const [brand,setBrand]=useState(null);
-  useEffect(()=>{let live=true;(async()=>{const host=window.location.host;const slug=process.env.NEXT_PUBLIC_ORGANIZATION_SLUG||null;const {data}=await supabase.rpc('public_branding',{request_host:host,requested_slug:slug});if(live&&data){setBrand(data);document.title=data.product_name||'Document Tracker';if(data.favicon_url){let link=document.querySelector("link[rel='icon']");if(!link){link=document.createElement('link');link.rel='icon';document.head.appendChild(link)}link.href=data.favicon_url}}})().catch(()=>{});return()=>{live=false}},[]);
-  const company=brand?.company_name||'Your Organization',product=brand?.product_name||'Document Tracker',mark=(brand?.short_name||company||'D').slice(0,1).toUpperCase();
+  const {brand,ready:brandingReady}=useWorkspaceBranding();
+  useEffect(()=>{if(brand?.favicon_url){let link=document.querySelector("link[rel='icon']");if(!link){link=document.createElement('link');link.rel='icon';document.head.appendChild(link)}link.href=brand.favicon_url}},[brand]);
+  const company=brand?.company_name||'Your Organization',product=brand?.product_name||'Your workspace',mark=(brand?.short_name||brand?.company_name||'W').slice(0,1).toUpperCase();
 
   async function submit(e) {
     e.preventDefault(); setLoading(true); setError('');
@@ -42,6 +44,7 @@ export default function Login({resetMode=false,onResetComplete,initialNotice=''}
   const themeColor=(value,legacy,fallback)=>!value||value.toLowerCase()===legacy?fallback:value;
   const brandStyle={'--login-primary':themeColor(brand?.primary_color,'#3265df','#1d7347'),'--login-secondary':themeColor(brand?.secondary_color,'#17879a','#0d3a23'),'--login-accent':themeColor(brand?.accent_color,'#15a37d','#83b57e'),'--login-surface':brand?.surface_color||'#f4f6f3','--login-logo-size':`${Number(brand?.login_logo_size||100)}%`,'--login-logo-align':brand?.login_logo_alignment||'left','--login-logo-background':brand?.login_logo_background||'#FFFFFF','--login-logo-radius':`${Number(brand?.login_logo_radius??14)}px`,'--login-logo-width':`${Number(brand?.login_logo_container_width||220)}px`,'--login-logo-height':`${Number(brand?.login_logo_container_height||72)}px`,'--login-card-logo-size':`${Number(brand?.login_card_logo_size||100)}%`,'--login-card-logo-align':brand?.login_card_logo_alignment||'left','--login-card-logo-background':brand?.login_card_logo_background||'#FFFFFF','--login-card-logo-radius':`${Number(brand?.login_card_logo_radius??14)}px`,'--login-card-logo-width':`${Number(brand?.login_card_logo_container_width||220)}px`,'--login-card-logo-height':`${Number(brand?.login_card_logo_container_height||64)}px`};
   const visualStyle=brand?.login_background_url?{backgroundImage:`linear-gradient(145deg,rgba(13,58,35,.94),rgba(29,115,71,.84)),url("${brand.login_background_url}")`}:undefined;
+  if(!brandingReady)return <WorkspaceLoader/>;
   return <main className="auth-shell auth-shell-v329 auth-forest" style={brandStyle}>
     <section className="auth-saas-panel" style={visualStyle}>
       {(!hasLogo||showLogo)&&<div className={`auth-saas-brand ${showLogo?'auth-logo-mode':''}`}>{showLogo?<div className="auth-logo-container"><img className="auth-company-logo" src={brand.logo_url} alt={`${company} logo`}/></div>:<><div className="brand-mark">{mark}</div><div><strong>{product}</strong><span>{company}</span></div></>}</div>}

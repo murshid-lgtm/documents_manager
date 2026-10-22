@@ -21,12 +21,13 @@ import './whatsapp-crm.css';
 import './whatsapp-inbox.css';
 import './whatsapp-connections.css';
 import './customer-finance-upgrade.css';
+import './workspace-startup.css';
 import {AppearanceProvider} from '../components/ThemeStudio';
 import ActionFeedback from '../components/ActionFeedback';
 import PdfPreviewModal from '../components/PdfPreviewModal';
 
 export const metadata = {
-  title: 'Document Tracker',
+  title: 'Workspace',
   description: 'Business operations workspace',
   manifest:'/manifest.webmanifest',
   appleWebApp:{capable:true,statusBarStyle:'default',title:'Workspace'},

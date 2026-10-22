@@ -24,6 +24,10 @@ await assert.rejects(()=>verifyWorkspaceSession(workspaceClient({userError:{stat
 assert.equal((await verifyWorkspaceSession(workspaceClient({profile:null}))).status,'blocked');
 assert.equal((await verifyWorkspaceSession(workspaceClient({profile:{role:'unknown',is_active:true}}))).status,'blocked');
 checks+=8;
+const interruptedSession=workspaceClient();interruptedSession.auth.getSession=async()=>({error:{status:0,name:'AuthRetryableFetchError'}});
+await assert.rejects(()=>verifyWorkspaceSession(interruptedSession),/temporarily unavailable/);
+const revokedSession=workspaceClient();revokedSession.auth.getSession=async()=>({error:{status:401,code:'refresh_token_not_found'}});
+assert.equal((await verifyWorkspaceSession(revokedSession)).status,'expired');checks+=2;
 
 const companyAdmin={role:'admin',is_active:true,organization_id:'kenza',is_platform_super_admin:false};
 const owner={role:'admin',is_active:true,is_platform_super_admin:true};

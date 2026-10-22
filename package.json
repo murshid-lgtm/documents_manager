@@ -13,7 +13,7 @@
     "test:checkout": "node scripts/checkout-tests.mjs && node scripts/billing-tests.mjs",
     "test:accounting": "node scripts/accounting-tests.mjs && node scripts/financial-management-tests.mjs && node scripts/print-tests.mjs && node scripts/sales-ui-tests.cjs && node scripts/legacy-attestation-finance-tests.mjs && node scripts/attestation-finance-ui-tests.cjs",
     "test:operations": "node scripts/automation-alert-tests.mjs && node scripts/automation-alert-ui-tests.cjs && node scripts/workspace-operations-tests.mjs && node scripts/workspace-dates-tests.mjs",
-    "test:mobile": "node scripts/mobile-delivery-navigation-tests.cjs && node scripts/mobile-navigation-tests.cjs && node scripts/mobile-dialog-tests.cjs",
+    "test:mobile": "node scripts/workspace-startup-ui-tests.cjs && node scripts/mobile-delivery-navigation-tests.cjs && node scripts/mobile-navigation-tests.cjs && node scripts/mobile-dialog-tests.cjs",
     "test:customers": "node scripts/customer-records-tests.mjs && node scripts/legacy-customer-ui-tests.cjs",
     "test:email": "node scripts/html-email-tests.mjs && node scripts/email-design-tests.mjs && node scripts/email-send-tests.cjs && node scripts/email-assets-tests.cjs && node scripts/email-attachments-tests.mjs && node scripts/email-block-tests.mjs && node scripts/email-workspace-ui-tests.cjs && node scripts/attestation-experience-ui-tests.cjs",
     "test:customer-finance": "node scripts/customer-finance-ui-tests.cjs && node scripts/pdf-performance-tests.mjs && node scripts/pdf-route-tests.cjs && node scripts/workspace-performance-tests.cjs",

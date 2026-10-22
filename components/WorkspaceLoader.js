@@ -1,1 +1,12 @@
-export default function WorkspaceLoader({name='Document Tracker',initial='D',contained=false}){return <div className={`workspace-loader ${contained?'is-contained':''}`} role="status" aria-live="polite"><div className="workspace-loader-mark"><span>{initial}</span><i/></div><strong>{name}</strong><p>Opening your workspace…</p><div className="workspace-loader-track"><i/></div></div>}
+'use client';
+import {useWorkspaceBranding} from './WorkspaceBranding';
+import {useState} from 'react';
+export default function WorkspaceLoader({name,initial,brand:providedBrand,contained=false,message='Opening your workspace…'}){
+ const {brand:publicBrand}=useWorkspaceBranding(),brand=providedBrand||publicBrand;
+ const [failedLogo,setFailedLogo]=useState(null);
+ const title=name||brand?.product_name||brand?.company_name||'Your workspace',mark=initial||(brand?.short_name||brand?.company_name||'').slice(0,1).toUpperCase(),logo=brand?.app_icon_url||brand?.logo_url;
+ return <div className={`workspace-loader ${contained?'is-contained':''}`} role="status" aria-live="polite" aria-label={message}>
+  <div className="workspace-loader-emblem" aria-hidden="true"><svg className="workspace-loader-orbit" viewBox="0 0 112 112"><circle className="workspace-loader-orbit-base" cx="56" cy="56" r="50"/><circle className="workspace-loader-orbit-arc" cx="56" cy="56" r="50"/></svg><div className={'workspace-loader-mark '+(logo&&failedLogo!==logo?'has-logo':'')}>{logo&&failedLogo!==logo?<img src={logo} alt="" onError={()=>setFailedLogo(logo)}/>:mark?<span>{mark}</span>:<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="9" y="5" width="16" height="21" rx="4"/><path d="M6 10v14a5 5 0 0 0 5 5h10M13 11h8M13 16h8M13 21h5"/></svg>}</div></div>
+  <strong>{title}</strong><p>{message}</p><div className="workspace-loader-track" aria-hidden="true"><i/></div>
+ </div>;
+}
