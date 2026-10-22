@@ -19,6 +19,7 @@ import './customer-reports.css';
 import './email-documents.css';
 import './whatsapp-crm.css';
 import './whatsapp-inbox.css';
+import './whatsapp-connections.css';
 import './customer-finance-upgrade.css';
 import {AppearanceProvider} from '../components/ThemeStudio';
 import ActionFeedback from '../components/ActionFeedback';
