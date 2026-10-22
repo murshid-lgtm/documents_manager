@@ -20,6 +20,6 @@ export default function WorkspaceBranding({children}){
   }catch{}finally{clearTimeout(timer);if(live)setReady(true)}})();
   return()=>{live=false;clearTimeout(timer);controller.abort()};
  },[]);
- useEffect(()=>{if(brand?.product_name||brand?.company_name)document.title=brand.product_name||brand.company_name},[brand]);
+ useEffect(()=>{if(location.pathname==='/'&&(brand?.product_name||brand?.company_name))document.title=brand.product_name||brand.company_name},[brand]);
  return <Branding.Provider value={{brand,ready}}>{children}</Branding.Provider>;
 }
