@@ -868,6 +868,13 @@ ${company}`;
     registry:'Company records, staff, vehicles and expiry reminders.',email:'Templates, senders, reminders and customer emails.',whatsapp:'Personal messages, follow-ups and customer relationships.',crm:'Customers, leads and follow-ups in one workspace.',sales:'Quotations, invoices and sales collections.',services:'Service jobs, approvals and renewals.',profile:'Your identity and access in this workspace.',settings:'Manage branding, branches, staff, access and product configuration.'
   ,help:'Guidance for a smoother working day.'}[view]||'Live overview of attestation cases, workload and receivables.';
 
+  useEffect(()=>{
+    if(!brandReady)return;
+    const params=new URLSearchParams(window.location.search),type=params.get('record_type'),id=params.get('record_id');
+    if(['customer','invoice','attestation','service'].includes(type)&&/^[a-f0-9-]{36}$/i.test(id||'')){
+      window.history.replaceState({},'',window.location.pathname);void openWorkspaceRecord(type,id);
+    }
+  },[brandReady]);
   if(!brandReady)return <WorkspaceLoader/>;
   return <div data-workspace-view={view} className={`app-shell ${workspaceMode==='whatsapp'&&view==='whatsapp'?'whatsapp-window':''} ${sidebarCollapsed?'sidebar-collapsed':''}`} onClick={e=>{const menu=e.target.closest('.sidebar-menu-popover');if(menu&&e.target.closest('button'))menu.closest('details')?.removeAttribute('open')}}>
     <aside className="sidebar" aria-label="Workspace navigation">
