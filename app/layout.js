@@ -23,6 +23,7 @@ import './whatsapp-connections.css';
 import './customer-finance-upgrade.css';
 import './workspace-startup.css';
 import './loader-studio.css';
+import './mobile-home.css';
 import {AppearanceProvider} from '../components/ThemeStudio';
 import ActionFeedback from '../components/ActionFeedback';
 import PdfPreviewModal from '../components/PdfPreviewModal';
