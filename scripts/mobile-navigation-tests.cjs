@@ -21,7 +21,7 @@ const fs=require('node:fs'),path=require('node:path'),assert=require('node:asser
  await more();assert(await page.$eval('.app-shell',el=>el.inert));checks++;
  assert(await page.$eval('.mobile-panel-header button',el=>{const r=el.getBoundingClientRect();return document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)===el}));checks++;
  assert.equal(await page.evaluate(()=>getComputedStyle(document.querySelector('.sidebar')||document.createElement('i')).display==='flex'),false);checks++;
- const labels=await page.$$eval('.mobile-menu-group button',nodes=>nodes.map(n=>n.textContent.trim()));assert(labels.includes('Attestations')&&labels.includes('Collections'));checks++;
+ const labels=await page.$$eval('.mobile-menu-group button',nodes=>nodes.map(n=>n.textContent.trim()));assert(labels.includes('Attestations')&&labels.includes('Collections'));assert.deepEqual(labels.slice(0,4),['Home','Alerts & automation','Customers','Sales & invoices']);assert.equal(await page.$('.mobile-menu-group h3'),null);checks+=3;
  await page.type('input[aria-label="Find a module"]','custody');assert.deepEqual(await page.$$eval('.mobile-menu-group button',nodes=>nodes.map(n=>n.textContent.trim())),['Custody & handover']);checks++;
  await page.$eval('input[aria-label="Find a module"]',el=>{const setter=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;setter.call(el,'nonexistent-module');el.dispatchEvent(new Event('input',{bubbles:true}))});await page.waitForSelector('.mobile-menu-empty');checks++;
  await tapText('.mobile-menu-empty button','Clear search');await page.waitForFunction(()=>document.querySelectorAll('.mobile-menu-group button').length>1);checks++;

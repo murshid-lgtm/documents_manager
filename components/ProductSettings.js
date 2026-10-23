@@ -6,6 +6,7 @@ import AccessManagement from './AccessManagement';
 import CommunicationsSettings from './CommunicationsSettings';
 import ResalePlan from './ResalePlan';
 import ThemeStudio from './ThemeStudio';
+import LoaderStudio from './LoaderStudio';
 import {useEffect,useMemo,useState} from 'react';
 import {supabase} from '../lib/supabase';
 import {userError} from '../lib/userError';
@@ -108,7 +109,7 @@ export default function ProductSettings({session,profile,currentOrganization,onB
     <div className="product-settings-hero"><div><span>WHITE-LABEL CONTROL CENTER</span><h2>{platform?'Platform administration':'Company administration'}</h2><p>Manage company identity, login experience, branches, staff and the features available across web and mobile.</p></div>{platform&&<select value={organizationId} onChange={e=>setOrganizationId(e.target.value)}>{organizations.map(o=><option key={o.id} value={o.id}>{o.name} · {o.status}</option>)}</select>}</div>
     <div className="settings-navigation"><div className="settings-search-bar"><span aria-hidden="true">⌕</span><input aria-label="Search settings groups" placeholder="Search settings…" value={settingsSearch} onChange={e=>setSettingsSearch(e.target.value)}/>{settingsSearch&&<button type="button" title="Clear search" aria-label="Clear settings search" onClick={()=>setSettingsSearch('')}>×</button>}</div><div className="product-settings-tabs">{['appearance','branding','billing','print','branches','staff','modules','communications','plan',...(platform?['companies']:[])].filter(x=>settingsNames[x].toLowerCase().includes(settingsSearch.toLowerCase())).map(x=><button key={x} className={tab===x?'active':''} onClick={()=>setTab(x)}>{settingsNames[x]}</button>)}</div></div><div className="settings-content">
     {busy&&<div className="settings-loading">Saving or loading company settings…</div>}
-    {tab==='appearance'&&<ThemeStudio notify={notify}/>}
+    {tab==='appearance'&&<><ThemeStudio notify={notify}/>{organizationId&&<LoaderStudio key={organizationId} organizationId={organizationId} brand={settings} onBrandChange={next=>{setSettings({...emptySettings,...next});onBrandChange?.(next)}} notify={notify}/>}</>}
     {tab==='billing'&&organizationId&&<BillingSettings key={organizationId} orgId={organizationId} notify={notify}/>}
     {tab==='print'&&organizationId&&<PrintSettings key={organizationId} orgId={organizationId} brand={settings} organization={selectedOrganization} notify={notify}/>}
     {tab==='branding'&&!organizationId&&<div className="settings-card settings-empty-state"><span>NO COMPANY SELECTED</span><h3>Create a client company first</h3><p>The platform owner remains global. Branding, branches and client access are configured separately inside each company.</p>{platform&&<button type="button" className="primary" onClick={()=>setTab('companies')}>Create Company</button>}</div>}

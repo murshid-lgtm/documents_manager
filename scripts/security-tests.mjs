@@ -125,6 +125,16 @@ try{
   await login(23);assert.equal(await count('cases'),0);checks++;
   await system();await db.query('update profiles set staff_modules=null where id=$1',[id(23)]);
 
+  await system();
+  await db.query("insert into organization_settings(organization_id,company_name,primary_domain) values($1,'Company A','a.invalid'),($2,'Company B','b.invalid') on conflict(organization_id) do update set primary_domain=excluded.primary_domain",[id(1),id(2)]);
+  await db.exec(fs.readFileSync(new URL('../supabase/V5_29_LOADER_ANIMATIONS.sql',import.meta.url),'utf8'));
+  await login(21);
+  for(const style of ['signature','contour','horizon','aperture','outline','silk','echo','duet','rhythm','mosaic','spotlight','still']){assert.equal((await db.query('update organization_settings set loader_animation=$1 where organization_id=$2 returning loader_animation',[style,id(1)])).rows[0].loader_animation,style);checks++}
+  await denied("update organization_settings set loader_animation='arbitrary-code' where organization_id=$1",[id(1)]);
+  assert.equal((await db.query("update organization_settings set loader_animation='echo' where organization_id=$1 returning organization_id",[id(2)])).rows.length,0);checks++;
+  await login(22);assert.equal((await db.query("update organization_settings set loader_animation='echo' where organization_id=$1 returning organization_id",[id(1)])).rows.length,0);checks++;
+  await system();await db.exec('set role anon');
+  const publicBrand=(await db.query("select public_branding('a.invalid') as brand")).rows[0].brand;assert.equal(publicBrand.loader_animation,'still');assert.equal(publicBrand.organization_id,undefined);assert.equal((await db.query("select public_branding('unknown.invalid') as brand")).rows[0].brand,null);checks+=3;
   await system();await db.query('delete from auth.sessions where id=$1',[id(122)]);
   await login(22);assert.equal(await count('cases'),0);assert.equal(await count('profiles'),0);checks+=2;
   await denied('insert into cases(tracking_reference,customer_name,branch_id) values($1,$2,$3)',['bad','Revoked',id(11)]);
