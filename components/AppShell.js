@@ -426,7 +426,6 @@ ${company}`;
   }
   function openCase(c){if(!c)return;setQuickInitialTab('workflow');setQuickCase(c);setRecentCaseIds(prev=>{const next=[c.id,...prev.filter(id=>id!==c.id)].slice(0,12);try{localStorage.setItem(recentStorageKey,JSON.stringify(next))}catch{}return next})}
   useEffect(()=>{try{setSidebarCollapsed(localStorage.getItem('kenza_sidebar_collapsed')==='1')}catch{}},[]);
-  useEffect(()=>{const group=['dashboard','cases','documents'].includes(view)?'overview':['operations','deliveries','custody','appointments','batches','courier'].includes(view)?'operations':['crm','sales','services','registry','email'].includes(view)?'customers':'finance';setNavGroups(x=>({...x,[group]:true}))},[view]);
   function toggleSidebar(){setSidebarCollapsed(v=>{const next=!v;try{localStorage.setItem('kenza_sidebar_collapsed',next?'1':'0')}catch{}return next})}
 
   const auditStorageKey=`kenza_audit_read_${session.user.id}`;
