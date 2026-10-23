@@ -1176,6 +1176,7 @@ function CasesView({preferenceKey,cases,allCases=[],recentCaseIds=[],favoriteCas
 
 function CaseCard({c,favorite=false,toggleFavorite,shareDetailed,open,toggle,checked,select,selectionMode,updateCaseStatus,updateStage,updateStageDate,reorderStages,quick,addDoc,deleteDocument,addStage,renameStage,deleteStage,appointment}){
   const m=moneyParts(c), docs=c.documents||[];
+  const stages=docs.flatMap(d=>d.document_stages||[]),completed=stages.filter(s=>s.status==='Completed').length;
   const activeStages=docs.flatMap(d=>d.document_stages||[]).filter(s=>s.status==='Pending'||s.status==='Processing').length;
   const contact=String(c.mobile||'').replace(/\D/g,'');
   const call=e=>{e.stopPropagation();if(contact)window.location.href=`tel:${contact}`};
@@ -1189,7 +1190,7 @@ function CaseCard({c,favorite=false,toggleFavorite,shareDetailed,open,toggle,che
   return <article className={`legacy-case-card ${open?'open':''} ${checked?'selected':''} ${selectionMode?'selection-mode':''}`} onClick={cardClick}>
     <div className="legacy-card-top">
       <div className="legacy-track-wrap">
-        <input className="legacy-check" type="checkbox" checked={checked} onChange={select} onClick={e=>e.stopPropagation()}/>
+        <input className="legacy-check" type="checkbox" checked={checked} onChange={select} onClick={e=>e.stopPropagation()} aria-label={`Select attestation ${c.tracking_reference}`}/>
         <div className="legacy-trackline"><strong>#{c.tracking_reference}</strong><span>{c.bill_no||'—'}</span></div>
       </div>
       <StatusPill status={c.overall_status}/>
@@ -1210,6 +1211,7 @@ function CaseCard({c,favorite=false,toggleFavorite,shareDetailed,open,toggle,che
       <div className="case-contact-shortcuts"><button onClick={call} disabled={!contact} title="Call customer"><Icon name="phone" size={13}/></button><button onClick={whatsapp} disabled={!contact} title="WhatsApp customer"><Icon name="whatsapp" size={19}/></button><button onClick={share} title="Share case"><Icon name="share" size={13}/></button></div>
       <button className="legacy-chevron" onClick={e=>{e.stopPropagation();toggle()}} aria-label={open?'Collapse document workflow':'Expand document workflow'} aria-expanded={open} title={open?'Collapse workflow':'Expand workflow'}><Icon name={open?'chevron-up':'chevron-down'} size={17}/></button>
     </div>
+    <div className="mobile-attestation-progress"><span>{stages.length?`${completed} of ${stages.length} stages complete`:'No stages added'}</span><progress aria-label={`Stage progress for ${c.tracking_reference}`} max={stages.length||1} value={completed}/></div>
     {open&&<div className="workflow legacy-workflow" onClick={e=>e.stopPropagation()}><div className="workflow-head"><div><strong>Document workflow</strong><span>{docs.length} document instance{docs.length===1?'':'s'}</span></div><button className="small-primary" onClick={()=>addDoc(c)}><Icon name="plus" size={13}/> Add Document</button></div>{docs.length===0?<Empty text="No documents added yet"/>:<div className="doc-list">{docs.map(d=><DocRow key={d.id} c={c} d={d} updateStage={updateStage} updateStageDate={updateStageDate} reorderStages={reorderStages} addStage={addStage} renameStage={renameStage} deleteStage={deleteStage} compact onDelete={()=>deleteDocument(c,d)}/>)}</div>}</div>}
   </article>
 }

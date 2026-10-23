@@ -33,6 +33,26 @@ const assert=require('node:assert/strict'),fs=require('node:fs');
   assert.equal(await page.$eval('.workspace-page h1',e=>e.textContent),'Dashboard');assert.deepEqual(errors,[]);checks+=2;
   for(const label of ['Attestations','Deliveries','Dashboard']){if(mobile){await page.tap('.mobile-app-nav button[aria-label="More"]');await page.waitForSelector('.mobile-menu-group');const target=await page.evaluateHandle(label=>[...document.querySelectorAll('.mobile-menu-group button')].find(b=>b.textContent.trim()===(label==='Dashboard'?'Home':label)),label);await target.asElement().tap();await target.dispose();await page.waitForFunction(()=>!document.querySelector('.mobile-app-layer'))}else await page.evaluate(label=>[...document.querySelectorAll('.sidebar-menu-flat button')].find(b=>b.getAttribute('aria-label')===label)?.click(),label);await page.waitForFunction(label=>document.querySelector('.workspace-page h1')?.textContent===label,{},label);assert.deepEqual(errors,[]);checks++}
   if(mobile){await page.waitForSelector('.mobile-dashboard');assert(await page.$eval('.mobile-home-metrics .featured',e=>{const style=getComputedStyle(e),l=value=>{const c=value.match(/[0-9.]+/g).slice(0,3).map(Number).map(n=>n/255).map(n=>n<=.04045?n/12.92:((n+.055)/1.055)**2.4);return c[0]*.2126+c[1]*.7152+c[2]*.0722},a=l(style.color),b=l(style.backgroundColor);return (Math.max(a,b)+.05)/(Math.min(a,b)+.05)>=4.5}),'Featured KPI text contrast');checks++;assert(await page.$eval('.mobile-home-shortcuts',e=>e.getBoundingClientRect().bottom<innerHeight));assert.equal(await page.$eval('.mobile-home-activity',e=>e.open),false);checks+=2;for(const width of [320,390,430]){await page.setViewport({width,height:844,isMobile:true,hasTouch:true});assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));checks++}await page.setViewport({width:390,height:844,isMobile:true,hasTouch:true});await page.tap('.mobile-home-activity summary');await page.waitForFunction(()=>document.querySelector('.mobile-home-activity').open);await page.tap('.mobile-home-activity summary');checks++;await page.evaluate(()=>window.scrollTo(0,0));}
+  if(mobile&&role==='admin'){
+   await page.tap('.mobile-home-records>button');await page.waitForSelector('.mobile-case-chrome');
+   await page.tap('.mobile-case-shortcuts>button:first-child');await page.waitForSelector('.delivery-confirm-modal');
+   await page.tap('.delivery-confirm-modal .modal-head .icon-btn');await page.waitForSelector('.mobile-case-chrome');
+   assert.equal(await page.$eval('.mobile-case-identity h2',e=>e.textContent),records[0].customer_name);checks++;
+   await page.tap('[aria-label="Close attestation"]');await page.waitForFunction(()=>!document.querySelector('.mobile-case-chrome'));
+   await page.tap('.mobile-app-nav button[aria-label="More"]');await page.waitForSelector('.mobile-menu-group');
+   await page.evaluate(()=>[...document.querySelectorAll('.mobile-menu-group button')].find(b=>b.textContent.trim()==='Attestations').click());
+   await page.waitForSelector('.legacy-case-card');
+   for(const width of [320,390,430]){
+    await page.setViewport({width,height:844,isMobile:true,hasTouch:true});
+    assert(await page.$eval('.legacy-case-card',e=>e.scrollWidth<=e.clientWidth+1),'Attestation card must fit phone width');
+    assert(await page.$$eval('.legacy-card-actions button',buttons=>buttons.every(b=>b.getBoundingClientRect().height>=44)),'Phone actions must have 44px touch height');
+    assert.equal(await page.$eval('.mobile-attestation-progress progress',e=>e.value),1);checks+=3;
+   }
+   await page.setViewport({width:390,height:844,isMobile:true,hasTouch:true});
+   await page.screenshot({path:'/tmp/mobile-attestation-list.png',fullPage:true});
+   await page.tap('.mobile-app-nav button[aria-label="More"]');await page.waitForSelector('.mobile-menu-group');
+   await page.evaluate(()=>[...document.querySelectorAll('.mobile-menu-group button')].find(b=>b.textContent.trim()==='Home').click());await page.waitForSelector('.mobile-dashboard');
+  }
   assert.equal(await page.$('.nav-group-toggle'),null);assert.equal(await page.evaluate(()=>document.body.textContent.includes('Something went wrong')),false);assert.deepEqual(writes,[]);checks+=3;await page.screenshot({path:`/tmp/client-workspace-${role}-${mobile?'mobile':'desktop'}-smoke.png`,fullPage:mobile});await page.close();
  }}finally{await browser.close();server?.kill('SIGTERM')}
  console.log(`PASS: ${checks} complete production workspace checks across admin, branch, staff and platform: authentication, dashboard, sidebar navigation and no runtime exceptions or customer writes.`);

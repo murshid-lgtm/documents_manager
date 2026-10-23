@@ -1,0 +1,20 @@
+/* Phone-only refinements: desktop card layout stays intact. */
+.mobile-attestation-progress{display:none}
+@media(max-width:700px){
+ html body .app-shell .legacy-case-card .legacy-trackline>strong{overflow-wrap:anywhere!important;font-size:18px!important}
+ html body .app-shell .legacy-case-card .legacy-name-band{grid-template-columns:minmax(0,1fr)!important;gap:4px!important;padding-top:6px!important}
+ html body .app-shell .legacy-case-card .legacy-name-mobile{justify-content:flex-start!important;font-size:13px!important}
+ html body .app-shell .legacy-case-card .legacy-card-actions{grid-template-columns:44px minmax(0,1fr) 44px!important;gap:6px!important;padding:8px 12px!important}
+ html body .app-shell .legacy-case-card .legacy-card-actions>.legacy-action-btn{min-height:44px!important;height:44px!important;font-size:12px!important}
+ html body .app-shell .legacy-case-card .legacy-card-actions>.legacy-action-btn:first-child{font-size:0!important}
+ html body .app-shell .legacy-case-card .legacy-card-actions>.legacy-chevron{grid-column:3!important;grid-row:1!important;width:44px!important;min-width:44px!important;min-height:44px!important;height:44px!important;background:var(--ws-panel)!important;border-radius:10px!important}
+ html body .app-shell .legacy-case-card .case-contact-shortcuts{grid-column:1/-1!important;grid-row:2!important;display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:6px!important}
+ html body .app-shell .legacy-case-card .case-contact-shortcuts>button{width:100%!important;min-height:44px!important;height:44px!important;border-radius:10px!important;background:var(--ws-panel)!important;color:var(--ws-green)!important}
+ html body .app-shell .legacy-case-card .case-contact-shortcuts>button:disabled{opacity:.4!important}
+ html body .app-shell .mobile-attestation-progress{display:grid;grid-template-columns:minmax(0,1fr) 70px;align-items:center;gap:12px;padding:4px 14px 12px;color:var(--ws-muted);font-size:11px}
+ .mobile-attestation-progress progress{width:100%;height:4px;border:0;border-radius:10px;overflow:hidden;accent-color:var(--ws-green)}
+ .mobile-attestation-progress progress::-webkit-progress-bar{background:var(--ws-line)}
+ .mobile-attestation-progress progress::-webkit-progress-value{background:var(--ws-green);border-radius:10px}
+ html body .app-shell .legacy-case-card button{touch-action:manipulation}
+ html body .app-shell .legacy-case-card button:focus-visible{outline:2px solid var(--ws-green)!important;outline-offset:-2px}
+}
