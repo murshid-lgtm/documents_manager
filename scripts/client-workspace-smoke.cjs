@@ -32,6 +32,10 @@ const assert=require('node:assert/strict'),fs=require('node:fs');
   await page.goto(origin,{waitUntil:'domcontentloaded'});try{await page.waitForSelector('.sidebar-menu-flat')}catch(error){throw new Error(`${role} workspace failed: ${errors.join('; ')}; ${await page.$eval('body',e=>e.innerText).catch(()=>'')}`)}
   assert.equal(await page.$eval('.workspace-page h1',e=>e.textContent),'Dashboard');assert.deepEqual(errors,[]);checks+=2;
   if(role==='admin'){
+   const moduleIcons=await page.$$eval('.sidebar-menu-flat .nav-icon>svg',nodes=>nodes.map(e=>({name:e.dataset.icon,shape:e.innerHTML})));
+   assert.equal(new Set(moduleIcons.map(e=>e.name)).size,moduleIcons.length,'Every module needs its own icon');
+   assert.equal(new Set(moduleIcons.map(e=>e.shape)).size,moduleIcons.length,'Module icon artwork must be distinct');checks+=2;
+   for(const [label,icon] of [['Attestations','attestation'],['Accounts','accounts'],['Email centre','mail'],['WhatsApp CRM','whatsapp']]){const actual=await page.evaluate(label=>[...document.querySelectorAll('.sidebar-menu-flat .nav')].find(e=>e.getAttribute('aria-label')===label)?.querySelector('svg')?.dataset.icon,label);if(actual){assert.equal(actual,icon);checks++}}
    assert.equal(await page.$eval('.sidebar-menu-flat .nav',e=>getComputedStyle(e).fontSize),'13.5px');
    assert.equal(await page.$eval('.workspace-toolbar .app-icon',e=>e.getAttribute('stroke-width')),'1.5');checks+=2;
    if(!mobile){

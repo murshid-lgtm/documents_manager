@@ -5,28 +5,42 @@ import {
  ChevronLeft,ChevronRight,ChevronUp,Clock,Copy,CreditCard,Download,Ellipsis,Eye,
  FileText,Globe,GripVertical,History,House,Info,Landmark,Layers,LayoutGrid,Link,
  List,LogOut,Maximize,MessageCircle,Minus,Moon,NotebookPen,Package,Paperclip,
- Pencil,Phone,Plus,Printer,Receipt,RefreshCw,ScanLine,Search,Send,Settings2,
+ Pencil,Phone,Plus,Printer,RefreshCw,ScanLine,Search,Send,Settings2,
  SlidersHorizontal,Star,Sun,Trash2,Truck,Upload,UserRound,UserRoundPlus,UsersRound,
- Wallet,Car,X,Zap,Settings,Mail,Share2
+ Wallet,Car,X,Zap,Settings,Mail,Share2,LayoutDashboard,Workflow,ContactRound,
+ ShoppingBag,BadgeCheck,GitBranch,FileClock,ListTodo,Gauge,Files,Handshake,
+ PackageCheck,BanknoteArrowDown,HandCoins,ChartNoAxesCombined,FileInput,
+ FilePenLine,ShoppingCart,CalendarPlus,Tag,Building2,ReceiptText,ClipboardList,
+ FilePlus2,LayoutTemplate,Route,IdCardLanyard,File,Image,ChartPie,FileDown,
+ Sheet,FileSpreadsheet,FileType,PlugZap,Ban,MapPin
 } from 'lucide-react';
 
 // Named imports keep the production bundle limited to icons used by this app.
 const icons={
- copy:Copy,mail:Mail,minus:Minus,fast:Zap,chat:MessageCircle,home:House,file:FileText,
+ copy:Copy,mail:Mail,minus:Minus,fast:Zap,chat:MessageCircle,home:House,file:File,
  'user-add':UserRoundPlus,user:UserRound,people:UsersRound,settings:Settings,note:NotebookPen,
- send:Send,refresh:RefreshCw,attach:Paperclip,link:Link,receipt:Receipt,briefcase:BriefcaseBusiness,
+ send:Send,refresh:RefreshCw,attach:Paperclip,link:Link,receipt:ReceiptText,briefcase:BriefcaseBusiness,
  wallet:Wallet,bell:Bell,bank:Landmark,car:Car,moon:Moon,sun:Sun,'arrow-right':ArrowRight,
  external:ArrowUpRight,more:Ellipsis,history:History,calendar:CalendarDays,eye:Eye,expand:Maximize,
  grid:LayoutGrid,list:List,phone:Phone,'chevron-down':ChevronDown,'chevron-up':ChevronUp,
  'chevron-left':ChevronLeft,'chevron-right':ChevronRight,trash:Trash2,plus:Plus,close:X,
- search:Search,scan:ScanLine,activity:Activity,package:Package,handover:ArrowLeftRight,
- print:Printer,edit:Pencil,grip:GripVertical,layers:Layers,batch:FileText,truck:Truck,
+ search:Search,scan:ScanLine,activity:Activity,package:Package,handover:Handshake,transfer:ArrowLeftRight,
+ print:Printer,edit:Pencil,grip:GripVertical,layers:Layers,batch:Files,truck:Truck,
  chart:ChartNoAxesColumn,globe:Globe,upload:Upload,logout:LogOut,check:Check,alert:AlertTriangle,
  info:Info,download:Download,archive:Archive,restore:ArchiveRestore,filter:SlidersHorizontal,
- clock:Clock,bookmark:Bookmark,star:Star,share:Share2,card:CreditCard,sliders:Settings2
+ clock:Clock,bookmark:Bookmark,star:Star,share:Share2,card:CreditCard,sliders:Settings2,
+ dashboard:LayoutDashboard,automation:Workflow,crm:ContactRound,sales:ShoppingBag,
+ attestation:BadgeCheck,'service-job':BriefcaseBusiness,'document-stages':GitBranch,
+ 'document-reminders':FileClock,'work-queue':ListTodo,operations:Gauge,custody:Handshake,
+ delivery:PackageCheck,payment:BanknoteArrowDown,collections:HandCoins,accounts:Landmark,
+ report:ChartNoAxesCombined,import:FileInput,invoice:FileText,quote:FilePenLine,
+ 'quick-sale':ShoppingCart,'new-appointment':CalendarPlus,label:Tag,company:Building2,
+ 'job-order':ClipboardList,'add-document':FilePlus2,template:LayoutTemplate,
+ tracking:Route,staff:IdCardLanyard,image:Image,financials:ChartPie,
+ pdf:FileDown,excel:Sheet,csv:FileSpreadsheet,word:FileType,connection:PlugZap,cancel:Ban,map:MapPin
 };
-const aliases={box:'package',document:'file',staff:'people',vehicle:'car',job:'briefcase',
- sale:'receipt',back:'chevron-left',arrow:'arrow-right'};
+const aliases={box:'package',document:'file',vehicle:'car',job:'service-job',handover:'custody',
+ sale:'sales',back:'chevron-left',arrow:'arrow-right'};
 
 export default function AppIcon({name,size=20,className=''}){
  const key=aliases[name]||name;
