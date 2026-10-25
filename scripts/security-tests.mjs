@@ -128,11 +128,17 @@ try{
   await system();
   await db.query("insert into organization_settings(organization_id,company_name,primary_domain) values($1,'Company A','a.invalid'),($2,'Company B','b.invalid') on conflict(organization_id) do update set primary_domain=excluded.primary_domain",[id(1),id(2)]);
   await db.exec(fs.readFileSync(new URL('../supabase/V5_29_LOADER_ANIMATIONS.sql',import.meta.url),'utf8'));
+  await db.exec(fs.readFileSync(new URL('../supabase/V5_30_LOADER_LAYOUT.sql',import.meta.url),'utf8'));
   await login(21);
   for(const style of ['signature','contour','horizon','aperture','outline','silk','echo','duet','rhythm','mosaic','spotlight','still']){assert.equal((await db.query('update organization_settings set loader_animation=$1 where organization_id=$2 returning loader_animation',[style,id(1)])).rows[0].loader_animation,style);checks++}
   await denied("update organization_settings set loader_animation='arbitrary-code' where organization_id=$1",[id(1)]);
+  assert.equal((await db.query("update organization_settings set loader_logo_size=140,loader_name_position='above',loader_name_size=28,loader_name_gap=12,loader_name_alignment='left' where organization_id=$1 returning loader_logo_size",[id(1)])).rows[0].loader_logo_size,140);checks++;
+  await denied('update organization_settings set loader_logo_size=999 where organization_id=$1',[id(1)]);
+  await denied("update organization_settings set loader_name_position='arbitrary-style' where organization_id=$1",[id(1)]);
+  assert.equal((await db.query("update organization_settings set loader_logo_size=80 where organization_id=$1 returning organization_id",[id(2)])).rows.length,0);checks++;
   assert.equal((await db.query("update organization_settings set loader_animation='echo' where organization_id=$1 returning organization_id",[id(2)])).rows.length,0);checks++;
   await login(22);assert.equal((await db.query("update organization_settings set loader_animation='echo' where organization_id=$1 returning organization_id",[id(1)])).rows.length,0);checks++;
+  assert.equal((await db.query("update organization_settings set loader_logo_size=80 where organization_id=$1 returning organization_id",[id(1)])).rows.length,0);checks++;
   await system();await db.exec('set role anon');
   const publicBrand=(await db.query("select public_branding('a.invalid') as brand")).rows[0].brand;assert.equal(publicBrand.loader_animation,'still');assert.equal(publicBrand.organization_id,undefined);assert.equal((await db.query("select public_branding('unknown.invalid') as brand")).rows[0].brand,null);checks+=3;
   await system();await db.query('delete from auth.sessions where id=$1',[id(122)]);

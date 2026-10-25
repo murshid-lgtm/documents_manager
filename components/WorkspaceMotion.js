@@ -1,45 +1,40 @@
 'use client';
 import {useEffect} from 'react';
 
-// Animate the existing DOM so navigation never remounts a form or loses a draft.
+const ease='cubic-bezier(.22,1,.36,1)';
+const reduced=()=>window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+// Animate existing nodes: navigating never remounts a form or discards its draft.
 export default function WorkspaceMotion({view}){
  useEffect(()=>{
-  if(window.matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+  if(reduced())return;
   const page=document.querySelector('.workspace-page');
-  const animation=page?.animate?.([{opacity:.55,transform:'translateX(16px)'},{opacity:1,transform:'translateX(0)'}],{duration:320,easing:'cubic-bezier(.22,1,.36,1)'});
-  const cards=[...document.querySelectorAll('.saas-dashboard .premium-stats>*,.saas-dashboard .premium-panel,.saas-dashboard .dashboard-quick-actions>button,.legacy-case-grid>article')].slice(0,12);
-  const entrances=cards.map((el,i)=>el.animate?.([{opacity:.35,transform:'translateY(10px)'},{opacity:1,transform:'translateY(0)'}],{duration:380,delay:Math.min(i*35,220),easing:'cubic-bezier(.22,1,.36,1)'}));
+  const animation=page?.animate?.([{opacity:.8,transform:'translateX(10px)'},{opacity:1,transform:'translateX(0)'}],{duration:300,easing:ease});
+  const cards=[...document.querySelectorAll('.fern-kpis>button,.fern-dashboard-grid>article,.studio-kpis>button,.studio-home-grid>*,.mobile-home-metrics>button,.mobile-dashboard>.mobile-home-card,.legacy-case-grid>article')].slice(0,12);
+  const entrances=cards.map((el,i)=>el.animate?.([{opacity:.8,transform:'translateY(7px)'},{opacity:1,transform:'translateY(0)'}],{duration:320,delay:Math.min(i*20,120),easing:ease}));
   return()=>{animation?.cancel();entrances.forEach(a=>a?.cancel())};
  },[view]);
  useEffect(()=>{
   let pending=0;const animations=new Set();
+  const track=(el,frames,duration=240)=>{const a=el?.animate?.(frames,{duration,easing:ease});if(a){animations.add(a);a.onfinish=()=>animations.delete(a)}};
   const clicked=e=>{
    const button=e.target.closest?.('button');
-   const quickTabs=button?.closest('.quick-tabs');
-   if(quickTabs&&!button.disabled&&!button.classList.contains('active')&&!window.matchMedia('(prefers-reduced-motion: reduce)').matches){cancelAnimationFrame(pending);pending=requestAnimationFrame(()=>{const panel=quickTabs.closest('.quick-modal')?.querySelector('.quick-finance-panel,.quick-body:not([hidden])');const a=panel?.animate?.([{opacity:.45,transform:'translateX(14px)'},{opacity:1,transform:'translateX(0)'}],{duration:300,easing:'cubic-bezier(.22,1,.36,1)'});if(a){animations.add(a);a.onfinish=()=>animations.delete(a)}});return}
-   const tabs=button?.closest('.business-tabs,.finance-tabs,.settings-tabs,.notification-tabs,.view-toggle,.tabs');
-   if(!tabs||button.disabled||button.classList.contains('active')||window.matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+   const tabs=button?.closest('.quick-tabs,.mobile-case-tabs,.business-tabs,.finance-tabs,.settings-tabs,.notification-tabs,.view-toggle,.tabs');
+   if(!tabs||button.disabled||button.classList.contains('active')||reduced())return;
    cancelAnimationFrame(pending);
    pending=requestAnimationFrame(()=>{
     animations.forEach(a=>a.cancel());animations.clear();
-    [...tabs.parentElement.children].filter(el=>el!==tabs&&!el.matches('header,nav,[class$="-top"],[class$="-hero"],[class$="-summary"],[class$="-toolbar"]')).forEach(el=>{
-     const a=el.animate?.([{opacity:.6,transform:'translateX(12px)'},{opacity:1,transform:'translateX(0)'}],{duration:280,easing:'cubic-bezier(.22,1,.36,1)'});
-     if(a){animations.add(a);a.onfinish=()=>animations.delete(a)}
-    });
+    const quick=tabs.closest('.quick-modal');
+    const panels=quick?[...quick.querySelectorAll('.quick-finance-panel,.quick-body:not([hidden])')]:[...tabs.parentElement.children].filter(el=>el!==tabs&&!el.matches('header,nav,[class$="-top"],[class$="-hero"],[class$="-summary"],[class$="-toolbar"]'));
+    panels.filter(el=>el.getClientRects().length).slice(0,6).forEach(el=>track(el,[{opacity:.8,transform:'translateX(8px)'},{opacity:1,transform:'translateX(0)'}]));
    });
   };
-  document.addEventListener('click',clicked,true);
-  return()=>{document.removeEventListener('click',clicked,true);cancelAnimationFrame(pending);animations.forEach(a=>a.cancel())};
- },[]);
- useEffect(()=>{
-  const active=new Set();
-  const reduced=()=>window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const track=a=>{if(!a)return;active.add(a);a.onfinish=()=>active.delete(a);return a};
-  const press=e=>{if(reduced())return;const b=e.target.closest?.('button:not(:disabled),.workspace-new-menu>summary');if(!b)return;track(b.animate?.([{transform:'scale(1)'},{transform:'scale(.96)'},{transform:'scale(1)'}],{duration:220,easing:'cubic-bezier(.2,.8,.2,1)'}))};
-  const menu=e=>{const node=e.target;if(reduced()||!node.open)return;if(node.matches?.('.quick-document-card,.quick-details-fold,.quick-activity-fold,.linked-job-card,.invoice-preview-fold')){for(const child of [...node.children].filter(x=>x.tagName!=='SUMMARY'))track(child.animate?.([{opacity:.3,transform:'translateY(-4px)'},{opacity:1,transform:'translateY(0)'}],{duration:220,easing:'cubic-bezier(.22,1,.36,1)'}));return}if(!node.matches?.('.workspace-new-menu,.toolbar-settings-menu,.toolbar-profile-menu,.quick-more-actions,.case-recent-menu'))return;const content=node.querySelector('summary+div');track(content?.animate?.([{opacity:0,transform:'translateY(-6px)'},{opacity:1,transform:'translateY(0)'}],{duration:200,easing:'cubic-bezier(.22,1,.36,1)'}))};
-  const observer=new MutationObserver(records=>{if(reduced())return;for(const r of records)for(const node of r.addedNodes){if(node.nodeType!==1)continue;const dialogs=[...(node.matches?.('.quick-modal,.business-dialog,.pdf-preview-modal,.quick-add-modal')?[node]:[]),...node.querySelectorAll('.quick-modal,.business-dialog,.pdf-preview-modal,.quick-add-modal')];for(const dialog of dialogs)track(dialog.animate?.([{opacity:0,transform:'translateY(12px) scale(.99)'},{opacity:1,transform:'translateY(0) scale(1)'}],{duration:280,easing:'cubic-bezier(.22,1,.36,1)'}));}});
-  observer.observe(document.body,{childList:true,subtree:true});document.addEventListener('pointerdown',press);document.addEventListener('toggle',menu,true);
-  return()=>{observer.disconnect();document.removeEventListener('pointerdown',press);document.removeEventListener('toggle',menu,true);active.forEach(a=>a.cancel());};
+  const toggle=e=>{
+   const node=e.target;
+   if(reduced()||!node.open||!node.matches?.('.quick-document-card,.quick-details-fold,.quick-activity-fold,.linked-job-card,.invoice-preview-fold,.mobile-home-activity'))return;
+   [...node.children].filter(child=>child.tagName!=='SUMMARY').forEach(child=>track(child,[{opacity:.7,transform:'translateY(-4px)'},{opacity:1,transform:'translateY(0)'}],200));
+  };
+  document.addEventListener('click',clicked,true);document.addEventListener('toggle',toggle,true);
+  return()=>{document.removeEventListener('click',clicked,true);document.removeEventListener('toggle',toggle,true);cancelAnimationFrame(pending);animations.forEach(a=>a.cancel())};
  },[]);
  return null;
 }

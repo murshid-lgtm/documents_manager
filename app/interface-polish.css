@@ -1,0 +1,80 @@
+/* Interface typography and motion. Document canvases and printed PDFs keep their own styles. */
+:root{--ui-body:15px;--ui-label:14px;--ui-meta:13px;--ui-ease:cubic-bezier(.22,1,.36,1);--ui-fast:180ms;--ui-enter:320ms}
+/* Per-company splash composition; marks keep their original aspect ratio. */
+.workspace-loader.loader-fx .workspace-loader-identity{gap:var(--loader-name-gap,8px)!important}
+.workspace-loader.loader-fx .workspace-loader-mark{transform:scale(var(--loader-logo-scale,1));max-width:calc(100% / var(--loader-logo-scale,1))}
+.workspace-loader.loader-fx .workspace-loader-mark img{max-height:100%;object-fit:contain}
+.workspace-loader.loader-fx .workspace-loader-identity>strong{font-size:var(--loader-name-size,24px)!important;text-align:var(--loader-name-align,center)!important;width:100%;line-height:1.35}
+.loader-name-above .workspace-loader-identity>strong{order:-1}
+.loader-name-hidden .workspace-loader-identity>strong{display:none!important}
+.workspace-loader.loader-name-right .workspace-loader-identity{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);width:min(520px,100%);align-items:center}
+.workspace-loader.loader-name-right .workspace-loader-emblem{width:100%;min-width:0}
+.loader-layout-controls{display:grid;gap:15px;padding:18px;border:0;border-top:1px solid var(--ws-line);margin:0;min-width:0}
+.loader-layout-controls legend{padding:0;font-size:15px;font-weight:600;color:var(--ws-ink)}
+.loader-layout-controls label{display:grid;gap:8px;min-width:0;color:var(--ws-muted);font-size:13px}
+.loader-layout-controls label>span{display:flex;justify-content:space-between;gap:12px;align-items:center}
+.loader-layout-controls output{color:var(--ws-ink);font-variant-numeric:tabular-nums}
+html body .app-shell .loader-layout-controls input[type=range]{width:100%!important;height:24px!important;min-height:24px!important;padding:0!important;border:0!important;accent-color:var(--ws-green);background:transparent!important;cursor:pointer}
+.loader-layout-controls select{width:100%;background:var(--ws-card);color:var(--ws-ink);padding:10px;border:1px solid var(--ws-line);border-radius:10px}
+html body .app-shell{font-size:var(--ui-body)!important;line-height:1.5}
+html body .app-shell small{font-size:var(--ui-meta)!important;line-height:1.5!important}
+html body .app-shell :is(button,summary,input,select,textarea){font-family:inherit;letter-spacing:normal}
+html body .app-shell :is(.primary,.secondary,.small-primary,.small-secondary,.business-tabs>button,.finance-tabs>button,.settings-tabs>button,.quick-tabs>button,.notification-tabs>button){font-size:var(--ui-label)!important;line-height:1.4!important}
+html body .app-shell :is(label,.field-label,.form-grid label,.business-form label){font-size:var(--ui-label)!important;line-height:1.5!important}
+html body .app-shell :is(.muted,.small-text,.help-text,.field-hint,.business-picker-results small,.notification-copy time,.notification-copy small,.notification-copy span){font-size:var(--ui-meta)!important;line-height:1.5!important}
+html body .app-shell :is(.business-table,.compact-record-table,.cases-table) :is(td,th){font-size:var(--ui-label)!important;line-height:1.5!important}
+html body .app-shell :is(.business-table,.compact-record-table,.cases-table) td small{font-size:var(--ui-meta)!important}
+html body .app-shell :is(.status-pill,.state-chip,.count-chip,.access-chip,.ticket-payment-state){font-size:12px!important;line-height:1.4!important;letter-spacing:.01em!important}
+html[data-workspace-theme] body .app-shell .sidebar .sidebar-menu-flat .nav{font-size:15px!important;line-height:1.4!important}
+@media(min-width:901px){
+ html body .app-shell:not(.sidebar-collapsed) .sidebar-menu-flat .nav{height:auto!important;min-height:44px!important;padding:10px!important;box-sizing:border-box}
+ html body .app-shell:not(.sidebar-collapsed) .sidebar-menu-flat .nav>span{display:block!important;min-width:0;flex:1;white-space:normal!important;overflow-wrap:anywhere;line-height:1.4;text-align:left}
+ html body .app-shell:not(.sidebar-collapsed) .sidebar-menu-flat .count-badge{display:inline-block;margin-left:7px!important;vertical-align:middle}
+}
+html body .app-shell :is(.workspace-page-heading h1,.studio-greeting h1){font-size:32px!important;line-height:1.2!important;letter-spacing:-.035em!important}
+html body .app-shell :is(.workspace-page-heading p,.fern-context,.fern-panel p,.fern-kpi>span,.fern-kpi>small,.fern-revenue-rows>button,.fern-next-list small,.fern-recent-row small,.fern-quick-actions small,.fern-progress-legend){font-size:14px!important;line-height:1.5!important}
+html body .app-shell :is(.fern-panel h2,.studio-home-card h2){font-size:19px!important;line-height:1.35!important;letter-spacing:-.02em!important}
+html body .app-shell :is(.fern-link,.fern-soft-tag,.fern-bars small,.fern-bar-value,.studio-kpis small,.studio-customer-row small){font-size:13px!important}
+html body .app-shell :is(.business-picker-results>button>strong,.service-picker .business-picker-results>button>strong,.legacy-name-band>strong,.quick-document-name strong,.notification-copy strong){font-size:14px!important;line-height:1.5!important}
+html body .app-shell :is(.legacy-name-mobile,.legacy-card-summary strong,.quick-document-name small,.quick-body dt,.quick-body dd,.timeline-item span,.timeline-item small){font-size:13px!important;line-height:1.5!important}
+html body .app-shell :is(input:not([type=checkbox]):not([type=radio]):not([type=hidden]),select,textarea){font-size:15px!important;line-height:1.5!important}
+html body .app-shell .app-icon{flex-shrink:0;vertical-align:middle;stroke-width:1.5}
+/* Focus is as deliberate as hover, and remains visible in either theme. */
+html body .app-shell :is(button,summary,a,input,select,textarea):focus-visible{outline:2px solid var(--ws-green,#22704e);outline-offset:3px}
+@media(prefers-reduced-motion:no-preference){
+ .app-shell :is(button,summary,a,input,select,textarea){transition:background-color var(--ui-fast) ease,border-color var(--ui-fast) ease,color var(--ui-fast) ease,box-shadow var(--ui-fast) ease,transform 240ms var(--ui-ease)}
+ .app-shell .app-icon{transition:transform 300ms var(--ui-ease),color var(--ui-fast) ease}
+ .app-shell .fern-kpi:not(:disabled):focus-visible [data-icon=arrow-right]{transform:rotate(-45deg)}
+ .app-shell :is(.fern-kpi,.studio-kpis>button,.mobile-home-metrics>button,.fern-panel,.studio-home-card,.business-card,.legacy-case-card){transition:box-shadow 280ms ease,border-color 200ms ease,transform 300ms var(--ui-ease)}
+ .app-shell :is(.sidebar-menu-popover,.mobile-app-sheet,.mobile-app-layer){animation:ui-menu-arrive 220ms var(--ui-ease) both}
+ @media(min-width:701px){.dialog-portal-scope :is(.modal,.business-dialog,.pdf-preview-modal,.quick-add-modal){animation:ui-menu-arrive 240ms var(--ui-ease) both}}
+ .app-shell :is(.mobile-home-activity,.quick-document-card,.quick-details-fold,.quick-activity-fold)>summary .app-icon[data-icon=chevron-down]{transition:transform 250ms var(--ui-ease)}
+ .app-shell :is(.quick-document-card,.quick-details-fold,.quick-activity-fold)[open]>summary .app-icon[data-icon=chevron-down]{transform:rotate(180deg)}
+ @media(hover:hover) and (pointer:fine){
+  .app-shell :is(.fern-kpi,.studio-kpis>button,.mobile-home-metrics>button):not(:disabled):hover{transform:translateY(-3px);box-shadow:0 12px 26px -18px #0b382f70!important}
+  .app-shell .fern-kpi:not(:disabled):is(:hover,:focus-visible) [data-icon=arrow-right]{transform:rotate(-45deg)}
+  .app-shell :is(.fern-quick-actions>button,.fern-next-list>button,.fern-link,.mobile-home-link):is(:hover,:focus-visible)>[data-icon=arrow-right]{transform:translateX(4px)}
+  .app-shell .sidebar-menu-flat .nav:not(:disabled):hover .nav-icon>.app-icon{transform:translateX(2px)}
+  .app-shell :is(.primary,.secondary):not(:disabled):hover{transform:translateY(-1px)}
+  .app-shell :is(.toolbar-settings-menu>summary,.appearance-toggle):hover [data-icon=settings]{transform:rotate(35deg)}
+ }
+ .app-shell :is(button,summary):not(:disabled):active{transform:scale(.985)}
+}
+@keyframes ui-menu-arrive{from{opacity:0;translate:0 -5px}to{opacity:1;translate:0 0}}
+@media(max-width:700px){
+ .mobile-app-nav small{font-size:12px!important;line-height:1.35!important}
+ html body .app-shell :is(input:not([type=checkbox]):not([type=radio]):not([type=hidden]),select,textarea){font-size:16px!important}
+ html body .app-shell :is(.mobile-home-card h2,.mobile-home-activity summary strong,.mobile-home-records strong){font-size:15px!important;line-height:1.4!important}
+ html body .app-shell :is(.mobile-home-records small,.mobile-home-finance>button>span,.mobile-home-shortcuts button,.mobile-home-context,.mobile-home-card>header>b,.mobile-home-activity summary>span,.mobile-case-progress>div,.mobile-case-progress small){font-size:12px!important;line-height:1.45!important}
+ html body .app-shell :is(.mobile-case-tabs>button,.mobile-case-shortcuts>button,.mobile-home-link,.mobile-menu-group button>span){font-size:14px!important}
+ html body .app-shell .legacy-card-top>.status-pill{font-size:12px!important;min-height:34px!important}
+ html body .app-shell .mobile-case-identity>select{font-size:14px!important;min-height:46px!important}
+ html body .app-shell .mobile-case-identity>div:first-child>span{font-size:11px!important}
+ html body .app-shell .mobile-attestation-progress{font-size:12px!important}
+ html body .app-shell .mobile-case-phone{font-size:20px!important}
+ html body .app-shell .mobile-case-nav>span{font-size:14px!important}
+}
+@media(prefers-reduced-motion:reduce){
+ html body .app-shell :is(button,summary,a,.app-icon,.sidebar-menu-popover,.mobile-app-layer,.mobile-app-sheet){animation:none!important;transition:none!important}
+ html body .app-shell :is(.fern-kpi,.studio-kpis>button,.mobile-home-metrics>button,.fern-panel,.legacy-case-card,.primary,.secondary):hover{transform:none!important}
+}

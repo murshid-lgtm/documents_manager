@@ -25,6 +25,7 @@ import './workspace-startup.css';
 import './loader-studio.css';
 import './mobile-home.css';
 import './mobile-attestations.css';
+import './interface-polish.css';
 import {AppearanceProvider} from '../components/ThemeStudio';
 import ActionFeedback from '../components/ActionFeedback';
 import PdfPreviewModal from '../components/PdfPreviewModal';

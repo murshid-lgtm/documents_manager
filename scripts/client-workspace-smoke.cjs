@@ -31,6 +31,20 @@ const assert=require('node:assert/strict'),fs=require('node:fs');
   });
   await page.goto(origin,{waitUntil:'domcontentloaded'});try{await page.waitForSelector('.sidebar-menu-flat')}catch(error){throw new Error(`${role} workspace failed: ${errors.join('; ')}; ${await page.$eval('body',e=>e.innerText).catch(()=>'')}`)}
   assert.equal(await page.$eval('.workspace-page h1',e=>e.textContent),'Dashboard');assert.deepEqual(errors,[]);checks+=2;
+  if(role==='admin'){
+   assert.equal(await page.$eval('.sidebar-menu-flat .nav',e=>getComputedStyle(e).fontSize),'15px');
+   assert.equal(await page.$eval('.workspace-toolbar .app-icon',e=>e.getAttribute('stroke-width')),'1.5');checks+=2;
+   if(!mobile){
+    if(await page.evaluate(()=>matchMedia('(hover:hover) and (pointer:fine)').matches))await page.hover('.fern-kpi');else await page.focus('.fern-kpi');
+    await page.waitForFunction(()=>getComputedStyle(document.querySelector('.fern-kpi [data-icon="arrow-right"]')).transform!=='none');checks++;
+    await page.emulateMediaFeatures([{name:'prefers-reduced-motion',value:'reduce'}]);
+    assert.equal(await page.$eval('.fern-kpi [data-icon="arrow-right"]',e=>getComputedStyle(e).transitionDuration),'0s');checks++;
+    await page.emulateMediaFeatures([{name:'prefers-reduced-motion',value:'no-preference'}]);
+    await page.click('.sidebar-toggle');assert(await page.$('.app-shell.sidebar-collapsed'));checks++;
+    assert(await page.$eval('.sidebar-menu-flat .nav',e=>e.scrollWidth<=e.clientWidth+1),'Collapsed sidebar must fit');checks++;
+    await page.click('.sidebar-toggle');
+   }
+  }
   for(const label of ['Attestations','Deliveries','Dashboard']){if(mobile){await page.tap('.mobile-app-nav button[aria-label="More"]');await page.waitForSelector('.mobile-menu-group');const target=await page.evaluateHandle(label=>[...document.querySelectorAll('.mobile-menu-group button')].find(b=>b.textContent.trim()===(label==='Dashboard'?'Home':label)),label);await target.asElement().tap();await target.dispose();await page.waitForFunction(()=>!document.querySelector('.mobile-app-layer'))}else await page.evaluate(label=>[...document.querySelectorAll('.sidebar-menu-flat button')].find(b=>b.getAttribute('aria-label')===label)?.click(),label);await page.waitForFunction(label=>document.querySelector('.workspace-page h1')?.textContent===label,{},label);assert.deepEqual(errors,[]);checks++}
   if(mobile){await page.waitForSelector('.mobile-dashboard');assert(await page.$eval('.mobile-home-metrics .featured',e=>{const style=getComputedStyle(e),l=value=>{const c=value.match(/[0-9.]+/g).slice(0,3).map(Number).map(n=>n/255).map(n=>n<=.04045?n/12.92:((n+.055)/1.055)**2.4);return c[0]*.2126+c[1]*.7152+c[2]*.0722},a=l(style.color),b=l(style.backgroundColor);return (Math.max(a,b)+.05)/(Math.min(a,b)+.05)>=4.5}),'Featured KPI text contrast');checks++;assert(await page.$eval('.mobile-home-shortcuts',e=>e.getBoundingClientRect().bottom<innerHeight));assert.equal(await page.$eval('.mobile-home-activity',e=>e.open),false);checks+=2;for(const width of [320,390,430]){await page.setViewport({width,height:844,isMobile:true,hasTouch:true});assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));checks++}await page.setViewport({width:390,height:844,isMobile:true,hasTouch:true});await page.tap('.mobile-home-activity summary');await page.waitForFunction(()=>document.querySelector('.mobile-home-activity').open);await page.tap('.mobile-home-activity summary');checks++;await page.evaluate(()=>window.scrollTo(0,0));}
   if(mobile&&role==='admin'){

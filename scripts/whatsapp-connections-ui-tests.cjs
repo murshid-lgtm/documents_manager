@@ -1,5 +1,6 @@
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
 (async()=>{const root=path.resolve(__dirname,'..'),swc=require('next/dist/build/swc');await swc.loadBindings();const modules={};
+ modules['lucide-react']=fs.readFileSync(require.resolve('lucide-react'),'utf8');
  for(const [name,file] of Object.entries({'react':'react/cjs/react.production.js','react/jsx-runtime':'react/cjs/react-jsx-runtime.production.js','react-dom':'react-dom/cjs/react-dom.production.js','react-dom/client':'react-dom/cjs/react-dom-client.production.js','scheduler':'scheduler/cjs/scheduler.production.js'}))modules[name]=fs.readFileSync(root+'/node_modules/'+file,'utf8');
  const compile=(id,source)=>modules[id]=swc.transformSync(source,{filename:id,jsc:{parser:{syntax:'ecmascript',jsx:true},transform:{react:{runtime:'automatic'}}},module:{type:'commonjs'}}).code;
  for(const file of ['components/WhatsAppConnectionCenter.js','components/DialogPortal.js','components/AppIcon.js'])compile(file,fs.readFileSync(root+'/'+file,'utf8'));
