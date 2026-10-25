@@ -32,14 +32,18 @@ const assert=require('node:assert/strict'),fs=require('node:fs');
   await page.goto(origin,{waitUntil:'domcontentloaded'});try{await page.waitForSelector('.sidebar-menu-flat')}catch(error){throw new Error(`${role} workspace failed: ${errors.join('; ')}; ${await page.$eval('body',e=>e.innerText).catch(()=>'')}`)}
   assert.equal(await page.$eval('.workspace-page h1',e=>e.textContent),'Dashboard');assert.deepEqual(errors,[]);checks+=2;
   if(role==='admin'){
-   assert.equal(await page.$eval('.sidebar-menu-flat .nav',e=>getComputedStyle(e).fontSize),'15px');
+   assert.equal(await page.$eval('.sidebar-menu-flat .nav',e=>getComputedStyle(e).fontSize),'13.5px');
    assert.equal(await page.$eval('.workspace-toolbar .app-icon',e=>e.getAttribute('stroke-width')),'1.5');checks+=2;
    if(!mobile){
-    if(await page.evaluate(()=>matchMedia('(hover:hover) and (pointer:fine)').matches))await page.hover('.fern-kpi');else await page.focus('.fern-kpi');
-    await page.waitForFunction(()=>getComputedStyle(document.querySelector('.fern-kpi [data-icon="arrow-right"]')).transform!=='none');checks++;
-    await page.emulateMediaFeatures([{name:'prefers-reduced-motion',value:'reduce'}]);
-    assert.equal(await page.$eval('.fern-kpi [data-icon="arrow-right"]',e=>getComputedStyle(e).transitionDuration),'0s');checks++;
-    await page.emulateMediaFeatures([{name:'prefers-reduced-motion',value:'no-preference'}]);
+    assert(await page.$$eval('.sidebar-menu-flat .nav',buttons=>buttons.every(e=>e.getBoundingClientRect().height<=40)),'Sidebar rows must stay compact');checks++;
+    assert.equal(await page.$eval('.sidebar-menu-flat .nav-icon>.app-icon',e=>getComputedStyle(e).width),'16px');checks++;
+    if(await page.$('.fern-kpi')){
+     if(await page.evaluate(()=>matchMedia('(hover:hover) and (pointer:fine)').matches))await page.hover('.fern-kpi');else await page.focus('.fern-kpi');
+     await page.waitForFunction(()=>getComputedStyle(document.querySelector('.fern-kpi [data-icon="arrow-right"]')).transform!=='none');checks++;
+     await page.emulateMediaFeatures([{name:'prefers-reduced-motion',value:'reduce'}]);
+     assert.equal(await page.$eval('.fern-kpi [data-icon="arrow-right"]',e=>getComputedStyle(e).transitionDuration),'0s');checks++;
+     await page.emulateMediaFeatures([{name:'prefers-reduced-motion',value:'no-preference'}]);
+    }
     await page.click('.sidebar-toggle');assert(await page.$('.app-shell.sidebar-collapsed'));checks++;
     assert(await page.$eval('.sidebar-menu-flat .nav',e=>e.scrollWidth<=e.clientWidth+1),'Collapsed sidebar must fit');checks++;
     await page.click('.sidebar-toggle');

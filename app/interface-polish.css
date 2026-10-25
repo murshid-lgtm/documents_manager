@@ -25,10 +25,13 @@ html body .app-shell :is(.muted,.small-text,.help-text,.field-hint,.business-pic
 html body .app-shell :is(.business-table,.compact-record-table,.cases-table) :is(td,th){font-size:var(--ui-label)!important;line-height:1.5!important}
 html body .app-shell :is(.business-table,.compact-record-table,.cases-table) td small{font-size:var(--ui-meta)!important}
 html body .app-shell :is(.status-pill,.state-chip,.count-chip,.access-chip,.ticket-payment-state){font-size:12px!important;line-height:1.4!important;letter-spacing:.01em!important}
-html[data-workspace-theme] body .app-shell .sidebar .sidebar-menu-flat .nav{font-size:15px!important;line-height:1.4!important}
+html[data-workspace-theme] body .app-shell .sidebar .sidebar-menu-flat{gap:0!important;padding:0!important;margin:0!important}
+html[data-workspace-theme] body .app-shell .sidebar .sidebar-menu-flat .nav{font-size:13.5px!important;line-height:1.3!important;min-height:36px!important;height:auto!important;padding:7px 10px!important;margin:0!important;gap:9px!important}
+html[data-workspace-theme] body .app-shell .sidebar .sidebar-menu-flat .nav-icon{width:18px!important;height:18px!important;flex:0 0 18px}
+html[data-workspace-theme] body .app-shell .sidebar .sidebar-menu-flat .nav-icon>.app-icon{width:16px!important;height:16px!important}
 @media(min-width:901px){
- html body .app-shell:not(.sidebar-collapsed) .sidebar-menu-flat .nav{height:auto!important;min-height:44px!important;padding:10px!important;box-sizing:border-box}
- html body .app-shell:not(.sidebar-collapsed) .sidebar-menu-flat .nav>span{display:block!important;min-width:0;flex:1;white-space:normal!important;overflow-wrap:anywhere;line-height:1.4;text-align:left}
+ html body .app-shell:not(.sidebar-collapsed) .sidebar-menu-flat .nav{box-sizing:border-box}
+ html body .app-shell:not(.sidebar-collapsed) .sidebar-menu-flat .nav>span{display:block!important;min-width:0;flex:1;white-space:normal!important;overflow-wrap:anywhere;line-height:1.3;text-align:left}
  html body .app-shell:not(.sidebar-collapsed) .sidebar-menu-flat .count-badge{display:inline-block;margin-left:7px!important;vertical-align:middle}
 }
 html body .app-shell :is(.workspace-page-heading h1,.studio-greeting h1){font-size:32px!important;line-height:1.2!important;letter-spacing:-.035em!important}
