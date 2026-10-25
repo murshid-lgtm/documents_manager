@@ -12,6 +12,7 @@
     "test:business": "node scripts/business-tests.mjs && node scripts/communications-tests.mjs",
     "test:checkout": "node scripts/checkout-tests.mjs && node scripts/billing-tests.mjs",
     "test:accounting": "node scripts/accounting-tests.mjs && node scripts/financial-management-tests.mjs && node scripts/print-tests.mjs && node scripts/sales-ui-tests.cjs && node scripts/legacy-attestation-finance-tests.mjs && node scripts/attestation-finance-ui-tests.cjs",
+    "test:delivery": "node scripts/atomic-delivery-tests.mjs && node scripts/mobile-delivery-navigation-tests.cjs",
     "test:operations": "node scripts/automation-alert-tests.mjs && node scripts/automation-alert-ui-tests.cjs && node scripts/workspace-operations-tests.mjs && node scripts/workspace-dates-tests.mjs",
     "test:mobile": "node scripts/workspace-startup-ui-tests.cjs && node scripts/mobile-delivery-navigation-tests.cjs && node scripts/mobile-navigation-tests.cjs && node scripts/mobile-dialog-tests.cjs",
     "test:workspace-smoke": "NEXT_PUBLIC_SUPABASE_URL=https://workspace-smoke.supabase.co NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=smoke-public-key npm run build && node scripts/client-workspace-smoke.cjs",
