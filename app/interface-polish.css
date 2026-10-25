@@ -84,4 +84,8 @@ html body .app-shell :is(button,summary,a,input,select,textarea):focus-visible{o
 /* Native fieldset locking preserves the delivery layout while a save is in flight. */
 .delivery-form-fields{border:0;padding:0;margin:0;min-width:0;width:100%;grid-column:1/-1}
 .delivery-form-fields:disabled{opacity:.75}
+.payment-form-fields{border:0;padding:0;margin:0;min-width:0;grid-column:1/-1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.payment-form-fields:disabled{opacity:.75}
+.payment-retry-note{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;margin:12px 0;border-radius:12px;background:var(--surface-muted,#eef4ef);color:var(--text-primary,#183d2c);font-size:14px}
+@media(max-width:600px){.payment-form-fields{grid-template-columns:minmax(0,1fr)}.payment-retry-note{align-items:flex-start;flex-direction:column}}
 .delivery-retry-note{grid-column:1/-1;margin:0;padding:12px 14px;border-radius:12px;background:var(--surface-muted,#eef4ef);color:var(--text-primary,#183d2c);font-size:14px}

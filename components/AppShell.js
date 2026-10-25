@@ -952,7 +952,7 @@ ${company}`;
         setModuleExport={publishModuleExport}
       />}
       {view==='courier'&&<CourierShipmentsView session={session} cases={cases} notify={setMessage} reload={loadCases} setModuleExport={publishModuleExport} onOpenCase={async c=>{const row=await fetchCaseByTracking(c.tracking_reference);if(row)setQuickCase(row)}}/>}
-      {view==='payments'&&<PaymentsView onActionClose={returnToQuickCase} companyName={brandSettings?.company_name||currentOrganization?.name||'Your Organization'} session={session} cases={cases} notify={setMessage} seedCase={paymentSeedCase} clearSeed={()=>setPaymentSeedCase(null)} setModuleExport={publishModuleExport} onOpenCase={async c=>{const row=await fetchCaseByTracking(c.tracking_reference);if(row)setQuickCase(row)}}/>}
+      {view==='payments'&&<PaymentsView canManagePayments={isAdmin} reload={loadCases} onActionClose={returnToQuickCase} companyName={brandSettings?.company_name||currentOrganization?.name||'Your Organization'} session={session} cases={cases} notify={setMessage} seedCase={paymentSeedCase} clearSeed={()=>setPaymentSeedCase(null)} setModuleExport={publishModuleExport} onOpenCase={async c=>{const row=await fetchCaseByTracking(c.tracking_reference);if(row)setQuickCase(row)}}/>}
       {view==='custody'&&<CustodyView onActionClose={returnToQuickCase} session={session} profile={profile} branches={branches} cases={cases} notify={setMessage} seedCase={custodySeedCase} clearSeed={()=>setCustodySeedCase(null)} onOpen={openCase} onRefresh={loadCases} setModuleExport={publishModuleExport} onOpenCase={async c=>{const row=await fetchCaseByTracking(c.tracking_reference);if(row)setQuickCase(row)}}/>}
       {view==='deliveries'&&<DeliveriesView onActionClose={returnToQuickCase} session={session} cases={cases} notify={setMessage} reload={loadCases} seedCase={deliverySeedCase} clearSeed={()=>setDeliverySeedCase(null)} onQrAction={openScannedAction} setModuleExport={publishModuleExport} onOpenCase={async c=>{const row=await fetchCaseByTracking(c.tracking_reference);if(row)setQuickCase(row)}}/>}
       {view==='reports'&&<ReportsView cases={cases} notify={setMessage} setModuleExport={publishModuleExport} onOpenCase={async c=>{const row=await fetchCaseByTracking(c.tracking_reference);if(row)setQuickCase(row)}}/>}
@@ -2807,7 +2807,9 @@ function OperationsView({companyName='Your Organization',session,profile,cases,n
     </Modal>}
   </section>
 }
-function PaymentsView({companyName='Your Organization',session,cases,notify,seedCase,clearSeed,setModuleExport,onActionClose}){
+// Keep an interrupted command through SPA module changes without persisting customer data.
+const pendingCasePaymentCommands=new Map();
+function PaymentsView({companyName='Your Organization',session,cases,notify,seedCase,clearSeed,setModuleExport,onActionClose,reload=()=>{},canManagePayments=false}){
   const emptyForm={id:'',case_id:'',amount:'',payment_method:'Cash',payment_reference:'',notes:''};
   const [rows,setRows]=useState([]);
   const [q,setQ]=useState('');
@@ -2815,7 +2817,8 @@ function PaymentsView({companyName='Your Organization',session,cases,notify,seed
   const [open,setOpen]=useState(false);
   const [form,setForm]=useState(emptyForm);
   const [loading,setLoading]=useState(true);
-  const [saving,setSaving]=useState(false);
+  const [saving,setSaving]=useState(false),[retryPayment,setRetryPayment]=useState(()=>pendingCasePaymentCommands.has(session.user.id));
+  const paymentLock=useRef(false),paymentAttempt=useRef(pendingCasePaymentCommands.get(session.user.id)||null);
   const [tab,setTab]=useState('transactions');
   const [method,setMethod]=useState('');
   const [dateFilter,setDateFilter]=useState('all');
@@ -2826,6 +2829,7 @@ function PaymentsView({companyName='Your Organization',session,cases,notify,seed
 
   useEffect(()=>{
     if(seedCase){
+      if(paymentAttempt.current){clearSeed?.();notify('Check the interrupted payment confirmation before starting another.');return}
       setForm({...emptyForm,case_id:seedCase.id,amount:String(Math.max(0,Number(seedCase.balance_payment||0))||'')});
       setOpen(true);clearSeed?.();
     }
@@ -2893,66 +2897,56 @@ function PaymentsView({companyName='Your Organization',session,cases,notify,seed
   function paymentSummary(c){return c?moneyParts(c):{total:0,paid:0,balance:0}}
 
   function openNew(c=null){
+    if(paymentLock.current||paymentAttempt.current)return;
     setForm({...emptyForm,case_id:c?.id||'',amount:c?String(Math.max(0,Number(c.balance_payment||0))||''):''});
     setOpen(true);
   }
   function openEdit(r){
+    if(paymentLock.current||paymentAttempt.current)return;
+    if(caseMap.get(r.case_id)?.invoice_id)return notify('Use Sales > Payments to void this receipt and record a correction.');
     setForm({id:r.id,case_id:r.case_id,amount:String(r.amount||''),payment_method:r.payment_method||'Cash',payment_reference:r.payment_reference||'',notes:r.notes||''});
     setOpen(true);
   }
 
-  async function updateCaseFinance(caseId,delta){
-    const c=caseMap.get(caseId);
-    if(!c||c.invoice_id)return;
-    const second=Math.max(0,Number(c.second_payment||0)+delta);
-    const balance=Math.max(0,Number(c.total_amount||0)-Number(c.advance_paid||0)-second+Number(c.discount_return||0));
-    const {error}=await supabase.from('cases').update({second_payment:second,balance_payment:balance,updated_by:session.user.id}).eq('id',caseId);
-    if(error)throw error;
+  function paymentVersion(r){return {amount:Number(r.amount),payment_method:r.payment_method||'',payment_reference:r.payment_reference||'',notes:r.notes||''}}
+  async function runPaymentCommand(command){
+    if(paymentLock.current)return;
+    paymentLock.current=true;setSaving(true);
+    paymentAttempt.current ||= command;
+    pendingCasePaymentCommands.set(session.user.id,paymentAttempt.current);
+    const attempt=paymentAttempt.current;
+    try{
+      const operation=attempt.input.operation;
+      const {data,error}=await supabase.rpc('save_case_payment',attempt);
+      if(error)throw error;
+      if(!data?.payment?.id)throw new Error('Payment confirmation was not received.');
+      paymentAttempt.current=null;if(pendingCasePaymentCommands.get(session.user.id)?.request_key===attempt.request_key)pendingCasePaymentCommands.delete(session.user.id);setRetryPayment(false);setOpen(false);setForm(emptyForm);
+      if(operation==='create')setReceipt({...data.payment,case:{...caseMap.get(data.payment.case_id),...data.case}});
+      notify(operation==='delete'?'Payment deleted and balance updated.':operation==='update'?'Payment updated.':'Payment recorded.');
+      Promise.resolve().then(()=>load()).then(()=>reload()).catch(()=>notify('Payment saved. Refresh to see the latest balance.'));
+    }catch(error){
+      const rejected=/^[0-9A-Z]{5}$/.test(error?.code||'')||/^PGRST/.test(error?.code||'');
+      if(rejected){paymentAttempt.current=null;if(pendingCasePaymentCommands.get(session.user.id)?.request_key===attempt.request_key)pendingCasePaymentCommands.delete(session.user.id)}
+      setRetryPayment(!rejected);
+      notify(rejected?userError(error):'Confirmation could not be received. Retry to check the same payment safely.');
+    }finally{paymentLock.current=false;setSaving(false)}
   }
-
-  async function writeHistory(caseId,action,value){
-    await supabase.from('case_history').insert({case_id:caseId,user_id:session.user.id,action,field_name:'payment',new_value:value,metadata:{source:'payments'}});
-  }
-
   async function save(e){
     e.preventDefault();
+    if(paymentAttempt.current)return runPaymentCommand(paymentAttempt.current);
     const amount=Number(form.amount||0);
     if(!form.case_id)return notify('Select a case.');
-    if(!(amount>0))return notify('Enter a payment amount greater than zero.');
-    setSaving(true);
-
-    if(form.id&&caseMap.get(form.case_id)?.invoice_id){setSaving(false);return notify('Use Sales > Payments to void this receipt and record a correction.')}
-    if(form.id){
-      const old=rows.find(r=>r.id===form.id);
-      const {error}=await supabase.from('payments').update({amount,payment_method:form.payment_method,payment_reference:form.payment_reference||null,notes:form.notes||null}).eq('id',form.id);
-      if(error){setSaving(false);return notify(userError(error))}
-      if(old){
-        try{await updateCaseFinance(form.case_id,amount-Number(old.amount||0))}catch(err){setSaving(false);return notify(userError(err))}
-      }
-      await writeHistory(form.case_id,'Payment edited',`${form.payment_method} · ${fmtMoney(amount)}`);
-      notify('Payment updated.');
-    }else{
-      const {data,error}=await supabase.from('payments').insert({case_id:form.case_id,amount,payment_method:form.payment_method,payment_reference:form.payment_reference||null,notes:form.notes||null,received_by:session.user.id}).select('*').single();
-      if(error){setSaving(false);return notify(userError(error))}
-      try{await updateCaseFinance(form.case_id,amount)}catch(err){setSaving(false);return notify(userError(err))}
-      await writeHistory(form.case_id,'Payment recorded',`${form.payment_method} · ${fmtMoney(amount)}`);
-      setReceipt({...data,case:caseMap.get(form.case_id)});
-      notify('Payment recorded.');
-    }
-    setOpen(false);setForm(emptyForm);setSaving(false);await load();
+    if(!Number.isFinite(amount)||!(amount>0))return notify('Enter a payment amount greater than zero.');
+    const old=form.id?rows.find(r=>r.id===form.id):null;
+    if(form.id&&!old)return notify('This payment is no longer available. Refresh the list.');
+    return runPaymentCommand({target_case:form.case_id,request_key:crypto.randomUUID(),input:{operation:form.id?'update':'create',payment_id:form.id||null,amount,payment_method:form.payment_method,payment_reference:form.payment_reference||null,notes:form.notes||null,...(old?{expected:paymentVersion(old)}:{})}});
   }
-
   async function deletePayment(r){
+    if(paymentLock.current||paymentAttempt.current)return;
     const c=caseMap.get(r.case_id);
     if(c?.invoice_id)return notify('Use the administrator void action in Sales > Payments for this invoice receipt.');
     if(!confirm(`Delete payment ${fmtMoney(r.amount)}${c?` for #${c.tracking_reference}`:''}?`))return;
-    setSaving(true);
-    const {error}=await supabase.from('payments').delete().eq('id',r.id);
-    if(error){setSaving(false);return notify(userError(error))}
-    try{await updateCaseFinance(r.case_id,-Number(r.amount||0))}catch(err){setSaving(false);return notify(userError(err))}
-    await writeHistory(r.case_id,'Payment deleted',`${r.payment_method||'Payment'} · ${fmtMoney(r.amount)}`);
-    notify('Payment deleted and case balance recalculated.');
-    setSaving(false);await load();
+    return runPaymentCommand({target_case:r.case_id,request_key:crypto.randomUUID(),input:{operation:'delete',payment_id:r.id,expected:paymentVersion(r)}});
   }
 
   function printReceipt(r){const c=r.case||caseMap.get(r.case_id);return printConfiguredDocument({orgId:c?.organization_id||activePrintContext.orgId,brand:activePrintContext.brand,currency:activePrintContext.currency,kind:'receipt',record:{...r,document_no:r.receipt_no||r.payment_reference||c?.bill_no||'',customer_name:c?.customer_name,customer_mobile:c?.mobile,customer_email:c?.customer_email,tracking_reference:c?.tracking_reference,method:r.payment_method,balance:c?.balance_payment},notify})}
@@ -2970,9 +2964,10 @@ function PaymentsView({companyName='Your Organization',session,cases,notify,seed
   return <section className="payments-manager">
     <div className="module-titlebar payments-titlebar">
       <div><h1>Payments</h1><p>Record collections, monitor outstanding balances and print receipts.</p></div>
-      <button className="primary" onClick={()=>openNew()}>+ Record Payment</button>
+      <button className="primary" disabled={saving||retryPayment} onClick={()=>openNew()}>+ Record Payment</button>
     </div>
 
+    {retryPayment&&!open&&<div className="payment-retry-note" role="status"><span>The response was interrupted. Check the same payment before starting another.</span><button className="secondary" disabled={saving} onClick={()=>runPaymentCommand(paymentAttempt.current)}>{saving?'Checking…':'Retry confirmation'}</button></div>}
     <div className="payments-kpis">
       <div><span>COLLECTED TODAY</span><strong>{fmtMoney(collectedToday).replace('.00','')}</strong><small>{todayRows.length} transaction{todayRows.length===1?'':'s'}</small></div>
       <div><span>THIS MONTH</span><strong>{fmtMoney(collectedMonth).replace('.00','')}</strong><small>Recorded payments</small></div>
@@ -3003,7 +2998,7 @@ function PaymentsView({companyName='Your Organization',session,cases,notify,seed
           <h3>{c?.customer_name||'Unknown case'}</h3>
           <div className="payment-tx-amount">{fmtMoney(r.amount)}</div>
           <div className="payment-tx-info"><div><small>MOBILE</small><strong>{c?.mobile||'—'}</strong></div><div><small>REFERENCE</small><strong>{r.payment_reference||'—'}</strong></div><div><small>BRANCH</small><strong>{c?.branches?.name||'—'}</strong></div><div><small>NOTE</small><strong>{r.notes||'—'}</strong></div></div>
-          <div className="payment-tx-actions"><button className="secondary tiny" onClick={()=>setReceipt({...r,case:c})}>Receipt</button><button className="secondary tiny" onClick={()=>openEdit(r)}>Edit</button><button className="danger tiny" disabled={saving} disabled={Boolean(caseMap.get(r.case_id)?.invoice_id)} onClick={()=>deletePayment(r)}>Delete</button></div>
+          <div className="payment-tx-actions"><button className="secondary tiny" onClick={()=>setReceipt({...r,case:c})}>Receipt</button><button className="secondary tiny" disabled={!canManagePayments||saving||retryPayment||Boolean(c?.invoice_id)} onClick={()=>openEdit(r)}>Edit</button><button className="danger tiny" disabled={!canManagePayments||saving||retryPayment||Boolean(c?.invoice_id)} onClick={()=>deletePayment(r)}>Delete</button></div>
         </article>})}
         {!visibleRows.length&&<div className="payments-empty">No payment transactions match the current filters.</div>}
       </div>:<div className="receivable-card-grid">
@@ -3012,7 +3007,7 @@ function PaymentsView({companyName='Your Organization',session,cases,notify,seed
           <h3>{c.customer_name||'Unnamed customer'}</h3>
           <div className="receivable-money"><div><span>TOTAL</span><strong>{fmtMoney(c.total_amount).replace('.00','')}</strong></div><div><span>PAID</span><strong>{fmtMoney(m.paid).replace('.00','')}</strong></div><div><span>BALANCE</span><strong className={m.balance>0?'due':'paid'}>{fmtMoney(m.balance).replace('.00','')}</strong></div></div>
           <div className="receivable-meta"><span>{c.mobile||'No mobile'}</span><span>{c.branches?.name||'No branch'}</span></div>
-          <div className="receivable-actions"><button className="secondary tiny" onClick={()=>openNew(c)}>Record Payment</button></div>
+          <div className="receivable-actions"><button className="secondary tiny" disabled={saving||retryPayment} onClick={()=>openNew(c)}>Record Payment</button></div>
         </article>})}
         {!visibleRows.length&&<div className="payments-empty">No receivables match the current filters.</div>}
       </div>}
@@ -3020,8 +3015,8 @@ function PaymentsView({companyName='Your Organization',session,cases,notify,seed
       <Pagination/>
     </div>
 
-    {open&&<Modal title={form.id?'Edit Payment':'Record Payment'} subtitle={form.id?'Adjust this transaction and recalculate the case balance.':'Add a payment transaction to a case.'} onClose={()=>{setOpen(false);setForm(emptyForm);onActionClose?.()}}>
-      <form className="payment-form" onSubmit={save}>
+    {open&&<Modal title={form.id?'Edit Payment':'Record Payment'} subtitle={form.id?'Adjust this transaction and recalculate the case balance.':'Add a payment transaction to a case.'} onClose={()=>{if(!paymentLock.current){setOpen(false);setForm(emptyForm);onActionClose?.()}}}>
+      <form className="payment-form" onSubmit={save} aria-busy={saving}><fieldset className="payment-form-fields" disabled={saving||retryPayment}>
         <Field label="Case" wide><select required disabled={!!form.id} value={form.case_id} onChange={e=>setForm({...form,case_id:e.target.value,amount:String(Math.max(0,Number(caseMap.get(e.target.value)?.balance_payment||0))||'')})}><option value="">Select case</option>{cases.map(c=><option key={c.id} value={c.id}>{c.tracking_reference} · {c.customer_name}</option>)}</select></Field>
         {current&&<div className="payment-case-summary wide"><div><small>TRACKING</small><strong>#{current.tracking_reference}</strong></div><div><small>TOTAL</small><strong>{fmtMoney(current.total_amount)}</strong></div><div><small>PAID</small><strong>{fmtMoney(summary.paid)}</strong></div><div><small>BALANCE</small><strong className={summary.balance>0?'due':'paid'}>{fmtMoney(summary.balance)}</strong></div></div>}
         <Field label="Amount"><input required type="number" step="0.01" min="0.01" value={form.amount} onChange={e=>setForm({...form,amount:e.target.value})}/></Field>
@@ -3029,7 +3024,7 @@ function PaymentsView({companyName='Your Organization',session,cases,notify,seed
         <Field label="Reference"><input value={form.payment_reference} onChange={e=>setForm({...form,payment_reference:e.target.value})} placeholder="Card / transfer / receipt reference"/></Field>
 
         <div className="payment-quick-amounts wide"><span>Quick amount</span>{[50,100,150,200,300,500].map(x=><button type="button" key={x} onClick={()=>setForm({...form,amount:String(x)})}>QAR {x}</button>)}{current&&Number(current.balance_payment||0)>0&&<button type="button" className="balance" onClick={()=>setForm({...form,amount:String(Number(current.balance_payment||0))})}>Full Balance</button>}</div>
-        <div className="modal-actions wide"><button type="button" className="secondary" onClick={()=>{setOpen(false);setForm(emptyForm);onActionClose?.()}}>Cancel</button><button className="primary" disabled={saving}>{saving?'Saving…':form.id?'Save Changes':'Save Payment'}</button></div>
+        </fieldset>{retryPayment&&<p className="payment-retry-note wide" role="status">The response was interrupted. Retry checks this payment without recording it twice.</p>}<div className="modal-actions wide"><button type="button" className="secondary" disabled={saving} onClick={()=>{setOpen(false);setForm(emptyForm);onActionClose?.()}}>Cancel</button><button className="primary" disabled={saving}>{saving?'Saving…':retryPayment?'Retry confirmation':form.id?'Save Changes':'Save Payment'}</button></div>
       </form>
     </Modal>}
 
