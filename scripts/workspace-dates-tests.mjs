@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {workspaceDay,shiftDay,daysBetween,appointmentConflicts} from '../lib/workspaceDates.js';
+import {workspaceDay,shiftDay,daysBetween,appointmentConflicts,assigneeAliases,appointmentTimeRange} from '../lib/workspaceDates.js';
 assert.equal(workspaceDay('Asia/Qatar',new Date('2026-10-18T22:00:00Z')),'2026-10-19');
 assert.equal(workspaceDay('America/New_York',new Date('2026-10-18T01:00:00Z')),'2026-10-17');
 assert.equal(shiftDay('2026-12-31',1),'2027-01-01');assert.equal(shiftDay('2028-03-01',-1),'2028-02-29');assert.equal(daysBetween('2026-10-01','2026-10-31'),30);
@@ -9,3 +9,17 @@ assert.equal(appointmentConflicts(existing,{id:'b',appointment_date:'2026-10-18'
 assert.equal(appointmentConflicts(existing,{...existing[0]}).length,0);
 assert.equal(appointmentConflicts(existing,{id:'b',appointment_date:'2026-10-18',appointment_time:'10:30',assigned_to:'other',status:'Scheduled'}).length,0);
 console.log('PASS: timezone boundaries, leap-year navigation and appointment interval comparisons.');
+
+const overnight={id:'night',appointment_date:'2026-12-31',appointment_time:'23:45',duration_minutes:60,assigned_to:'User',status:'Scheduled'};
+const next={id:'next',appointment_date:'2027-01-01',appointment_time:'00:15',assigned_to:'User',status:'Scheduled'};
+assert.equal(appointmentConflicts([overnight],next).length,1);
+assert.equal(appointmentConflicts([overnight],{...next,appointment_time:'00:45'}).length,0);
+assert.equal(appointmentConflicts([{...overnight,status:'Cancelled'}],next).length,0);
+assert.equal(appointmentConflicts([overnight],{...next,appointment_time:'25:00'}).length,0);
+assert.equal(appointmentTimeRange(overnight),'23:45–00:45 (+1 day)');
+assert.equal(appointmentTimeRange({}),'Any time');
+const aliases=assigneeAliases([{id:'staff-a',full_name:'User'},{id:'staff-b',full_name:'Same'},{id:'staff-c',full_name:'Same'}]);
+assert.equal(aliases.user,'staff-a');assert.equal(aliases.same,undefined);
+assert.equal(appointmentConflicts([overnight],{...next,assigned_to:'staff-a'},aliases).length,1);
+assert.equal(appointmentConflicts([{...overnight,assigned_profile_id:'staff-b'}],{...next,assigned_profile_id:'staff-c'},aliases).length,0);
+console.log('PASS: overnight intervals, boundary adjacency, duration labels and unambiguous staff aliases.');
