@@ -1,5 +1,5 @@
 /* No customer records, API responses, authenticated HTML or transactions are cached. */
-const CACHE='workspace-shell-v5-38';
+const CACHE='workspace-shell-v5-39';
 self.addEventListener('install',event=>{event.waitUntil(caches.open(CACHE).then(cache=>cache.add('/offline.html')))});
 self.addEventListener('message',event=>{if(event.data?.type==='ACTIVATE_UPDATE')self.skipWaiting()});
 self.addEventListener('activate',event=>{event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim()))});

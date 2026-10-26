@@ -90,5 +90,7 @@ html body .app-shell :is(button,summary,a,input,select,textarea):focus-visible{o
 @media(max-width:600px){.payment-form-fields{grid-template-columns:minmax(0,1fr)}.payment-retry-note{align-items:flex-start;flex-direction:column}}
 .delivery-retry-note{grid-column:1/-1;margin:0;padding:12px 14px;border-radius:12px;background:var(--surface-muted,#eef4ef);color:var(--text-primary,#183d2c);font-size:14px}
 .pdf-page-surface{background:#fff;overflow:hidden;position:relative}
+.dialog-portal-scope .pdf-preview-area{align-items:flex-start!important}
+.dialog-portal-scope .pdf-preview-area>.pdf-rendered-page{margin:0 auto!important}
 .pdf-page-placeholder{display:grid;place-items:center;height:100%;padding:24px;color:#7b897e;font-size:14px;text-align:center}
 .pdf-preview-notice{margin:0;padding:10px 20px;background:var(--ws-card,#fff);color:var(--ws-text,#183d2c);font-size:14px;border-bottom:1px solid var(--ws-line,#dce4dc)}
