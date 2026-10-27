@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import {localDay,expiryState} from '../lib/renewalDates.js';
+const instant=new Date('2026-10-27T01:00:00Z');
+assert.equal(localDay('Asia/Qatar',instant),'2026-10-27');
+assert.equal(localDay('America/Los_Angeles',instant),'2026-10-26');
+assert.equal(expiryState('2026-10-26',localDay('Asia/Qatar',instant)).tone,'danger');
+assert.equal(expiryState('2026-10-26',localDay('America/Los_Angeles',instant)).label,'Expires today');
+assert.equal(expiryState('2026-03-09','2026-03-07').label,'Due in 2d');
+assert.equal(expiryState('2028-03-01','2028-02-28').label,'Due in 2d');
+assert.equal(expiryState('', '2026-10-27').label,'No expiry');
+assert.equal(expiryState('bad', '2026-10-27').label,'Invalid expiry date');
+console.log('PASS: company timezone boundaries, expiry labels, DST, leap years and missing dates.');
