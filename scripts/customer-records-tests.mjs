@@ -151,5 +151,32 @@ try{
  assert.deepEqual((await db.query('select sum(total_amount)::numeric t,sum(advance_paid)::numeric p from cases')).rows[0],finances);checks++;
  await system();assert.equal((await db.query('select count(*)::int n from communication_outbox')).rows[0].n,beforeOutbox);assert.equal((await db.query('select count(*)::int n from crm_customers where id=$1 and (email_updates or whatsapp_opt_in or marketing_opt_in)',[linkedId(971)])).rows[0].n,0);checks+=2;
  await db.exec('set role anon');await denied('select link_legacy_case_customers($1,false)',[id(1)]);
+ // Run boundary and mutation tests in a disposable local database only.
+ await system();
+ await db.query('update crm_customers set archived=false where id=$1',[personal]);
+ await db.query("update organizations set timezone='Etc/GMT+12' where id=$1",[id(1)]);
+ await login(21);
+ await db.query("update customer_records set archived=false,expires_on=(now() at time zone 'Etc/GMT+12')::date,reminder_enabled=true,snoozed_until=null where id=$1",[personalDoc]);
+ await login(21);
+ assert(!(await queue('all','email','overdue')).some(r=>r.id===personalDoc));checks++;
+ const contacted=async(org=id(1),record=personalDoc)=>(await db.query('select mark_customer_record_contacted($1,$2)::text as company_day',[org,record])).rows[0].company_day;
+ const expected=(await db.query("select (now() at time zone 'Etc/GMT+12')::date::text as company_day")).rows[0].company_day;
+ assert.equal(await contacted(),expected);checks++;
+ const stamp=(await db.query('select updated_at from customer_records where id=$1',[personalDoc])).rows[0].updated_at;
+ assert.equal(await contacted(),expected);assert.deepEqual((await db.query('select updated_at from customer_records where id=$1',[personalDoc])).rows[0].updated_at,stamp);checks+=2;
+ await denied('select mark_customer_record_contacted($1,$2)',[id(2),personalDoc]);
+ await login(24);await denied('select mark_customer_record_contacted($1,$2)',[id(1),personalDoc]);
+ await login(23);await denied('select mark_customer_record_contacted($1,$2)',[id(1),personalDoc]);
+ await system();await db.query("update organizations set timezone='Pacific/Kiritimati' where id=$1",[id(1)]);
+ await login(21);assert((await queue('all','email','overdue')).some(r=>r.id===personalDoc));checks++;
+ await system();
+ // Scheduled selection is exercised only in PGlite; no production queues are invoked.
+ await login(21);await db.query('update customer_records set reminder_enabled=false where organization_id=$1',[id(1)]);
+ await db.query("update customer_records set reminder_enabled=true,reminder_days=0,expires_on=(now() at time zone 'Pacific/Kiritimati')::date,snoozed_until=null where id=$1",[personalDoc]);
+ await system();await db.query("update communication_settings set reminder_offsets=array[0],email_enabled=true,document_reminders_enabled=true where organization_id=$1",[id(1)]);
+ await db.query('update crm_customers set email_updates=true,archived=false where id=$1',[personal]);await db.query('delete from communication_outbox where organization_id=$1',[id(1)]);
+ await db.query("update organizations set timezone='Etc/GMT+12' where id=$1",[id(1)]);assert.equal(await queued(),0);checks++;
+ await db.query("update organizations set timezone='Pacific/Kiritimati' where id=$1",[id(1)]);assert.equal(await queued(),1);assert.equal(await queued(),0);checks+=2;
+ await db.query('delete from communication_outbox where organization_id=$1',[id(1)]);await db.query('update crm_customers set email_updates=false where id=$1',[personal]);assert.equal(await queued(),0);checks++;
  console.log(`PASS: ${checks} customer register checks: optional personal/company data, linked staff/vehicles/documents, expiry history, consent withdrawal, channel audiences, scoped files, tenant/branch isolation and anonymous denial.`);
 }catch(e){console.error(e.message);process.exitCode=1}finally{await db.close()}
