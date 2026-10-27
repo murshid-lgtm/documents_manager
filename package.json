@@ -24,7 +24,8 @@
     "test:pdf-speed": "node scripts/pdf-preview-speed-tests.cjs && node scripts/pdf-performance-tests.mjs && node scripts/pdf-route-tests.cjs",
     "test:customer-finance": "node scripts/customer-finance-ui-tests.cjs && node scripts/pdf-performance-tests.mjs && node scripts/pdf-route-tests.cjs && node scripts/workspace-performance-tests.cjs",
     "test:playwright": "playwright test",
-    "test:whatsapp": "node scripts/whatsapp-readiness-tests.cjs && node scripts/whatsapp-connections-ui-tests.cjs && node scripts/whatsapp-customer-intake-tests.mjs && node scripts/whatsapp-customer-intake-ui-tests.cjs && node scripts/whatsapp-crm-tests.mjs && node scripts/whatsapp-crm-ui-tests.cjs && node scripts/whatsapp-test-db-tests.mjs && node scripts/whatsapp-test-api-tests.cjs && node scripts/whatsapp-test-ui-tests.cjs && node scripts/whatsapp-inbox-api-tests.cjs && node scripts/whatsapp-document-tests.cjs && node scripts/whatsapp-inbox-ui-tests.cjs"
+    "test:whatsapp": "node scripts/whatsapp-readiness-tests.cjs && node scripts/whatsapp-connections-ui-tests.cjs && node scripts/whatsapp-customer-intake-tests.mjs && node scripts/whatsapp-customer-intake-ui-tests.cjs && node scripts/whatsapp-crm-tests.mjs && node scripts/whatsapp-crm-ui-tests.cjs && node scripts/whatsapp-test-db-tests.mjs && node scripts/whatsapp-test-api-tests.cjs && node scripts/whatsapp-test-ui-tests.cjs && node scripts/whatsapp-inbox-api-tests.cjs && node scripts/whatsapp-document-tests.cjs && node scripts/whatsapp-inbox-ui-tests.cjs",
+    "test:operations-upgrade": "node scripts/renewal-dates-tests.mjs && node scripts/workspace-dates-tests.mjs && node scripts/appointment-mutation-tests.cjs && node scripts/work-assignment-tests.mjs && node scripts/customer-records-tests.mjs"
   },
   "dependencies": {
     "@sparticuz/chromium": "153.0.0",
