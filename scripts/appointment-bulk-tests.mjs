@@ -1,0 +1,10 @@
+import fs from 'node:fs';import assert from 'node:assert/strict';
+const {updateAppointmentsSafely}=await import('data:text/javascript;base64,'+Buffer.from(fs.readFileSync('lib/appointmentBulk.js','utf8')).toString('base64'));
+const id=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
+const rows=Array.from({length:65},(_,i)=>({id:id(i),updated_at:i===0?null:'2026-10-30T12:00:00.123Z'}));
+let queries=[],failAt=0;
+const client={from(){let filter;return {update(patch){assert.equal(patch.status,'Confirmed');return this},or(value){filter=value;queries.push(value);return this},async select(){if(queries.length===failAt)throw Error('Connection lost');const ids=[...filter.matchAll(/id\.eq\.([0-9a-f-]+)/g)].map(m=>m[1]);return {data:ids.filter(key=>key!==id(1)).map(key=>({id:key}))}}}}};
+let r=await updateAppointmentsSafely(client,rows,{status:'Confirmed'});assert.equal(r.saved.length,64);assert.equal(r.error,null);assert.equal(queries.length,3);assert(queries[0].includes(`and(id.eq.${id(0)},updated_at.is.null)`));assert(queries[0].includes(`and(id.eq.${id(1)},updated_at.eq."2026-10-30T12:00:00.123Z")`));assert(!r.saved.includes(id(1)),'conflicting row is excluded');
+queries=[];failAt=2;r=await updateAppointmentsSafely(client,rows,{status:'Confirmed'});assert.equal(r.saved.length,29);assert.match(r.error.message,/Connection lost/);assert.equal(queries.length,2,'stop after uncertain response');
+queries=[];r=await updateAppointmentsSafely(client,[{id:'bad-filter'}],{status:'Confirmed'});assert(r.error);assert.equal(queries.length,0);r=await updateAppointmentsSafely(client,[{id:id(1),updated_at:'unsafe,filter'}],{status:'Confirmed'});assert(r.error);assert.equal(queries.length,0);
+console.log('PASS: bulk updates bind each ID to its version, preserve null versions, chunk large selections, exclude conflicts and retain confirmed progress across failures.');
