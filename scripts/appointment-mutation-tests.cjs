@@ -30,6 +30,14 @@ const functions=['save','moveAppointment','del','bulkCreate','applyBulk'].map(na
  context.selected=new Set(['a']);reply=null;fail=false;open=true;notices=[];let staleMessage='';context.setSaveError=value=>staleMessage=value;
  const staleSave=context.save({preventDefault(){}});await new Promise(r=>setImmediate(r));release();await staleSave;assert.equal(open,true);assert.match(staleMessage,/Your edits are still here/);assert(!notices.includes('Appointment updated.'));
  notices=[];const staleMove=context.moveAppointment('a',{status:'Confirmed'});await new Promise(r=>setImmediate(r));release();await staleMove;assert(notices.some(m=>m.includes('latest schedule')));assert.equal(busy,false);
+ notices=[];const staleDelete=context.del('a');await new Promise(r=>setImmediate(r));release();await staleDelete;assert(notices.some(m=>m.includes('Nothing was deleted')));assert(!notices.includes('Appointment deleted.'));assert.equal(busy,false);
+ const beforeCancel=writes;context.confirm=()=>false;await context.del('a');assert.equal(writes,beforeCancel);assert.equal(context.actionLock.current,false);
+ const dates=await import('data:text/javascript;base64,'+Buffer.from(fs.readFileSync('lib/workspaceDates.js','utf8')).toString('base64'));let exported;
+ Object.assign(context,{useEffect:fn=>fn(),setModuleExport:value=>exported=value,appointmentTimeRange:dates.appointmentTimeRange,timeZone:'Asia/Kolkata',cases:[{id:'case',tracking_reference:'112233',customer_name:'TEST'}],visible:[{case_id:'case',appointment_date:'2026-11-01',appointment_time:'23:30',duration_minutes:90},{case_id:'case',appointment_date:'2026-11-02',appointment_time:null,duration_minutes:null}]});
+ vm.runInContext(source.split('\n').find(line=>line.includes("title:'Appointments Export'")),context);
+ assert.equal(exported.rows[0]['Duration (minutes)'],90);assert.equal(exported.rows[0].Timezone,'Asia/Kolkata');assert.equal(exported.rows[0]['Time range'],dates.appointmentTimeRange(context.visible[0]));assert.equal(exported.rows[1]['Time range'],'Any time');assert.equal(exported.rows[1]['Duration (minutes)'],30);assert.equal(exported.rows[0]['Tracking No.'],'112233');
+ console.log('PASS: appointment exports include duration, overnight ranges, optional time and company timezone.');
+ console.log('PASS: stale deletion refreshes without reporting success, and cancelling deletion performs no write.');
  console.log('PASS: stale appointment saves retain the editor and stale moves reload the schedule without claiming success.');
  console.log('PASS: bulk updates verify returned records, retain unsuccessful selections, retry only remaining records, reject empty changes and recover from invalid or missing results.');
  console.log('PASS: five appointment actions block duplicate writes, report network failures, unlock and permit retry; failed save preserves editor.');
