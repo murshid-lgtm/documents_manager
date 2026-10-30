@@ -10,5 +10,6 @@ const load=source.split('\n').find(line=>line.startsWith('  async function load(
  const retry=c.load();requests[3].resolve({data:[]});await retry;assert.equal(rows.length,0);assert.equal(error,'');
  const cancelled=c.load();c.loadSequence.current++;requests[4].resolve({data:[{id:'unmounted'}]});await cancelled;assert.equal(rows.length,0);
  const invalid=c.load();requests[5].resolve({data:null});await invalid;assert.match(error,/could not be loaded/);assert.equal(busy,false);
+ const paged=c.load();requests[6].resolve({data:Array.from({length:500},(_,i)=>({id:i}))});await new Promise(r=>setImmediate(r));requests[7].reject(Error('Second page failed'));await paged;assert.equal(rows.length,0,'partial pages must not replace a complete schedule');assert.equal(error,'Second page failed');assert.equal(busy,false);
  console.log('PASS: appointment refresh ignores old and unmounted responses, preserves the last schedule on failures, retries successfully and rejects unconfirmed empty results.');
 })().catch(e=>{console.error(e);process.exitCode=1});
