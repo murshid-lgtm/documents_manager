@@ -1,0 +1,14 @@
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+import {webcrypto} from 'node:crypto';
+globalThis.crypto??=webcrypto;
+const {createAppointmentsOnce}=await import('data:text/javascript;base64,'+Buffer.from(fs.readFileSync('lib/appointmentCreate.js','utf8')).toString('base64'));
+const stored=new Map();let lose=true,reads=0,writes=0;
+const client={from(){return {async upsert(rows,options){writes++;assert.equal(options.ignoreDuplicates,true);for(const r of rows)if(!stored.has(r.id))stored.set(r.id,{...r});if(lose){lose=false;throw new Error('response lost')}return {error:null}},select(){return this},async in(column,ids){reads++;return {data:ids.filter(id=>stored.has(id)).map(id=>({id}))}}}}};
+const request={current:null},rows=[{case_id:'TEST',appointment_date:'2026-11-01',notes:null}];
+await assert.rejects(()=>createAppointmentsOnce(client,request,rows),/response lost/);assert.equal(stored.size,1);const originalId=[...stored.keys()][0];
+await assert.rejects(()=>createAppointmentsOnce(client,request,[{...rows[0],notes:'changed'}]),e=>String(e).includes('previous appointment save'));assert.equal(writes,1);
+assert.deepEqual(await createAppointmentsOnce(client,request,rows),[originalId]);assert.equal(stored.size,1);assert.equal(request.current,null);
+await createAppointmentsOnce(client,request,rows);assert.equal(stored.size,2,'a confirmed separate booking gets a new ID');
+const bulk=Array.from({length:450},(_,i)=>({...rows[0],case_id:'case'+i}));const before=reads;await createAppointmentsOnce(client,request,bulk);assert.equal(reads-before,3,'verification is paged below API row limits');assert.equal(stored.size,452);
+console.log('PASS: lost-response retries reuse IDs, changed unconfirmed requests are blocked, existing bookings are never overwritten, separate bookings get new IDs and bulk verification is paged.');
