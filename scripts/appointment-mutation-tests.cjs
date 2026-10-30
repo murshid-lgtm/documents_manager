@@ -5,8 +5,8 @@ const source=fs.readFileSync('components/AppShell.js','utf8').split('function Ap
 const functions=['save','moveAppointment','del','bulkCreate','applyBulk'].map(name=>source.split('\n').find(line=>line.startsWith(`  async function ${name}(`))).join('\n');
 (async()=>{
  let writes=0,release,fail=false,open=true,busy=false,notices=[],bulkError='',bulkOpen=true,reply={id:'a'},sentIds=[],loads=0;
- const query={update(){writes++;return this},insert(){writes++;return this},delete(){writes++;return this},eq(){return this},in(column,ids){sentIds=[...ids];return this},select(){return this},single(){return this},then(resolve,reject){return new Promise((ok,bad)=>{release=()=>fail?bad(new Error('Network failed')):ok({data:reply,error:null})}).then(resolve,reject)}};
- const context={supabase:{from:()=>query},session:{user:{id:'staff'}},form:{id:'a',case_id:'case',appointment_date:'2026-10-27'},empty:{},actionLock:{current:false},setBusy:v=>busy=v,setOpen:v=>open=v,setForm:()=>{},notify:m=>notices.push(m),userError:e=>e.message,load:async()=>{loads++},onActionClose:()=>{},setRows:()=>{},confirm:()=>true,setSelected:value=>context.selected=value,bulkRefs:['case'],bulkForm:{appointment_date:'2026-10-27'},setBulkOpen:()=>{},setBulkRefs:()=>{},selected:new Set(['a']),setBulkError:value=>bulkError=value,setBulkEdit:value=>bulkOpen=value};
+ const query={update(){writes++;return this},insert(){writes++;return this},delete(){writes++;return this},eq(){return this},in(column,ids){sentIds=[...ids];return this},select(){return this},is(){return this},maybeSingle(){return this},single(){return this},then(resolve,reject){return new Promise((ok,bad)=>{release=()=>fail?bad(new Error('Network failed')):ok({data:reply,error:null})}).then(resolve,reject)}};
+ const context={supabase:{from:()=>query},session:{user:{id:'staff'}},form:{id:'a',case_id:'case',appointment_date:'2026-10-27'},empty:{},rows:[{id:'a',updated_at:'2026-10-27T00:00:00Z'}],setSaveError:()=>{},actionLock:{current:false},setBusy:v=>busy=v,setOpen:v=>open=v,setForm:()=>{},notify:m=>notices.push(m),userError:e=>e.message,load:async()=>{loads++},onActionClose:()=>{},setRows:()=>{},confirm:()=>true,setSelected:value=>context.selected=value,bulkRefs:['case'],bulkForm:{appointment_date:'2026-10-27'},setBulkOpen:()=>{},setBulkRefs:()=>{},selected:new Set(['a']),setBulkError:value=>bulkError=value,setBulkEdit:value=>bulkOpen=value};
  vm.createContext(context);vm.runInContext(functions,context);
  for(const name of ['save','moveAppointment','del','bulkCreate','applyBulk']){
   writes=0;fail=true;open=true;notices=[];context.selected=new Set(['a']);reply=name==='applyBulk'?[{id:'a'}]:{id:'a'};
@@ -27,6 +27,10 @@ const functions=['save','moveAppointment','del','bulkCreate','applyBulk'].map(na
  const before=writes;context.bulkForm={};await context.applyBulk();assert.equal(writes,before,'no-op does not write timestamps');assert.match(bulkError,/Choose at least one/);assert.equal(busy,false);
  context.bulkForm={duration_minutes:'1441'};await context.applyBulk();assert.equal(writes,before);assert.match(bulkError,/between 1 and 1440/);
  assert.ok(loads>=2);assert.equal(context.actionLock.current,false);
+ context.selected=new Set(['a']);reply=null;fail=false;open=true;notices=[];let staleMessage='';context.setSaveError=value=>staleMessage=value;
+ const staleSave=context.save({preventDefault(){}});await new Promise(r=>setImmediate(r));release();await staleSave;assert.equal(open,true);assert.match(staleMessage,/Your edits are still here/);assert(!notices.includes('Appointment updated.'));
+ notices=[];const staleMove=context.moveAppointment('a',{status:'Confirmed'});await new Promise(r=>setImmediate(r));release();await staleMove;assert(notices.some(m=>m.includes('latest schedule')));assert.equal(busy,false);
+ console.log('PASS: stale appointment saves retain the editor and stale moves reload the schedule without claiming success.');
  console.log('PASS: bulk updates verify returned records, retain unsuccessful selections, retry only remaining records, reject empty changes and recover from invalid or missing results.');
  console.log('PASS: five appointment actions block duplicate writes, report network failures, unlock and permit retry; failed save preserves editor.');
 })().catch(e=>{console.error(e);process.exit(1)});
