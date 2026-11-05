@@ -17,7 +17,7 @@ async function run({failure=false,admin=false}={}){
 
 // Hold the first pair open to prove overlap and the concurrency ceiling. Release
 // the second group first: returned cases and each group's documents must stay stable.
-async function boundedGroups({failure=false}={}){
+async function boundedGroups({failure=false,cancel=false}={}){
  const rows=Array.from({length:151},(_,i)=>({id:'case-'+i}));
  let active=0,peak=0;const calls=[],held=[];
  let signalPair;const pairStarted=new Promise(resolve=>signalPair=resolve);
@@ -32,12 +32,14 @@ async function boundedGroups({failure=false}={}){
  }};
  const context={createClient:()=>client,checkPortal:async()=>null,bearerToken:()=> 'token',hasLiveSession:async()=>true,apiJson:(body,status=200)=>({body,status}),apiError:()=>({status:500}),process:{env:{NEXT_PUBLIC_SUPABASE_URL:'url',NEXT_PUBLIC_SUPABASE_ANON_KEY:'key'}},URL};
  vm.createContext(context);vm.runInContext(selectSource+'\n'+source+'\nthis.get=GET',context);
- const response=context.get(new Request('https://test/api/cases'));
+ const controller=new AbortController();
+ const response=context.get(new Request('https://test/api/cases',{signal:controller.signal}));
  const watchdog=setTimeout(()=>{console.error('Document groups did not run concurrently or finish.');process.exit(1)},3000);
  try{
-  await pairStarted;assert.equal(active,2);held[1]();held[0]();const result=await response;
+  await pairStarted;assert.equal(active,2);if(cancel)controller.abort();held[1]();held[0]();const result=await response;
   assert.equal(peak,2);assert.equal(active,0);
   for(const call of calls)assert(call.filters.some(([k,v])=>k==='organization_id'&&v==='tenant'));
+  if(cancel){assert.equal(result.status,499);assert.equal(result.body.code,'REQUEST_CANCELLED');assert.equal(calls.length,2);assert.equal(result.body.cases,undefined);return}
   if(failure){assert.equal(result.status,500);assert(calls.every(c=>Number(c.ids[0].split('-')[1])<100));return}
   assert.equal(result.status,200);assert.deepEqual(Array.from(result.body.cases,c=>c.id),rows.map(c=>c.id));
   assert.equal(result.body.cases[0].documents.length,260);assert.equal(result.body.cases[0].documents[259].id,'doc-259');
@@ -45,4 +47,10 @@ async function boundedGroups({failure=false}={}){
   assert(calls.every(c=>c.ids.length<=50));assert.equal(calls.length,5);
  }finally{clearTimeout(watchdog)}
 }
-(async()=>{await boundedGroups();await boundedGroups({failure:true});console.log('Case document groups: bounded concurrency, stable complete results and failed-wave isolation passed.')})().catch(e=>{console.error(e);process.exit(1)});
+(async()=>{await boundedGroups();await boundedGroups({failure:true});await boundedGroups({cancel:true});console.log('Case document groups: bounded concurrency, stable complete results and failed-wave isolation passed.')})().catch(e=>{console.error(e);process.exit(1)});
+(async()=>{
+ const controller=new AbortController();controller.abort();
+ const context={apiJson:(body,status)=>({body,status}),createClient:()=>{throw Error('Cancelled request must not start database work')}};
+ vm.createContext(context);vm.runInContext(selectSource+'\n'+source+'\nthis.get=GET',context);
+ const result=await context.get(new Request('https://test/api/cases',{signal:controller.signal}));assert.equal(result.status,499);assert.equal(result.body.code,'REQUEST_CANCELLED');console.log('Cancelled case request exits before authentication/database work.');
+})().catch(e=>{console.error(e);process.exit(1)});

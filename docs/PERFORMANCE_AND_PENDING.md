@@ -83,3 +83,6 @@ On 5 November 2026 deployment `dpl_84dQRY2dhA3kLoRBhDSixAwnXtV2` was confirmed R
 
 ## Saved case-refresh race fix (not deployed)
 Starting a newer case refresh aborts the older browser request; late results and cancellation errors are ignored. Unmount aborts the active refresh. Quick-view refresh uses the current selected case rather than a stale closure. Malformed successful responses fail visibly and preserve the existing case list. Targeted race tests pass with controlled out-of-order responses. This does not implement server pagination or guarantee cancellation of database work already running.
+
+## Saved server cancellation checks (not deployed)
+The case API checks its request signal before authentication, after access checks/base reads, between document pages and between bounded waves. Cancelled requests do not schedule further document pages/waves or return partial results. The current wave settles before the handler returns a cancellation response. Targeted tests cover an already-aborted request and cancellation with two groups in flight. This does not guarantee interruption of already-running database work or deployment-platform propagation of browser disconnects. Authentication, tenant RLS and complete normal pagination remain unchanged.
