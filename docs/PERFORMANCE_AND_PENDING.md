@@ -11,6 +11,18 @@
 One existing production request, retrieved from runtime logs; not a percentile or a speed guarantee. Access: 100 ms; generation: 3393 ms; browser startup: 2984 ms; layout: 144 ms; print: 176 ms; output: 192276 bytes. The logged function region was bom1. This shows renderer startup dominated this sample, rather than database access. Do not infer the database region from this log.
 This batch extends renderer idle reuse from 3 to 15 minutes within a warm instance, without adding keep-alive requests. New function instances can still incur browser startup.
 
+### Post-release live verification
+Release `dd6ec34a41782382dd1f4247b769e1bdadfcb9db`, deployment `dpl_9e9VL6mV8AmEThNWx5pq5G5Ev2FS`: signed in and opened the invoice and job order for case **112233 — TEST**. Both reached a one-page PDF-ready preview. Reopening the invoice also reached PDF ready; the retrieved logs contained one invoice generation request, consistent with browser cache reuse. No records were changed and no external messages were sent.
+
+| Document | Access | Generation | Browser acquisition | Layout | Print |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| TEST invoice | 347 ms | 3442 ms | 2981 ms | 201 ms | 183 ms |
+| TEST job order | 357 ms | 4341 ms | 4042 ms | 181 ms | 43 ms |
+
+These are two individual server-side samples, not end-to-end latency or percentiles. Both logs reported region cle1. The second document still incurred expensive browser acquisition, so a longer idle timeout does not establish that separate production requests reuse the same instance. The browser inspection API did not expose Performance entries; no numeric browser timing was verified. Further cold-start improvements must account for function lifecycle, rather than relying on idle reuse alone.
+
+Code inspection also confirms that `AppShell.loadCases` progressively loads 300 rows at a time but continues through the entire accessible case history. The first-page UI is responsive sooner, but this is not server-side pagination of the user's current view. Splitting dashboard aggregates and list/detail queries remains a material speed opportunity.
+
 ## Measured local benchmark
 Synthetic one-line invoices; renderer/cache only. Authentication, network, production cold starts, artwork retrieval and device preview are excluded. These are individual measurements, not production percentiles.
 
