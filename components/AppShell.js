@@ -186,7 +186,8 @@ export default function AppShell({session,initialProfile,workspaceMode}){
   const [brandReady,setBrandReady]=useState(false);
   const alertCount=useAlertCount(brandSettings?.organization_id||profile?.organization_id);
   const [workspaceQuery,setWorkspaceQuery]=useState('');
-  const workspaceSearch=useRef(null);
+  const workspaceSearch=useRef(null),caseLoadController=useRef(null);
+  useEffect(()=>()=>caseLoadController.current?.abort(),[]);
   useEffect(()=>{const key=e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'&&!document.querySelector('[aria-modal="true"]')){e.preventDefault();workspaceSearch.current?.focus()}};window.addEventListener('keydown',key);return()=>window.removeEventListener('keydown',key)},[]);
   const [planModules,setPlanModules]=useState(null);
   useEffect(()=>{let live=true;const orgId=profile?.organization_id||brandSettings?.organization_id;const loadPlan=async()=>{if(!orgId)return;const {data}=await supabase.from('platform_subscriptions').select('allowed_modules').eq('organization_id',orgId).maybeSingle();if(live)setPlanModules(data?.allowed_modules||null)};loadPlan();window.addEventListener('company-plan-changed',loadPlan);return()=>{live=false;window.removeEventListener('company-plan-changed',loadPlan)}},[profile?.organization_id,brandSettings?.organization_id]);
@@ -521,20 +522,27 @@ ${company}`;
   }
 
   async function loadCases(){
+    caseLoadController.current?.abort();
+    const controller=new AbortController();caseLoadController.current=controller;
+    try{
     setCasesLoadError('');
     // Stale-while-revalidate: cached data is shown immediately. The live refresh is
     // progressive so even a first-time browser sees the first page quickly instead
     // of waiting for all 10k+ nested workflows to arrive.
     const pageSize=300; let from=0; let all=[]; let first=true;
     while(true){
-      const {data:{session:liveSession}}=await supabase.auth.getSession();
+      if(controller.signal.aborted)return;
       let data,error;
       try{
-        const response=await fetch(`/api/cases?offset=${from}&limit=${pageSize}`,{headers:{authorization:`Bearer ${liveSession?.access_token||''}`},cache:'no-store'});
+        const {data:{session:liveSession}}=await supabase.auth.getSession();
+        if(controller.signal.aborted)return;
+        const response=await fetch(`/api/cases?offset=${from}&limit=${pageSize}`,{headers:{authorization:`Bearer ${liveSession?.access_token||''}`},cache:'no-store',signal:controller.signal});
         const result=await response.json();
         if(!response.ok)error={message:result.error,code:result.code,request_id:result.request_id};
+        else if(!Array.isArray(result.cases))error={code:'INVALID_RESPONSE'};
         else data=result.cases;
       }catch{error={message:'The connection could not be completed.',code:'CONNECTION_FAILED'}}
+      if(controller.signal.aborted)return;
       if(error){setCasesLoadError(`Cases could not be loaded. Your saved records remain in the database.${error.request_id?' Support reference: '+error.request_id:''}`);setMessage('Cases could not be loaded. Please retry.');return}
       const rows=(data||[]).map(normalizeCaseRow); all.push(...rows);
       if(first && rows.length){
@@ -547,9 +555,11 @@ ${company}`;
       // Yield to the browser between pages so navigation/search stays responsive.
       await new Promise(r=>setTimeout(r,0));
     }
+    if(controller.signal.aborted)return;
     setCases(all);
     // Customer data remains in memory; authorization is rechecked on refresh.
-    if(quickCase){const fresh=all.find(c=>c.id===quickCase.id);if(fresh)setQuickCase(fresh)}
+    setQuickCase(previous=>previous?(all.find(c=>c.id===previous.id)||previous):previous);
+    }finally{if(caseLoadController.current===controller)caseLoadController.current=null}
   }
   function normalizeCaseRow(c){
     return {...c,documents:(c.documents||[]).map(d=>({...d,document_stages:[...(d.document_stages||[])].sort((a,b)=>a.stage_order-b.stage_order)})).sort((a,b)=>a.occurrence_no-b.occurrence_no)};
