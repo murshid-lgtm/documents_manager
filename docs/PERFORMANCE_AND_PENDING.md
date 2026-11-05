@@ -23,7 +23,7 @@ These are two individual server-side samples, not end-to-end latency or percenti
 
 Code inspection also confirms that `AppShell.loadCases` progressively loads 300 rows at a time but continues through the entire accessible case history. The first-page UI is responsive sooner, but this is not server-side pagination of the user's current view. Splitting dashboard aggregates and list/detail queries remains a material speed opportunity.
 
-### Next saved implementation batch (not deployed)
+### Case-loading implementation batch
 Case document hydration now runs at most two 50-case groups concurrently. Each group's 250-document pages remain sequential and complete. Results retain input group order even when the second group finishes first. A failed group settles its current pair, stops further groups and fails the response instead of returning partial workflow data. Reads continue using the signed-in user's token and tenant filters. Targeted mocked tests cover overlap/concurrency limits, complete pagination, tenant scoping, stable ordering and failed-pair isolation. This reduces the sequential query waterfall; production latency improvement has not yet been measured. Full-history loading still needs the broader list/dashboard redesign.
 
 ## Measured local benchmark
@@ -49,7 +49,7 @@ The benchmark compares the current source against `origin/main`; after publishin
 
 ## Pending, in priority order
 1. Measure production end-to-end PDF latency by cold/warm/cache-hit paths and document size. Existing Server-Timing separates access and generation; browser measures separate artwork and request time. Collect p50/p95 before promising a speed target.
-2. Complete upload retry recovery for ambiguous storage responses and test real private-file uploads/downloads/cleanup with scoped customer records. Current file recovery tests are mocked.
+2. Live-test private-file upload reconciliation, downloads and cleanup with scoped customer records. Retry now retains the same ID, immutable path and selected file while its window stays open. Recovery after closing/reloading the window remains outside this implementation. Current recovery tests are mocked.
 3. Live verification of the recent customer register/editor/renewal recovery changes, including company timezone and staff/vehicle owner access. Appointment conflict and bulk conflict tests were separately verified live on case 112233; that does not establish live coverage for customer records.
 4. Audit workspace startup and large case/customer lists for repeated full-history reads, query waterfalls, response size and index use. Prefer scoped pagination, server aggregates and mutation-driven invalidation over long-lived stale lists.
 5. Complete broader role/branch/custody regression verification, especially received-custody access and custody history. Keep submitted branch separate from current document location.
@@ -63,3 +63,9 @@ The benchmark compares the current source against `origin/main`; after publishin
 
 ## Current batch validation scope
 Private-file recovery, PDF cache capacity/eviction, copied byte isolation, request sharing, cancellation, access checks, PDF content/pagination and desktop/mobile preview. Tests using mocked data must not be described as complete live database verification. External email and WhatsApp queues are not invoked.
+
+## Private upload reconciliation batch
+- Keeps the selected File and stable metadata ID/path during an uncertain upload. A retry cannot silently create another attachment.
+- If metadata insert fails or throws, checks the exact scoped row before proceeding. If storage upload fails or throws, downloads through the same user access policy and compares SHA-256 content hashes before reporting success. No upsert and no automatic metadata deletion on an uncertain storage result.
+- Disables another upload until the current attachment is confirmed; exposes Retry attachment, guards duplicate clicks and suppresses stale completion messages when the record scope changes. Selected files are held only in component memory, not persistent browser storage. Closing/reloading loses this retry draft; existing metadata may still need manual review/removal if the object never uploaded.
+- Validation: helper tests cover lost insert/upload responses, denied/mismatched metadata lookup, different stored content, offline recovery and stable IDs. 22 mocked desktop/mobile file UI checks cover recovery and existing error/removal behavior. Live storage/database verification is still pending.
