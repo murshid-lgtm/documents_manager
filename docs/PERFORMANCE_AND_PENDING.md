@@ -23,6 +23,9 @@ These are two individual server-side samples, not end-to-end latency or percenti
 
 Code inspection also confirms that `AppShell.loadCases` progressively loads 300 rows at a time but continues through the entire accessible case history. The first-page UI is responsive sooner, but this is not server-side pagination of the user's current view. Splitting dashboard aggregates and list/detail queries remains a material speed opportunity.
 
+### Next saved implementation batch (not deployed)
+Case document hydration now runs at most two 50-case groups concurrently. Each group's 250-document pages remain sequential and complete. Results retain input group order even when the second group finishes first. A failed group settles its current pair, stops further groups and fails the response instead of returning partial workflow data. Reads continue using the signed-in user's token and tenant filters. Targeted mocked tests cover overlap/concurrency limits, complete pagination, tenant scoping, stable ordering and failed-pair isolation. This reduces the sequential query waterfall; production latency improvement has not yet been measured. Full-history loading still needs the broader list/dashboard redesign.
+
 ## Measured local benchmark
 Synthetic one-line invoices; renderer/cache only. Authentication, network, production cold starts, artwork retrieval and device preview are excluded. These are individual measurements, not production percentiles.
 

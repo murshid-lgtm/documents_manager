@@ -36,16 +36,27 @@ export async function GET(request){
   const documentSelect=CASE_SELECT.slice(CASE_SELECT.indexOf('documents!documents_case_id_fkey(')+'documents!documents_case_id_fkey('.length,-1);
   // Bound each relationship request and paginate children rather than silently
   // dropping documents at the Data API row limit. All reads use the user's RLS.
-  for(let i=0;i<rows.length;i+=50){
-    const ids=rows.slice(i,i+50).map(row=>row.id);
+  async function loadDocuments(ids){
+    const group=[];
     for(let start=0;;start+=250){
       let children=viewer.from('documents').select('case_id,'+documentSelect).in('case_id',ids).order('id').range(start,start+249);
       if(!profile.is_platform_super_admin)children=children.eq('organization_id',profile.organization_id);
       const {data:docs,error:docsError}=await children;
-      if(docsError)return apiError(docsError,{code:'CASE_LOAD_FAILED',message:'Case documents could not be loaded. Please retry.'});
-      documents.push(...(docs||[]));
+      if(docsError)throw docsError;
+      group.push(...(docs||[]));
       if((docs||[]).length<250)break;
     }
+    return group;
+  }
+  // Two independent groups may overlap without issuing all six relationship
+  // queries at once. Pagination within each group remains sequential and complete.
+  // Settle the whole pair before returning an error; never serve partial results.
+  for(let i=0;i<rows.length;i+=100){
+    const groups=[rows.slice(i,i+50),rows.slice(i+50,i+100)].filter(group=>group.length);
+    const results=await Promise.allSettled(groups.map(group=>loadDocuments(group.map(row=>row.id))));
+    const failed=results.find(result=>result.status==='rejected');
+    if(failed)return apiError(failed.reason,{code:'CASE_LOAD_FAILED',message:'Case documents could not be loaded. Please retry.'});
+    for(const result of results)documents.push(...result.value);
   }
   const byCase=new Map(rows.map(row=>[row.id,[]]));
   for(const doc of documents)byCase.get(doc.case_id)?.push(doc);
