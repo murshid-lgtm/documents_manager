@@ -3,8 +3,8 @@ import fs from 'node:fs';
 const {uploadCustomerFile}=await import('data:text/javascript;base64,'+Buffer.from(fs.readFileSync('lib/customerFileUpload.js','utf8')).toString('base64'));
 const file=new File(['private test attachment'],'TEST.pdf',{type:'application/pdf'});
 const row={id:'stable-id',organization_id:'org',customer_id:'customer',record_id:'record',name:file.name,object_path:'org/customer/record/stable-id',size_bytes:file.size,content_type:file.type};
-function fixture({metadataLost=false,uploadLost=false,throwUpload=false,throwInsert=false,lookupError=false,downloadError=false,different=false,wrongScope=false,missing=false}={}){
- let metadata=null,stored=null,firstInsert=true,firstUpload=true;const calls=[];
+function fixture({metadataLost=false,uploadLost=false,throwUpload=false,throwInsert=false,lookupError=false,downloadError=false,different=false,wrongScope=false,missing=false,metadataPresent=false}={}){
+ let metadata=metadataPresent?{...row}:null,stored=null,firstInsert=true,firstUpload=true;const calls=[];
  const client={
   from(table){
    assert.equal(table,'customer_record_files');const filters={};
@@ -31,7 +31,7 @@ function fixture({metadataLost=false,uploadLost=false,throwUpload=false,throwIns
  };
  return {client,calls};
 }
-for(const options of [{},{metadataLost:true},{throwInsert:true},{uploadLost:true},{throwUpload:true},{metadataLost:true,uploadLost:true}]){
+for(const options of [{metadataPresent:true},{},{metadataLost:true},{throwInsert:true},{uploadLost:true},{throwUpload:true},{metadataLost:true,uploadLost:true}]){
  const f=fixture(options);await uploadCustomerFile(f.client,{file,row});
  for(const c of f.calls.filter(c=>c[0]==='lookup'))assert.deepEqual(c[1],{organization_id:'org',customer_id:'customer',record_id:'record',id:'stable-id'});
  for(const c of f.calls.filter(c=>c[0]==='upload')){assert.equal(c[1],row.object_path);assert.equal(c[2].upsert,false)}
