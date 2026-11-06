@@ -2,14 +2,19 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('nod
 const source=fs.readFileSync('components/AppShell.js','utf8'),start=source.indexOf('  async function loadCases(){'),end=source.indexOf('  function normalizeCaseRow',start);
 (async()=>{
  const queue=[],state={cases:[],errors:[],quick:{id:'new'}},caseLoadController={current:null};
- const context={AbortController,caseLoadController,supabase:{auth:{getSession:async()=>({data:{session:{access_token:'test'}}})}},fetch:(url,options)=>new Promise(resolve=>queue.push({url,options,resolve})),setCases:v=>state.cases=typeof v==='function'?v(state.cases):v,setCasesLoadError:e=>{if(e)state.errors.push(e)},setMessage:()=>{},setLoading:()=>{},setQuickCase:fn=>state.quick=fn(state.quick),normalizeCaseRow:c=>c,setTimeout};
+ const context={AbortController,caseLoadController,supabase:{auth:{getSession:async()=>({data:{session:{access_token:'test'}}})}},fetch:(url,options)=>new Promise(resolve=>queue.push({url,options,resolve})),setCases:v=>state.cases=typeof v==='function'?v(state.cases):v,setCasesComplete:value=>state.complete=value,setCasesLoadError:e=>{if(e)state.errors.push(e)},setMessage:()=>{},setLoading:()=>{},setQuickCase:fn=>state.quick=fn(state.quick),normalizeCaseRow:c=>c,setTimeout};
  vm.createContext(context);vm.runInContext(source.slice(start,end)+'\nthis.load=loadCases',context);
  const tick=()=>new Promise(resolve=>setImmediate(resolve));
  const old=context.load();await tick();const fresh=context.load();await tick();assert(queue[0].options.signal.aborted);
  queue[1].resolve({ok:true,json:async()=>({cases:[{id:'new',version:2}]})});await fresh;
  queue[0].resolve({ok:true,json:async()=>({cases:[{id:'old'}]})});await old;
+ assert.equal(state.complete,true);
  assert.equal(state.cases[0].id,'new');assert.equal(state.quick.version,2);assert.equal(state.errors.length,0);assert.equal(caseLoadController.current,null);
  const bad=context.load();await tick();queue.at(-1).resolve({ok:true,json:async()=>({cases:null})});await bad;assert.equal(state.cases[0].id,'new');assert.equal(state.errors.length,1);
  const cancelled=context.load();await tick();caseLoadController.current.abort();queue.at(-1).resolve({ok:false,json:async()=>({error:'offline'})});await cancelled;assert.equal(state.errors.length,1);
+ state.complete=false;state.cases=[];
+ const paged=context.load();await tick();queue.at(-1).resolve({ok:true,json:async()=>({cases:Array.from({length:300},(_,i)=>({id:'page-'+i}))})});
+ await new Promise(resolve=>setTimeout(resolve,10));assert.equal(state.complete,false);assert.equal(state.cases.length,300);
+ queue.at(-1).resolve({ok:true,json:async()=>({cases:[{id:'last'}]})});await paged;assert.equal(state.complete,true);assert.equal(state.cases.length,301);
  console.log('PASS: refresh aborts older requests, rejects stale results, preserves current quick view and saved data on malformed responses, and suppresses cancellation errors.');
 })().catch(e=>{console.error(e);process.exitCode=1});

@@ -86,3 +86,9 @@ Starting a newer case refresh aborts the older browser request; late results and
 
 ## Saved server cancellation checks (not deployed)
 The case API checks its request signal before authentication, after access checks/base reads, between document pages and between bounded waves. Cancelled requests do not schedule further document pages/waves or return partial results. The current wave settles before the handler returns a cancellation response. Targeted tests cover an already-aborted request and cancellation with two groups in flight. This does not guarantee interruption of already-running database work or deployment-platform propagation of browser disconnects. Authentication, tenant RLS and complete normal pagination remain unchanged.
+
+## Verified release on 6 November 2026
+Deployment `dpl_BSNCCsmucQXfhYWvsQceHYp8zhMm` is READY for commit `2da7dad7949be6cd04dc6d7104a1c1e736f5df69`, with both client/master aliases and no alias error. Vercel dashboard and connector both confirmed it. No duplicate build was started during browser fallback. Signed-in client loaded 731 cases and remained usable after repeated refresh clicks. This is a live smoke check, not proof of server cancellation propagation or all race outcomes.
+
+## Next saved dashboard fix (not deployed)
+First-page case loading previously showed 300-case dashboard totals before all 731 cases finished arriving. Dashboard case totals are now withheld until the initial full case load completes, with an explicit loading explanation and a Browse loaded cases action. Navigation stays available. Later refreshes may keep the last complete snapshot visible. A controlled two-page loader test confirms the completion flag stays false after 300 rows and turns true only after the final page. Full-history loading still needs the broader pagination/aggregate redesign.
